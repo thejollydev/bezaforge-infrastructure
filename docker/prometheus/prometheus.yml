@@ -1,0 +1,47 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files: []
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # forge-ops host metrics
+  - job_name: 'node-forge-ops'
+    static_configs:
+      - targets: ['<forge-ops-ip>:9100']
+        labels:
+          host: 'forge-ops'
+          vlan: 'production'
+
+  # forge-ai host metrics
+  - job_name: 'node-forge-ai'
+    static_configs:
+      - targets: ['<forge-ai-ip>:9100']
+        labels:
+          host: 'forge-ai'
+          vlan: 'ai'
+
+  # forge-dev host metrics
+  - job_name: 'node-forge-dev'
+    static_configs:
+      - targets: ['<forge-dev-ip>:9100']
+        labels:
+          host: 'forge-dev'
+          vlan: 'development'
+
+  # Docker container metrics (forge-ops)
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          host: 'forge-ops'

@@ -1,0 +1,24 @@
+# Secrets and credentials
+.env
+*.env
+acme.json
+*_token*
+*_secret*
+*password*
+*.key
+*.pem
+*.crt
+
+# Sensitive config overrides
+docker-compose.override.yml
+secrets/
+
+# Editors
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
