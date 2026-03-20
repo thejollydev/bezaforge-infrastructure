@@ -18,7 +18,8 @@ Production-grade private cloud built on Proxmox VE, Docker, and a 5-VLAN network
 | **forge-ops** | Docker service host | i9-12900H, 32GB DDR5 | Debian 13.3 |
 | **forge-ai** | GPU LLM inference | RX 7900 XT passthrough, ROCm 7.2.0 | Ubuntu 24.04 |
 | **forge-dev** | Development environment | 4 vCPU, 8GB RAM | Arch Linux + KDE Plasma 6 |
-| **forge-erp** | ERP (pending) | 4 vCPU, 8GB RAM | Ubuntu 24.04 |
+| **forge-erp** | ERP (ERPNext v16) | 2 vCPU, 4GB RAM | Ubuntu 24.04 |
+| **forge-cortex** | AI assistant host | 4 vCPU, 12GB RAM | Ubuntu 24.04 |
 
 ---
 
@@ -116,6 +117,13 @@ Models served locally — no external API calls for LLM inference.
 
 ```
 bezaforge-infrastructure/
+├── terraform/
+│   ├── main.tf              # Provider configuration (bpg/proxmox)
+│   ├── variables.tf         # Root variables
+│   ├── outputs.tf           # VM IP outputs
+│   ├── vms.tf               # VM definitions (forge-ai, forge-dev, forge-erp, forge-cortex)
+│   └── modules/
+│       └── proxmox-vm/      # Reusable VM module
 ├── docs/
 │   ├── architecture.md      # Detailed architecture notes
 │   ├── services.md          # Per-service configuration notes
@@ -138,7 +146,7 @@ bezaforge-infrastructure/
 
 ## Technologies
 
-`Proxmox VE` `Docker` `Docker Compose` `Traefik v3` `Prometheus` `Grafana` `Loki` `Promtail` `Uptime Kuma` `AdGuard Home` `Gitea` `Harbor` `Taiga` `Wiki.js` `NetBox` `Ollama` `ROCm` `ZFS` `Linux (Arch / Debian / Ubuntu)` `Cloudflare` `Let's Encrypt` `TP-Link Omada SDN` `Bash` `Python` `YAML`
+`Proxmox VE` `Terraform` `Docker` `Docker Compose` `Traefik v3` `Prometheus` `Grafana` `Loki` `Promtail` `Uptime Kuma` `AdGuard Home` `Gitea` `Harbor` `Taiga` `Wiki.js` `NetBox` `Ollama` `ROCm` `ZFS` `Linux (Arch / Debian / Ubuntu)` `Cloudflare` `Let's Encrypt` `TP-Link Omada SDN` `Bash` `Python` `YAML`
 
 ---
 
