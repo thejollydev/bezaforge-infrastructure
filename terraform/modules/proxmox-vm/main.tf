@@ -91,6 +91,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
       }
       user_account {
         username = "joseph"
+        password = var.cloud_init_password
         keys     = [var.ssh_public_key]
       }
     }

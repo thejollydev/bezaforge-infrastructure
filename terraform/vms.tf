@@ -66,13 +66,15 @@ module "forge_dev" {
   ip_address            = "10.10.30.10/24"
   gateway               = "10.10.30.1"
   ssh_public_key        = var.ssh_public_key
+  cloud_init_password   = var.cloud_init_password
   tags                  = ["dev", "arch"]
-  create_from_template  = false
+  create_from_template  = true
+  template_id           = 9001
   scsi_hardware         = "virtio-scsi-single"
   disk_iothread         = true
   disk_cache            = "writeback"
   has_efi_disk          = true
-  disk_format           = "qcow2"
+  disk_format           = "raw"
 }
 
 # ---------------------------------------------------------------------------
@@ -132,6 +134,7 @@ module "forge_cortex" {
   vlan_id        = 50
   ip_address     = "10.10.50.20/24"
   gateway        = "10.10.50.1"
-  ssh_public_key = var.ssh_public_key
-  tags           = ["ai", "forge-cortex"]
+  ssh_public_key      = var.ssh_public_key
+  cloud_init_password = var.cloud_init_password
+  tags                = ["ai", "forge-cortex"]
 }

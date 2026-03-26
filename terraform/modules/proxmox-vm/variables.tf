@@ -150,3 +150,10 @@ variable "disk_format" {
   type        = string
   default     = "raw"
 }
+
+variable "cloud_init_password" {
+  description = "Password for the cloud-init user account"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
