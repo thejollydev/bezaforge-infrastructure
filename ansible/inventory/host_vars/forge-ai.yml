@@ -1,0 +1,12 @@
+---
+# Connection
+ansible_host: 10.10.50.10
+ansible_user: joseph
+
+# Machine identity
+hostname: forge-ai
+timezone: America/Detroit
+locale: en_US.UTF-8
+
+# Feature flags
+nfs_client: false

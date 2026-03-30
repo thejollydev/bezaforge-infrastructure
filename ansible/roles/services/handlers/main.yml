@@ -1,0 +1,4 @@
+---
+# No handlers needed — docker_compose_v2 automatically detects
+# compose file changes and recreates affected containers.
+[]

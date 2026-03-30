@@ -1,0 +1,48 @@
+---
+# Connection
+ansible_host: 10.10.20.20
+ansible_user: joseph
+
+# Machine identity
+hostname: forge-ops
+timezone: America/Detroit
+locale: en_US.UTF-8
+
+# Network
+management_ip: 10.10.10.20
+production_ip: 10.10.20.20
+domain: bezaforge.dev
+
+# NFS mounts
+nfs_mounts:
+  - src: "10.10.10.10:/bezapool/media"
+    path: "/mnt/bezapool/media"
+  - src: "10.10.10.10:/bezapool/downloads"
+    path: "/mnt/bezapool/downloads"
+
+# Media directories to create under /mnt/bezapool/media
+media_dirs:
+  - movies
+  - tv
+  - music
+  - photos
+  - books
+
+# Service directory
+bezaforge_root: /opt/bezaforge
+
+# Docker services deployed by the 'services' role
+# (traefik, adguard, monitoring have their own roles)
+# NOTE: harbor uses its own offline installer (not a simple compose stack)
+# NOTE: wikijs was never deployed in Phase 1
+compose_services:
+  - gitea
+  - taiga
+  - wiki
+  - uptime-kuma
+  - netbox
+  - langfuse
+  - homepage
+
+# Feature flags
+nfs_client: true

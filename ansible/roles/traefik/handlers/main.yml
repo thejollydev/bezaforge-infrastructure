@@ -1,0 +1,11 @@
+---
+# Restart Traefik by running 'docker compose up -d' which
+# recreates the container if the compose file or image changed.
+# This is a rolling restart — the new container starts before
+# the old one stops, minimizing downtime.
+
+- name: restart traefik
+  community.docker.docker_compose_v2:
+    project_src: "{{ bezaforge_root }}/traefik"
+    state: present
+    recreate: always

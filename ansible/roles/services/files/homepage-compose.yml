@@ -1,0 +1,23 @@
+networks:
+  bezaforge-net:
+    external: true
+
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    restart: unless-stopped
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: home.bezaforge.dev
+    volumes:
+      - /opt/bezaforge/homepage/config:/app/config
+      - /opt/bezaforge/homepage/images:/app/public/images
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - bezaforge-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.homepage.rule=Host(`home.bezaforge.dev`)"
+      - "traefik.http.routers.homepage.entrypoints=websecure"
+      - "traefik.http.routers.homepage.tls.certresolver=letsencrypt"
+      - "traefik.http.services.homepage.loadbalancer.server.port=3000"

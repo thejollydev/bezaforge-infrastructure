@@ -1,0 +1,32 @@
+---
+# ============================================================
+# BezaForge Infrastructure — forge-ops + forge-ai
+# ============================================================
+
+- name: Configure BezaForge Docker hosts
+  hosts: docker_hosts
+  become: true
+
+  roles:
+    - role: common
+      tags: common
+    - role: docker
+      tags: docker
+    - role: traefik
+      tags: traefik
+    - role: adguard
+      tags: adguard
+    - role: monitoring
+      tags: monitoring
+    - role: services
+      tags: services
+
+- name: Configure BezaForge GPU hosts
+  hosts: gpu_hosts
+  become: true
+
+  roles:
+    - role: common
+      tags: common
+    - role: ollama
+      tags: ollama

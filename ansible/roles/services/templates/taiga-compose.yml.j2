@@ -1,0 +1,138 @@
+networks:
+  bezaforge-net:
+    external: true
+
+services:
+  taiga-db:
+    image: postgres:15-alpine
+    container_name: taiga-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: taiga
+      POSTGRES_USER: taiga
+      POSTGRES_PASSWORD: {{ taiga_db_password }}
+    volumes:
+      - /opt/bezaforge/taiga/postgres:/var/lib/postgresql/data
+    networks:
+      - bezaforge-net
+
+  taiga-redis:
+    image: redis:7-alpine
+    container_name: taiga-redis
+    restart: unless-stopped
+    networks:
+      - bezaforge-net
+
+  taiga-async-rabbitmq:
+    image: rabbitmq:3.12-alpine
+    container_name: taiga-async-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: taiga
+      RABBITMQ_DEFAULT_PASS: {{ taiga_rabbitmq_password }}
+      RABBITMQ_DEFAULT_VHOST: taiga
+    volumes:
+      - /opt/bezaforge/taiga/rabbit:/var/lib/rabbitmq
+    networks:
+      - bezaforge-net
+
+  taiga-back:
+    image: taigaio/taiga-back:latest
+    container_name: taiga-back
+    restart: unless-stopped
+    depends_on:
+      - taiga-db
+      - taiga-redis
+      - taiga-async-rabbitmq
+    environment:
+      POSTGRES_DB: taiga
+      POSTGRES_USER: taiga
+      POSTGRES_PASSWORD: {{ taiga_db_password }}
+      POSTGRES_HOST: taiga-db
+      TAIGA_SECRET_KEY: {{ taiga_secret_key }}
+      TAIGA_SITES_DOMAIN: taiga.{{ domain }}
+      TAIGA_SITES_SCHEME: https
+      ENABLE_TELEMETRY: "False"
+      RABBITMQ_USER: taiga
+      RABBITMQ_PASS: {{ taiga_rabbitmq_password }}
+      RABBITMQ_VHOST: taiga
+      RABBITMQ_HOST: taiga-async-rabbitmq
+      EVENTS_PUSH_BACKEND_URL: amqp://taiga:{{ taiga_rabbitmq_password }}@taiga-async-rabbitmq:5672/taiga
+    volumes:
+      - /opt/bezaforge/taiga/media:/taiga-back/media
+      - /opt/bezaforge/taiga/static:/taiga-back/static-root
+    networks:
+      - bezaforge-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.taiga-api.rule=Host(`taiga.{{ domain }}`) && (PathPrefix(`/api`) || PathPrefix(`/admin`) || PathPrefix(`/static`) || PathPrefix(`/media`))"
+      - "traefik.http.routers.taiga-api.entrypoints=websecure"
+      - "traefik.http.routers.taiga-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.taiga-api.priority=20"
+      - "traefik.http.services.taiga-api.loadbalancer.server.port=8000"
+
+  taiga-async:
+    image: taigaio/taiga-back:latest
+    container_name: taiga-async
+    restart: unless-stopped
+    entrypoint: ["/taiga-back/docker/async_entrypoint.sh"]
+    depends_on:
+      - taiga-db
+      - taiga-redis
+      - taiga-async-rabbitmq
+    environment:
+      POSTGRES_DB: taiga
+      POSTGRES_USER: taiga
+      POSTGRES_PASSWORD: {{ taiga_db_password }}
+      POSTGRES_HOST: taiga-db
+      TAIGA_SECRET_KEY: {{ taiga_secret_key }}
+      TAIGA_SITES_DOMAIN: taiga.{{ domain }}
+      TAIGA_SITES_SCHEME: https
+      ENABLE_TELEMETRY: "False"
+      RABBITMQ_USER: taiga
+      RABBITMQ_PASS: {{ taiga_rabbitmq_password }}
+      RABBITMQ_VHOST: taiga
+      RABBITMQ_HOST: taiga-async-rabbitmq
+    volumes:
+      - /opt/bezaforge/taiga/media:/taiga-back/media
+      - /opt/bezaforge/taiga/static:/taiga-back/static-root
+    networks:
+      - bezaforge-net
+
+  taiga-events:
+    image: taigaio/taiga-events:latest
+    container_name: taiga-events
+    restart: unless-stopped
+    depends_on:
+      - taiga-async-rabbitmq
+    environment:
+      RABBITMQ_URL: amqp://taiga:{{ taiga_rabbitmq_password }}@taiga-async-rabbitmq:5672/taiga
+      TAIGA_SECRET_KEY: {{ taiga_secret_key }}
+    networks:
+      - bezaforge-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.taiga-events.rule=Host(`taiga.{{ domain }}`) && PathPrefix(`/events`)"
+      - "traefik.http.routers.taiga-events.entrypoints=websecure"
+      - "traefik.http.routers.taiga-events.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.taiga-events.priority=20"
+      - "traefik.http.services.taiga-events.loadbalancer.server.port=8888"
+
+  taiga-front:
+    image: taigaio/taiga-front:latest
+    container_name: taiga-front
+    restart: unless-stopped
+    depends_on:
+      - taiga-back
+    environment:
+      TAIGA_URL: https://taiga.{{ domain }}
+      TAIGA_WEBSOCKETS_URL: wss://taiga.{{ domain }}
+    networks:
+      - bezaforge-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.taiga.rule=Host(`taiga.{{ domain }}`)"
+      - "traefik.http.routers.taiga.entrypoints=websecure"
+      - "traefik.http.routers.taiga.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.taiga.priority=10"
+      - "traefik.http.services.taiga.loadbalancer.server.port=80"

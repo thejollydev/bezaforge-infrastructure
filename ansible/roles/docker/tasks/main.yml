@@ -1,0 +1,212 @@
+---
+# ============================================================
+# docker role — Docker CE + Compose + BezaForge structure
+#
+# Installs Docker from the official Docker repository (not
+# Debian's docker.io package), creates the /opt/bezaforge/
+# service directory tree, sets special UID ownership on data
+# dirs, and creates the shared Docker bridge network.
+#
+# This mirrors the Phase 1 manual install documented in:
+# 03-forge-ops.md → Step 4.3 and Step 4.4
+# ============================================================
+
+# ------------------------------------------------------------
+# Docker CE installation (official repo)
+# ------------------------------------------------------------
+# We use Docker's own apt repository, not Debian's docker.io
+# package. The official repo gets updates faster and includes
+# docker-compose-plugin (the v2 Go binary that runs as
+# 'docker compose' instead of the old Python 'docker-compose').
+#
+# The install follows Docker's documented steps:
+# 1. Add their GPG key (verifies package authenticity)
+# 2. Add their apt repository
+# 3. Install the packages
+
+- name: Create keyrings directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+# Downloads Docker's GPG key and converts it to binary format
+# (.gpg) using gpg --dearmor. This matches the Phase 1 manual
+# install which used the same approach. The signed-by directive
+# in the repo definition references this file so apt only
+# trusts packages signed by Docker's key.
+#
+# We use a shell command with 'creates' for idempotency —
+# if docker.gpg already exists, the task is skipped entirely.
+# get_url alone won't work here because Docker serves the key
+# in ASCII-armored format but we need the binary .gpg format
+# that the existing repo entry expects.
+- name: Add Docker GPG key
+  ansible.builtin.shell:
+    cmd: curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    creates: /etc/apt/keyrings/docker.gpg
+
+- name: Set Docker GPG key permissions
+  ansible.builtin.file:
+    path: /etc/apt/keyrings/docker.gpg
+    mode: '0644'
+
+# apt_repository adds a line to /etc/apt/sources.list.d/.
+# ansible_distribution_release is a fact gathered automatically
+# — on Debian 13 it resolves to 'trixie'. This means the role
+# works on any Debian version without hardcoding the codename.
+#
+# signed-by points at the GPG key we just downloaded — apt
+# will only install packages from this repo if they're signed
+# by that key. This is a security measure that prevents
+# tampering with packages in transit.
+- name: Add Docker repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg]
+      https://download.docker.com/linux/debian
+      {{ ansible_distribution_release }} stable
+    state: present
+    filename: docker
+
+# The five packages that make up a modern Docker installation:
+# - docker-ce: the Docker daemon (dockerd)
+# - docker-ce-cli: the 'docker' command-line client
+# - containerd.io: the container runtime that Docker delegates to
+# - docker-buildx-plugin: extended build capabilities (multi-platform builds)
+# - docker-compose-plugin: 'docker compose' v2 (Go binary, replaces old Python version)
+- name: Install Docker packages
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+
+# append: true is critical here — it ADDS docker to joseph's
+# groups without removing any existing group memberships.
+# Without append, joseph would be removed from sudo and any
+# other groups. This is a common Ansible footgun.
+- name: Add joseph to docker group
+  ansible.builtin.user:
+    name: joseph
+    groups: docker
+    append: true
+
+- name: Enable and start Docker
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+    state: started
+
+# ------------------------------------------------------------
+# BezaForge directory structure
+# ------------------------------------------------------------
+# All Docker services live under /opt/bezaforge/{service}/.
+# Each service gets its own directory with a docker-compose.yml
+# and any config files it needs. This was established in Phase 1
+# (Step 4.4) and is the standard deployment pattern.
+#
+# owner/group joseph — so you can edit compose files and configs
+# without sudo. Docker reads them as root when starting
+# containers, but day-to-day management shouldn't require
+# elevated privileges.
+
+- name: Create BezaForge service directories
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/{{ item }}"
+    state: directory
+    owner: joseph
+    group: joseph
+    mode: '0755'
+  loop:
+    - traefik
+    - traefik/config
+    - traefik/certs
+    - adguard
+    - prometheus
+    - grafana
+    - loki
+    - gitea
+    - wiki
+    - taiga
+    - uptime-kuma
+    - netbox
+    - langfuse
+    - homepage
+
+# ------------------------------------------------------------
+# Special directory ownership (container UIDs)
+# ------------------------------------------------------------
+# Some containers run as non-root users internally. If the
+# host directory they mount isn't owned by their UID, they
+# can't write and crash on startup. These UIDs are set by
+# the upstream container images — we can't change them.
+#
+# Prometheus: UID 65534 (nobody) — the prom/prometheus image
+#   runs as nobody for security.
+# Grafana: UID 472 — Grafana's custom non-root user. This is
+#   a Grafana-specific convention, not a standard UID.
+# Loki: UID 10001 — Grafana Loki's custom user, different
+#   from Grafana itself.
+#
+# recurse: true ensures all files AND subdirectories within
+# the data dir get the correct ownership, not just the
+# top-level directory.
+
+# These tasks both create the directory AND set ownership in
+# one step. They're separated from the general directory task
+# above to avoid an idempotency conflict — if the general task
+# set these to joseph:joseph, then these tasks would change
+# them back on every run, showing 'changed' forever.
+#
+# state: directory + owner/group means: create if missing,
+# and ensure ownership matches regardless.
+
+- name: Create and set Prometheus data ownership (UID 65534)
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/prometheus/data"
+    state: directory
+    owner: '65534'
+    group: '65534'
+    mode: '0755'
+
+- name: Create and set Grafana data ownership (UID 472)
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/grafana/data"
+    state: directory
+    owner: '472'
+    group: '472'
+    mode: '0755'
+
+- name: Create and set Loki data ownership (UID 10001)
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/loki/data"
+    state: directory
+    owner: '10001'
+    group: '10001'
+    mode: '0755'
+
+# ------------------------------------------------------------
+# Docker network
+# ------------------------------------------------------------
+# bezaforge-net is a user-defined bridge network that all
+# services connect to. Unlike Docker's default bridge:
+#
+# 1. Containers can reach each other by name (DNS resolution).
+#    On the default bridge, you'd need IP addresses.
+# 2. Traefik discovers services by reading their labels —
+#    this only works if they share a network.
+# 3. It provides isolation — containers on bezaforge-net can
+#    talk to each other but not to containers on other networks.
+#
+# community.docker.docker_network is idempotent — if the
+# network already exists with the same name, this is a no-op.
+
+- name: Create bezaforge-net Docker network
+  community.docker.docker_network:
+    name: bezaforge-net
+    state: present

@@ -1,0 +1,29 @@
+networks:
+  bezaforge-net:
+    external: true
+
+services:
+  traefik:
+    image: traefik:v3
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "{{ production_ip }}:80:80"
+      - "{{ production_ip }}:443:443"
+    environment:
+      - CF_DNS_API_TOKEN={{ cloudflare_dns_api_token }}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - {{ bezaforge_root }}/traefik/config/traefik.yml:/etc/traefik/traefik.yml:ro
+      - {{ bezaforge_root }}/traefik/config/dynamic/:/etc/traefik/dynamic/:ro
+      - {{ bezaforge_root }}/traefik/certs:/certs
+    networks:
+      - bezaforge-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.{{ domain }}`)"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.traefik-dashboard.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+      - "traefik.http.routers.traefik-dashboard.middlewares=traefik-auth"
+      - "traefik.http.middlewares.traefik-auth.basicauth.users={{ traefik_basicauth_hash }}"

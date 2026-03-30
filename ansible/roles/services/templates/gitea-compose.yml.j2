@@ -1,0 +1,47 @@
+networks:
+  bezaforge-net:
+    external: true
+
+services:
+  gitea-db:
+    image: postgres:15-alpine
+    container_name: gitea-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gitea
+      POSTGRES_USER: gitea
+      POSTGRES_PASSWORD: {{ gitea_db_password }}
+    volumes:
+      - /opt/bezaforge/gitea/postgres:/var/lib/postgresql/data
+    networks:
+      - bezaforge-net
+
+  gitea:
+    image: gitea/gitea:latest
+    container_name: gitea
+    restart: unless-stopped
+    depends_on:
+      - gitea-db
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__database__DB_TYPE=postgres
+      - GITEA__database__HOST=gitea-db:5432
+      - GITEA__database__NAME=gitea
+      - GITEA__database__USER=gitea
+      - GITEA__database__PASSWD={{ gitea_db_password }}
+      - GITEA__server__DOMAIN=git.{{ domain }}
+      - GITEA__server__ROOT_URL=https://git.{{ domain }}
+      - GITEA__server__SSH_DOMAIN=git.{{ domain }}
+    volumes:
+      - /opt/bezaforge/gitea/data:/data
+    ports:
+      - "{{ production_ip }}:2222:22"
+    networks:
+      - bezaforge-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gitea.rule=Host(`git.{{ domain }}`)"
+      - "traefik.http.routers.gitea.entrypoints=websecure"
+      - "traefik.http.routers.gitea.tls.certresolver=letsencrypt"
+      - "traefik.http.services.gitea.loadbalancer.server.port=3000"

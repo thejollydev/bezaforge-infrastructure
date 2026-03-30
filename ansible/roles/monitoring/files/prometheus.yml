@@ -1,0 +1,53 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'node-exporter-forge-ops'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          instance: 'forge-ops'
+          role: 'docker-host'
+
+  - job_name: 'cadvisor-forge-ops'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          instance: 'forge-ops'
+
+  - job_name: 'netbox'
+    static_configs:
+      - targets: ['netbox:8080']
+        labels:
+          instance: 'netbox'
+    metrics_path: /metrics
+
+  - job_name: 'node-exporter-forge-ai'
+    static_configs:
+      - targets: ['10.10.50.10:9100']
+        labels:
+          instance: 'forge-ai'
+
+  - job_name: 'node-exporter-forge-hypervisor'
+    static_configs:
+      - targets: ['10.10.10.10:9100']
+        labels:
+          instance: 'forge-hypervisor'
+          role: 'hypervisor'
+
+  - job_name: 'node-exporter-forge-dev'
+    static_configs:
+      - targets: ['10.10.30.10:9100']
+        labels:
+          instance: 'forge-dev'
+
+  - job_name: 'node-exporter-forge-erp'
+    static_configs:
+      - targets: ['10.10.20.50:9100']
+        labels:
+          instance: 'forge-erp'

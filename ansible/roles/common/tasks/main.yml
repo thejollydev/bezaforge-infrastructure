@@ -1,0 +1,287 @@
+---
+# ============================================================
+# common role — base Debian/Ubuntu system setup
+#
+# Covers: packages, locale, timezone, SSH hardening, UFW
+# firewall, systemd-resolved DNS, sysctl tuning, NFS client.
+#
+# Safe to run against existing production systems — all tasks
+# are idempotent and handlers only fire on actual changes.
+# ============================================================
+
+# ------------------------------------------------------------
+# System packages
+# ------------------------------------------------------------
+# These are the baseline tools every BezaForge host needs.
+# update_cache: true is equivalent to running 'apt update'
+# before installing — ensures the package index is fresh.
+# state: present means "install if missing, don't touch if
+# already installed" — it won't upgrade existing packages.
+
+- name: Install base system packages
+  ansible.builtin.apt:
+    name:
+      - curl
+      - wget
+      - rsync
+      - htop
+      - btop
+      - tree
+      - nano
+      - vim
+      - git
+      - unzip
+      - zip
+      - ufw
+      - ca-certificates
+      - gnupg
+      - apt-transport-https
+      - sudo
+      - systemd-resolved
+    state: present
+    update_cache: true
+
+# ------------------------------------------------------------
+# Locale and timezone
+# ------------------------------------------------------------
+# community.general.timezone uses timedatectl under the hood,
+# which is the systemd-native way to set timezone. It also
+# creates the /etc/localtime symlink.
+#
+# community.general.locale_gen edits /etc/locale.gen and runs
+# locale-gen — the Debian way to enable locales. Unlike Arch
+# (where we used lineinfile), Debian has a dedicated tool.
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ timezone }}"
+
+- name: Generate locale
+  community.general.locale_gen:
+    name: "{{ locale }}"
+    state: present
+
+# ------------------------------------------------------------
+# SSH hardening
+# ------------------------------------------------------------
+# lineinfile with a regexp finds the line matching the pattern
+# and replaces it entirely. The ^#? pattern matches both
+# commented (#PasswordAuthentication) and uncommented lines.
+#
+# notify: restart sshd — doesn't restart immediately. Instead,
+# it queues the handler to run ONCE at the end of the role,
+# and only if the line actually changed. If SSH is already
+# hardened, nothing happens. This is important on a production
+# system — unnecessary sshd restarts briefly drop connections.
+
+- name: Disable SSH password authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PasswordAuthentication'
+    line: 'PasswordAuthentication no'
+  notify: restart sshd
+
+- name: Disable SSH root login
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitRootLogin'
+    line: 'PermitRootLogin no'
+  notify: restart sshd
+
+- name: Enable SSH public key authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PubkeyAuthentication'
+    line: 'PubkeyAuthentication yes'
+  notify: restart sshd
+
+# ------------------------------------------------------------
+# UFW firewall
+# ------------------------------------------------------------
+# community.general.ufw is the Ansible module for UFW (the
+# Uncomplicated Firewall — a friendly wrapper around iptables).
+#
+# Rule order: set defaults first (deny incoming, allow outgoing),
+# then open specific ports. This is a whitelist approach —
+# everything is blocked unless explicitly allowed.
+#
+# The management VLAN (10.10.10.0/24) gets full access since
+# that's the trusted admin network. HTTP/HTTPS are open for
+# Traefik. DNS ports are open for AdGuard Home.
+
+- name: Set UFW default deny incoming
+  community.general.ufw:
+    direction: incoming
+    default: deny
+
+- name: Set UFW default allow outgoing
+  community.general.ufw:
+    direction: outgoing
+    default: allow
+
+- name: Allow SSH from management VLAN
+  community.general.ufw:
+    rule: allow
+    src: 10.10.10.0/24
+    port: '22'
+    proto: tcp
+
+- name: Allow full access from management VLAN
+  community.general.ufw:
+    rule: allow
+    src: 10.10.10.0/24
+
+- name: Allow HTTP for Traefik
+  community.general.ufw:
+    rule: allow
+    port: '80'
+    proto: tcp
+
+- name: Allow HTTPS for Traefik
+  community.general.ufw:
+    rule: allow
+    port: '443'
+    proto: tcp
+
+- name: Allow DNS TCP for AdGuard
+  community.general.ufw:
+    rule: allow
+    port: '53'
+    proto: tcp
+
+- name: Allow DNS UDP for AdGuard
+  community.general.ufw:
+    rule: allow
+    port: '53'
+    proto: udp
+
+- name: Allow NFS from forge-hypervisor
+  community.general.ufw:
+    rule: allow
+    src: 10.10.10.10
+    port: '2049'
+    proto: tcp
+  when: nfs_client | bool
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled
+
+# ------------------------------------------------------------
+# sysctl tuning
+# ------------------------------------------------------------
+# ansible.posix.sysctl writes to /etc/sysctl.d/ and runs
+# sysctl -p to apply immediately. These are the same tuning
+# parameters from the Phase 1 manual setup.
+#
+# somaxconn / tcp_max_syn_backlog — increase the TCP listen
+# queue depth. Defaults (128/1024) are too low for a host
+# running 15+ services behind a reverse proxy.
+#
+# file-max — raise the system-wide file descriptor limit.
+# Docker containers each consume file descriptors; the default
+# (usually ~65535) can be exhausted with many containers.
+#
+# ip_unprivileged_port_start — allow non-root processes to
+# bind to port 53+. AdGuard Home runs as a container and
+# needs port 53 for DNS.
+
+- name: Apply sysctl performance tuning
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_set: true
+    reload: true
+  loop:
+    - { key: 'net.core.somaxconn', value: '65535' }
+    - { key: 'net.ipv4.tcp_max_syn_backlog', value: '65535' }
+    - { key: 'fs.file-max', value: '2097152' }
+    - { key: 'net.ipv4.ip_unprivileged_port_start', value: '53' }
+
+# ------------------------------------------------------------
+# systemd-resolved DNS
+# ------------------------------------------------------------
+# systemd-resolved manages /etc/resolv.conf via a symlink to
+# its stub resolver at 127.0.0.53. This gives us a single
+# place to configure DNS that survives reboots and network
+# restarts.
+#
+# DNS=10.10.20.20 — points at AdGuard Home running on this
+# same machine (forge-ops). This means forge-ops resolves
+# *.bezaforge.dev domains through its own AdGuard instance.
+#
+# FallbackDNS=1.1.1.1 — if AdGuard is down (e.g., during
+# a docker restart), fall back to Cloudflare so the host
+# doesn't lose all DNS resolution.
+#
+# The symlink force-replaces /etc/resolv.conf. On Debian,
+# this file might be a static file from the installer —
+# the symlink switches to the systemd-managed version.
+
+- name: Configure systemd-resolved
+  ansible.builtin.copy:
+    dest: /etc/systemd/resolved.conf
+    content: |
+      [Resolve]
+      DNS=10.10.20.20
+      FallbackDNS=1.1.1.1
+      Domains=bezaforge.dev
+    mode: '0644'
+  notify: restart systemd-resolved
+
+- name: Symlink resolv.conf to systemd-resolved
+  ansible.builtin.file:
+    src: /run/systemd/resolve/stub-resolv.conf
+    dest: /etc/resolv.conf
+    state: link
+    force: true
+
+# ------------------------------------------------------------
+# NFS client
+# ------------------------------------------------------------
+# All NFS tasks are conditional on the nfs_client host var.
+# forge-ops has nfs_client: true, forge-ai has false — so
+# these tasks are skipped entirely on forge-ai.
+#
+# ansible.posix.mount manages /etc/fstab entries AND mounts
+# the filesystem in one task. state: mounted means:
+#   1. Add the fstab entry if missing
+#   2. Mount it if not already mounted
+#   3. Do nothing if both are already correct
+# This is why we use the mount module instead of lineinfile
+# on fstab — it's purpose-built and handles edge cases.
+#
+# _netdev — wait for network before mounting (NFS needs it)
+# nofail  — don't block boot if NFS server is unreachable
+
+- name: Install NFS client
+  ansible.builtin.apt:
+    name: nfs-common
+    state: present
+  when: nfs_client | bool
+
+- name: Create NFS mount points
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: '0755'
+  loop: "{{ nfs_mounts }}"
+  when: nfs_client | bool
+
+- name: Mount NFS shares and add to fstab
+  ansible.posix.mount:
+    src: "{{ item.src }}"
+    path: "{{ item.path }}"
+    fstype: nfs
+    opts: defaults,_netdev,nofail
+    state: mounted
+  loop: "{{ nfs_mounts }}"
+  when: nfs_client | bool
+
+- name: Create media directory structure
+  ansible.builtin.file:
+    path: "/mnt/bezapool/media/{{ item }}"
+    state: directory
+    mode: '0755'
+  loop: "{{ media_dirs }}"
+  when: nfs_client | bool

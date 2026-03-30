@@ -1,0 +1,18 @@
+networks:
+  bezaforge-net:
+    external: true
+
+services:
+  adguard:
+    image: adguard/adguardhome:latest
+    container_name: adguard
+    restart: unless-stopped
+    ports:
+      - "10.10.20.20:53:53/tcp"
+      - "10.10.20.20:53:53/udp"
+      - "10.10.20.20:3053:3000/tcp"
+    volumes:
+      - /opt/bezaforge/adguard/work:/opt/adguardhome/work
+      - /opt/bezaforge/adguard/conf:/opt/adguardhome/conf
+    networks:
+      - bezaforge-net
