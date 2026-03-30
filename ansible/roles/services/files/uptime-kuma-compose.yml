@@ -1,0 +1,21 @@
+networks:
+  bezaforge-net:
+    external: true
+
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:latest
+    container_name: uptime-kuma
+    restart: unless-stopped
+    dns:
+      - 10.10.20.20
+    volumes:
+      - /opt/bezaforge/uptime-kuma/data:/app/data
+    networks:
+      - bezaforge-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.uptime-kuma.rule=Host(`uptime.bezaforge.dev`)"
+      - "traefik.http.routers.uptime-kuma.entrypoints=websecure"
+      - "traefik.http.routers.uptime-kuma.tls.certresolver=letsencrypt"
+      - "traefik.http.services.uptime-kuma.loadbalancer.server.port=3001"

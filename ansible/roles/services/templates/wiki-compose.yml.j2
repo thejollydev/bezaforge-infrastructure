@@ -1,0 +1,39 @@
+networks:
+  bezaforge-net:
+    external: true
+
+services:
+  wiki-db:
+    image: postgres:15-alpine
+    container_name: wiki-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wiki
+      POSTGRES_USER: wiki
+      POSTGRES_PASSWORD: {{ wiki_db_password }}
+    volumes:
+      - /opt/bezaforge/wiki/postgres:/var/lib/postgresql/data
+    networks:
+      - bezaforge-net
+
+  wiki:
+    image: ghcr.io/requarks/wiki:2
+    container_name: wiki
+    restart: unless-stopped
+    depends_on:
+      - wiki-db
+    environment:
+      DB_TYPE: postgres
+      DB_HOST: wiki-db
+      DB_PORT: 5432
+      DB_USER: wiki
+      DB_PASS: {{ wiki_db_password }}
+      DB_NAME: wiki
+    networks:
+      - bezaforge-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wiki.rule=Host(`wiki.{{ domain }}`)"
+      - "traefik.http.routers.wiki.entrypoints=websecure"
+      - "traefik.http.routers.wiki.tls.certresolver=letsencrypt"
+      - "traefik.http.services.wiki.loadbalancer.server.port=3000"

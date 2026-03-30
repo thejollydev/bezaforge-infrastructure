@@ -1,0 +1,77 @@
+---
+# ============================================================
+# adguard role — AdGuard Home DNS server
+#
+# AdGuard Home provides:
+# - Internal DNS for *.bezaforge.dev (via DNS rewrites)
+# - Network-wide ad blocking
+# - DNS-over-HTTPS upstream to Cloudflare/Google
+#
+# Dependencies: docker role (bezaforge-net must exist)
+#
+# NOTE: AdGuard's application config (DNS rewrites, upstream
+# servers, ad block lists, admin credentials) is stored in
+# conf/AdGuardHome.yaml inside the Docker volume. This role
+# does NOT manage that config — it was set up via the web UI
+# during Phase 1 and persists across container restarts.
+#
+# On a fresh rebuild, you would need to:
+# 1. Run this role to deploy the container
+# 2. Open http://10.10.20.20:3053 to complete the setup wizard
+# 3. Re-add DNS rewrites (*.bezaforge.dev → 10.10.20.20, etc.)
+# See 04-adguard-home.md for the full list.
+# ============================================================
+
+# ------------------------------------------------------------
+# Data directories
+# ------------------------------------------------------------
+# AdGuard stores its config in 'conf/' and working data
+# (query logs, stats, filtering databases) in 'work/'.
+# These are mounted as Docker volumes so data persists
+# across container restarts and image upgrades.
+#
+# Owned by root because the AdGuard container runs as root
+# internally — it needs to bind to port 53, which is a
+# privileged port (below 1024).
+
+- name: Create AdGuard data directories
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/adguard/{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - conf
+    - work
+
+# ------------------------------------------------------------
+# Docker Compose
+# ------------------------------------------------------------
+# The compose file is a plain copy (not a template) because
+# it contains no secrets or host-specific values — the
+# production IP is hardcoded since AdGuard must bind to
+# 10.10.20.20 specifically (not 0.0.0.0) to avoid conflicts
+# with systemd-resolved on 127.0.0.53.
+#
+# Port 3053 maps to AdGuard's internal port 3000 (web UI).
+# We use 3053 externally to avoid conflicts — port 3000 is
+# commonly used by other services (Grafana uses it too).
+
+- name: Deploy AdGuard docker-compose.yml
+  ansible.builtin.copy:
+    src: docker-compose.yml
+    dest: "{{ bezaforge_root }}/adguard/docker-compose.yml"
+    owner: joseph
+    group: joseph
+    mode: '0644'
+  notify: restart adguard
+
+# ------------------------------------------------------------
+# Start AdGuard
+# ------------------------------------------------------------
+
+- name: Start AdGuard
+  community.docker.docker_compose_v2:
+    project_src: "{{ bezaforge_root }}/adguard"
+    state: present

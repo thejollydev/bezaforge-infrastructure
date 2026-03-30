@@ -1,0 +1,71 @@
+---
+# Services role — deploys all application compose stacks
+#
+# Services fall into three categories based on how secrets are managed:
+#   1. Template services (gitea, taiga, wiki) — secrets baked into compose via Jinja2
+#   2. Env-var services (netbox, langfuse) — compose uses ${VAR}, secrets in .env file
+#   3. Simple services (homepage, uptime-kuma) — no secrets at all
+#
+# We don't need handlers here. The "start stack" task at the bottom runs
+# docker compose up -d for every service. If a compose file or .env changed,
+# Docker detects the diff and recreates affected containers automatically.
+
+# --- Template services (secrets in compose file) ---
+
+- name: Deploy templated compose files (secrets in compose)
+  ansible.builtin.template:
+    src: "{{ item }}-compose.yml.j2"
+    dest: "{{ bezaforge_root }}/{{ item }}/docker-compose.yml"
+    owner: joseph
+    group: joseph
+    mode: "0600"
+  loop: "{{ compose_services | intersect(['gitea', 'taiga', 'wiki']) }}"
+
+# --- Env-var services (secrets in .env file) ---
+
+- name: Deploy env-var service compose files
+  ansible.builtin.copy:
+    src: "{{ item }}-compose.yml"
+    dest: "{{ bezaforge_root }}/{{ item }}/docker-compose.yml"
+    owner: joseph
+    group: joseph
+    mode: "0644"
+  loop: "{{ compose_services | intersect(['netbox', 'langfuse']) }}"
+
+- name: Deploy env-var service .env files
+  ansible.builtin.template:
+    src: "{{ item }}-env.j2"
+    dest: "{{ bezaforge_root }}/{{ item }}/.env"
+    owner: joseph
+    group: joseph
+    mode: "0600"
+  loop: "{{ compose_services | intersect(['netbox', 'langfuse']) }}"
+
+# --- Simple services (no secrets) ---
+
+- name: Deploy simple service compose files
+  ansible.builtin.copy:
+    src: "{{ item }}-compose.yml"
+    dest: "{{ bezaforge_root }}/{{ item }}/docker-compose.yml"
+    owner: joseph
+    group: joseph
+    mode: "0644"
+  loop: "{{ compose_services | intersect(['homepage', 'uptime-kuma']) }}"
+
+# --- Start all services ---
+# docker_compose_v2 with state: present runs "docker compose up -d".
+# If compose files or .env changed, Docker recreates affected containers.
+# If nothing changed, this is a no-op — idempotent.
+
+- name: Start service stacks
+  community.docker.docker_compose_v2:
+    project_src: "{{ bezaforge_root }}/{{ item }}"
+    state: present
+  loop: "{{ compose_services }}"
+
+- name: Netbox idempotency note
+  ansible.builtin.debug:
+    msg: >-
+      NOTE: netbox always reports changed=1 because the netbox-housekeeping
+      container is a one-shot task (runs manage.py housekeeping then exits).
+      Docker Compose restarts it on every "up -d". This is expected and harmless.

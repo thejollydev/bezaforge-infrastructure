@@ -1,0 +1,23 @@
+networks:
+  bezaforge-net:
+    external: true
+
+services:
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      - GF_SERVER_DOMAIN=grafana.{{ domain }}
+      - GF_SERVER_ROOT_URL=https://grafana.{{ domain }}
+      - GF_SECURITY_ADMIN_PASSWORD={{ grafana_admin_password }}
+    volumes:
+      - {{ bezaforge_root }}/grafana/data:/var/lib/grafana
+    networks:
+      - bezaforge-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.{{ domain }}`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=letsencrypt"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"

@@ -1,0 +1,191 @@
+---
+# ============================================================
+# monitoring role — full observability stack
+#
+# Deploys three compose stacks:
+# 1. Prometheus + Node Exporter + cAdvisor (metrics collection)
+# 2. Grafana (dashboards and visualization)
+# 3. Loki + Promtail (log aggregation)
+#
+# Together these give you the "three pillars of observability":
+# - Metrics (Prometheus) — numeric time-series data like CPU,
+#   memory, request counts. Queried with PromQL.
+# - Logs (Loki) — text log streams from containers and system.
+#   Queried with LogQL in Grafana.
+# - Dashboards (Grafana) — visualizes both metrics and logs
+#   in a single UI.
+#
+# Dependencies: docker role, traefik role (for HTTPS routing)
+# Secrets: grafana_admin_password (in ansible-vault)
+# ============================================================
+
+# ============================================================
+# PROMETHEUS + NODE EXPORTER + cADVISOR
+# ============================================================
+
+# ------------------------------------------------------------
+# Prometheus config
+# ------------------------------------------------------------
+# prometheus.yml defines scrape targets — the endpoints
+# Prometheus polls every 15s for metrics. Each job_name is
+# a logical group:
+#
+# - prometheus (self-monitoring)
+# - node-exporter-* (host-level CPU/memory/disk/network from
+#   each BezaForge host running node_exporter)
+# - cadvisor (per-container resource usage on forge-ops)
+# - netbox (application metrics from NetBox)
+#
+# Targets on the same Docker network use container names
+# (e.g., 'node-exporter:9100'). Remote hosts use IPs
+# (e.g., '10.10.50.10:9100' for forge-ai).
+
+- name: Deploy Prometheus scrape config
+  ansible.builtin.copy:
+    src: prometheus.yml
+    dest: "{{ bezaforge_root }}/prometheus/prometheus.yml"
+    owner: joseph
+    group: joseph
+    mode: '0644'
+  notify: restart prometheus
+
+# ------------------------------------------------------------
+# Prometheus compose stack
+# ------------------------------------------------------------
+# Three containers in one compose file:
+#
+# prometheus — the time-series database. Scrapes targets,
+# stores metrics for 30 days (--storage.tsdb.retention.time).
+# Exposed via Traefik at prometheus.bezaforge.dev.
+#
+# node-exporter — collects host metrics (CPU, memory, disk,
+# network). Runs with pid: host to see all host processes,
+# not just container processes. Mounts /proc, /sys, and /
+# as read-only to gather system stats.
+#
+# cadvisor (Container Advisor) — Google's container metrics
+# collector. Runs privileged to access /dev/kmsg (kernel
+# messages) and Docker internals. Provides per-container
+# CPU, memory, network, and filesystem metrics.
+
+- name: Deploy Prometheus docker-compose.yml
+  ansible.builtin.copy:
+    src: prometheus-compose.yml
+    dest: "{{ bezaforge_root }}/prometheus/docker-compose.yml"
+    owner: joseph
+    group: joseph
+    mode: '0644'
+  notify: restart prometheus
+
+- name: Start Prometheus stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ bezaforge_root }}/prometheus"
+    state: present
+
+# ============================================================
+# GRAFANA
+# ============================================================
+
+# ------------------------------------------------------------
+# Grafana compose
+# ------------------------------------------------------------
+# Grafana is the visualization layer — it queries Prometheus
+# (for metrics) and Loki (for logs) and renders dashboards.
+#
+# The compose file is a template because it contains the admin
+# password from ansible-vault. GF_SECURITY_ADMIN_PASSWORD sets
+# the initial admin password — after first login, Grafana stores
+# it in its SQLite database, so changing this env var alone
+# won't change an existing password. You'd need to use the
+# Grafana UI or CLI to reset it.
+#
+# mode 0600 because the rendered file contains the password.
+
+- name: Deploy Grafana docker-compose.yml
+  ansible.builtin.template:
+    src: grafana-compose.yml.j2
+    dest: "{{ bezaforge_root }}/grafana/docker-compose.yml"
+    owner: joseph
+    group: joseph
+    mode: '0600'
+  notify: restart grafana
+
+- name: Start Grafana
+  community.docker.docker_compose_v2:
+    project_src: "{{ bezaforge_root }}/grafana"
+    state: present
+
+# ============================================================
+# LOKI + PROMTAIL
+# ============================================================
+
+# ------------------------------------------------------------
+# Loki config
+# ------------------------------------------------------------
+# Loki is configured for single-node filesystem storage —
+# chunks (compressed log data) and indexes (TSDB) are stored
+# on disk under /loki/. The v13 schema with TSDB store is
+# required by Loki 3.x (older boltdb-shipper schemas are
+# no longer supported).
+#
+# reject_old_samples_max_age: 168h — Loki rejects log entries
+# older than 7 days. This prevents backfilling issues when
+# Promtail catches up after being offline.
+
+- name: Deploy Loki config
+  ansible.builtin.copy:
+    src: loki-config.yml
+    dest: "{{ bezaforge_root }}/loki/config.yml"
+    owner: joseph
+    group: joseph
+    mode: '0644'
+  notify: restart loki
+
+# ------------------------------------------------------------
+# Promtail config
+# ------------------------------------------------------------
+# Promtail is the log shipper — it tails log files and
+# container stdout/stderr, then pushes them to Loki.
+#
+# Two scrape jobs:
+# 1. system — tails /var/log/*.log for host-level logs
+#    (syslog, auth, kernel). The __path__ label tells Promtail
+#    which files to watch.
+# 2. docker — auto-discovers all containers via the Docker
+#    socket. relabel_configs extract container name, log stream,
+#    and compose service/project labels for filtering in Grafana.
+
+- name: Deploy Promtail config
+  ansible.builtin.copy:
+    src: promtail-config.yml
+    dest: "{{ bezaforge_root }}/loki/promtail-config.yml"
+    owner: joseph
+    group: joseph
+    mode: '0644'
+  notify: restart loki
+
+# ------------------------------------------------------------
+# Loki + Promtail compose stack
+# ------------------------------------------------------------
+# Loki binds to 10.10.20.20:3100 — this is the push endpoint
+# that Promtail sends logs to, and the query endpoint that
+# Grafana reads from.
+#
+# Promtail runs as root (user: root) because it needs to:
+# 1. Read the Docker socket (owned by root:docker)
+# 2. Read system log files in /var/log/ (various owners)
+# This is the standard Promtail deployment approach.
+
+- name: Deploy Loki docker-compose.yml
+  ansible.builtin.copy:
+    src: loki-compose.yml
+    dest: "{{ bezaforge_root }}/loki/docker-compose.yml"
+    owner: joseph
+    group: joseph
+    mode: '0644'
+  notify: restart loki
+
+- name: Start Loki stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ bezaforge_root }}/loki"
+    state: present

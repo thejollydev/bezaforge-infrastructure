@@ -1,0 +1,129 @@
+networks:
+  bezaforge-net:
+    external: true
+
+services:
+  netbox:
+    image: netboxcommunity/netbox:latest
+    container_name: netbox
+    restart: unless-stopped
+    depends_on:
+      netbox-postgres:
+        condition: service_healthy
+      netbox-redis:
+        condition: service_healthy
+    environment:
+      SUPERUSER_NAME: admin
+      SUPERUSER_EMAIL: joseph@bezacore.com
+      SUPERUSER_PASSWORD: ${NETBOX_SUPERUSER_PASSWORD}
+      ALLOWED_HOSTS: "netbox.bezaforge.dev localhost netbox"
+      DB_HOST: netbox-postgres
+      DB_PORT: "5432"
+      DB_NAME: netbox
+      DB_USER: netbox
+      DB_PASSWORD: ${NETBOX_DB_PASSWORD}
+      REDIS_HOST: netbox-redis
+      REDIS_PORT: "6379"
+      REDIS_CACHE_HOST: netbox-redis-cache
+      REDIS_CACHE_PORT: "6379"
+      SECRET_KEY: ${NETBOX_SECRET_KEY}
+      METRICS_ENABLED: "true"
+      API_TOKEN_PEPPERS: '["m5_NVEA8-DJ6OlIgELkxIFNZL_7uwr9Iop0mxvX_vzc"]'
+    volumes:
+      - /opt/bezaforge/netbox/media:/opt/netbox/netbox/media
+      - /opt/bezaforge/netbox/reports:/opt/netbox/netbox/reports
+      - /opt/bezaforge/netbox/scripts:/opt/netbox/netbox/scripts
+    networks:
+      - bezaforge-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.netbox.rule=Host(`netbox.bezaforge.dev`)"
+      - "traefik.http.routers.netbox.entrypoints=websecure"
+      - "traefik.http.routers.netbox.tls.certresolver=letsencrypt"
+      - "traefik.http.services.netbox.loadbalancer.server.port=8080"
+
+  netbox-worker:
+    image: netboxcommunity/netbox:latest
+    container_name: netbox-worker
+    restart: unless-stopped
+    command: /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py rqworker
+    depends_on:
+      - netbox
+    environment:
+      DB_HOST: netbox-postgres
+      DB_PORT: "5432"
+      DB_NAME: netbox
+      DB_USER: netbox
+      DB_PASSWORD: ${NETBOX_DB_PASSWORD}
+      REDIS_HOST: netbox-redis
+      REDIS_PORT: "6379"
+      REDIS_CACHE_HOST: netbox-redis-cache
+      REDIS_CACHE_PORT: "6379"
+      SECRET_KEY: ${NETBOX_SECRET_KEY}
+    volumes:
+      - /opt/bezaforge/netbox/media:/opt/netbox/netbox/media
+      - /opt/bezaforge/netbox/reports:/opt/netbox/netbox/reports
+      - /opt/bezaforge/netbox/scripts:/opt/netbox/netbox/scripts
+    networks:
+      - bezaforge-net
+
+  netbox-housekeeping:
+    image: netboxcommunity/netbox:latest
+    container_name: netbox-housekeeping
+    restart: unless-stopped
+    command: /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py housekeeping
+    depends_on:
+      - netbox
+    environment:
+      DB_HOST: netbox-postgres
+      DB_PORT: "5432"
+      DB_NAME: netbox
+      DB_USER: netbox
+      DB_PASSWORD: ${NETBOX_DB_PASSWORD}
+      REDIS_HOST: netbox-redis
+      REDIS_PORT: "6379"
+      REDIS_CACHE_HOST: netbox-redis-cache
+      REDIS_CACHE_PORT: "6379"
+      SECRET_KEY: ${NETBOX_SECRET_KEY}
+    networks:
+      - bezaforge-net
+
+  netbox-postgres:
+    image: postgres:16-alpine
+    container_name: netbox-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: netbox
+      POSTGRES_USER: netbox
+      POSTGRES_PASSWORD: ${NETBOX_DB_PASSWORD}
+    volumes:
+      - /opt/bezaforge/netbox/postgres:/var/lib/postgresql/data
+    networks:
+      - bezaforge-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U netbox"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  netbox-redis:
+    image: redis:7-alpine
+    container_name: netbox-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - /opt/bezaforge/netbox/redis:/data
+    networks:
+      - bezaforge-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  netbox-redis-cache:
+    image: redis:7-alpine
+    container_name: netbox-redis-cache
+    restart: unless-stopped
+    networks:
+      - bezaforge-net
