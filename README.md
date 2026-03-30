@@ -1,8 +1,9 @@
 # BezaForge Infrastructure Platform
 
-Production-grade private cloud managed entirely as code. VM provisioning via Terraform on Proxmox VE, 10+ containerized services via Docker Compose, full observability stack, automated wildcard TLS, and GPU-accelerated LLM inference — all on bare-metal hardware at home.
+Production-grade private cloud managed entirely as code. VM provisioning via Terraform, configuration management via Ansible, 15+ containerized services via Docker Compose, full observability stack, automated wildcard TLS, and GPU-accelerated LLM inference — all on bare-metal hardware at home.
 
 ![Terraform](https://img.shields.io/badge/Terraform-7B42BC?style=flat&logo=terraform&logoColor=white)
+![Ansible](https://img.shields.io/badge/Ansible-EE0000?style=flat&logo=ansible&logoColor=white)
 ![Proxmox](https://img.shields.io/badge/Proxmox-E57000?style=flat&logo=proxmox&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)
 ![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat&logo=prometheus&logoColor=white)
@@ -80,6 +81,49 @@ terraform apply
 
 ---
 
+## Configuration Management (Ansible)
+
+Ansible automates all post-provisioning configuration for forge-ops. A single command brings a fresh Debian install to full production state with all services running.
+
+### Roles
+
+| Role | Tasks | What It Manages |
+|------|-------|----------------|
+| `common` | 24 | Packages, locale, timezone, SSH hardening, UFW firewall (10 rules), sysctl tuning, systemd-resolved DNS, NFS client mounts |
+| `docker` | 14 | Docker CE install, `/opt/bezaforge/` directory tree, container UID ownership, `bezaforge-net` bridge network |
+| `traefik` | 6 | Reverse proxy, wildcard TLS via Cloudflare DNS challenge, security headers middleware |
+| `adguard` | 3 | DNS server compose stack |
+| `monitoring` | 8 | Prometheus + Grafana + Loki + Promtail + node-exporter + cAdvisor |
+| `services` | 6 | 7 application services across 3 secret management patterns |
+
+### Secret Management
+
+14 secrets (DB passwords, API tokens, secret keys) are stored in an ansible-vault encrypted file (`host_vars/forge-ops/vault.yml`). Three patterns handle secret injection:
+
+- **Template services** (gitea, taiga, wiki) — Jinja2 compose files with vault variables
+- **Env-var services** (netbox, langfuse) — `.env` files templated from vault, compose files copied as-is
+- **Simple services** (homepage, uptime-kuma) — no secrets, plain file copy
+
+### Usage
+
+```bash
+cd ansible/
+
+# Install required collections
+ansible-galaxy collection install -r requirements.yml
+
+# Full deployment
+ansible-playbook site.yml -l forge-ops --ask-become-pass --ask-vault-pass
+
+# Single role
+ansible-playbook site.yml -l forge-ops --tags monitoring --ask-become-pass --ask-vault-pass
+
+# Dry run (preview changes without applying)
+ansible-playbook site.yml -l forge-ops --check --diff --ask-become-pass --ask-vault-pass
+```
+
+---
+
 ## Network Design
 
 5-VLAN architecture managed by TP-Link Omada SDN (ER7412-M2 router, OC220 controller, EAP723 AP):
@@ -105,17 +149,19 @@ All services run on **forge-ops** via Docker Compose at `/opt/bezaforge/{service
 | Service | Purpose | URL |
 |---------|---------|-----|
 | **Traefik v3** | Reverse proxy + wildcard TLS (Let's Encrypt) | `traefik.bezaforge.dev` |
-| **AdGuard Home** | DNS server + ad/tracker blocking | `adguard.bezaforge.dev` |
+| **AdGuard Home** | DNS server + ad/tracker blocking | `10.10.20.20:3053` |
 | **Prometheus** | Metrics collection (10+ scrape targets) | `prometheus.bezaforge.dev` |
 | **Grafana** | Dashboards, alerting, data visualization | `grafana.bezaforge.dev` |
 | **Loki + Promtail** | Log aggregation from all containers | Grafana data source |
 | **Uptime Kuma** | Service availability monitoring | `uptime.bezaforge.dev` |
-| **Gitea** | Self-hosted Git server | `git.bezaforge.dev` |
+| **Gitea** | Self-hosted Git server (SSH on port 2222) | `git.bezaforge.dev` |
 | **Harbor** | Private container registry | `harbor.bezaforge.dev` |
-| **Taiga** | Agile project management | `taiga.bezaforge.dev` |
+| **Taiga** | Agile project management (7 containers) | `taiga.bezaforge.dev` |
 | **Wiki.js** | Internal documentation wiki | `wiki.bezaforge.dev` |
 | **NetBox** | IP address management + network docs | `netbox.bezaforge.dev` |
+| **Langfuse** | LLM observability and tracing | `langfuse.bezaforge.dev` |
 | **Homepage** | Unified service dashboard | `home.bezaforge.dev` |
+| **Ollama** | Local LLM inference (on forge-ai) | `10.10.50.10:11434` |
 
 ---
 
@@ -165,6 +211,8 @@ Models served locally — no external API calls for LLM inference.
 **bezapool** — ZFS mirror pool on forge-hypervisor:
 - 2× 4TB HDDs in mirror configuration
 - Used for VM disk images and persistent data
+- NFS exports: `bezapool/media` and `bezapool/downloads` mounted on forge-ops at `/mnt/bezapool/`
+- Media library structure: movies, tv, music, photos, books
 
 **vm-fast** / **vm-scratch** — NVMe pools:
 - 1TB + 500GB NVMe for high-performance VM storage
@@ -175,6 +223,25 @@ Models served locally — no external API calls for LLM inference.
 
 ```
 bezaforge-infrastructure/
+├── ansible/
+│   ├── ansible.cfg              # Defaults (inventory path)
+│   ├── requirements.yml         # Galaxy collections (community.docker, etc.)
+│   ├── site.yml                 # Main playbook (docker_hosts + gpu_hosts)
+│   ├── inventory/
+│   │   ├── hosts.yml            # Host groups (docker_hosts, gpu_hosts)
+│   │   └── host_vars/
+│   │       ├── forge-ops/
+│   │       │   ├── vars.yml     # Connection, network, service list
+│   │       │   └── vault.yml    # Encrypted secrets (ansible-vault)
+│   │       └── forge-ai.yml     # Minimal host vars
+│   └── roles/
+│       ├── common/              # Base setup, SSH, UFW, NFS, sysctl
+│       ├── docker/              # Docker CE, directory tree, bezaforge-net
+│       ├── traefik/             # Reverse proxy + TLS + middleware
+│       ├── adguard/             # DNS server
+│       ├── monitoring/          # Prometheus + Grafana + Loki + Promtail
+│       ├── services/            # 7 app services (3 secret patterns)
+│       └── ollama/              # GPU inference (forge-ai, planned)
 ├── terraform/
 │   ├── main.tf              # Provider configuration (bpg/proxmox)
 │   ├── variables.tf         # Root variables (api token, node, ssh key)
@@ -192,13 +259,11 @@ bezaforge-infrastructure/
 │   └── deployment-notes.md  # Lessons learned and gotchas
 ├── docker/
 │   ├── prometheus/
-│   │   └── prometheus.yml   # Scrape configuration
+│   │   └── prometheus.yml   # Scrape configuration (legacy, now in ansible)
 │   ├── traefik/
-│   │   └── traefik.yml      # Static configuration
-│   ├── loki/
-│   │   └── loki-config.yml  # Loki configuration
-│   └── adguard/
-│       └── README.md        # AdGuard setup notes
+│   │   └── traefik.yml      # Static configuration (legacy, now in ansible)
+│   └── loki/
+│       └── loki-config.yml  # Loki configuration (legacy, now in ansible)
 └── scripts/
     └── README.md            # Automation scripts (in progress)
 ```
@@ -207,10 +272,11 @@ bezaforge-infrastructure/
 
 ## Technologies
 
-`Terraform` `Proxmox VE` `Docker` `Docker Compose` `Traefik v3` `Prometheus` `Grafana` `Loki` `Promtail` `Uptime Kuma` `AdGuard Home` `Gitea` `Harbor` `Taiga` `Wiki.js` `NetBox` `Ollama` `ROCm` `ZFS` `Linux (Arch / Debian / Ubuntu)` `Cloudflare` `Let's Encrypt` `TP-Link Omada SDN` `Bash` `YAML` `HCL`
+`Terraform` `Ansible` `Proxmox VE` `Docker` `Docker Compose` `Traefik v3` `Prometheus` `Grafana` `Loki` `Promtail` `Uptime Kuma` `AdGuard Home` `Gitea` `Harbor` `Taiga` `Wiki.js` `NetBox` `Langfuse` `Ollama` `ROCm` `ZFS` `NFS` `Linux (Arch / Debian / Ubuntu)` `Cloudflare` `Let's Encrypt` `TP-Link Omada SDN` `Bash` `YAML` `HCL` `Jinja2`
 
 ---
 
 ## Related Projects
 
-- [arch-ansible](https://github.com/thejollydev/arch-ansible) — Ansible playbooks for Arch Linux dev environment setup
+- [ansible-arch](https://github.com/thejollydev/ansible-arch) — Ansible playbook for Arch Linux workstation automation (forge-dev + jolly-LOQ-arch)
+- [dotfiles](https://github.com/thejollydev/dotfiles) — GNU Stow-managed dotfiles (zsh, starship, nvim, kitty, zellij)
