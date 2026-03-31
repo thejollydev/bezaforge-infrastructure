@@ -111,21 +111,21 @@ module "forge_erp" {
 }
 
 # ---------------------------------------------------------------------------
-# forge-cortex — VMID 104 (net-new)
-# Ubuntu 24.04, AI assistant host
+# forge-bezalel — VMID 104
+# Ubuntu 24.04, Bezalel AI assistant (OpenClaw + Hindsight)
 # VLAN 50 (AI), 10.10.50.20
 # ---------------------------------------------------------------------------
 
-module "forge_cortex" {
+module "forge_bezalel" {
   source = "./modules/proxmox-vm"
 
   vm_id          = 104
-  name           = "forge-cortex"
-  description    = "forge-cortex host — FastAPI, Neo4j, Qdrant, LiteLLM, Open WebUI"
+  name           = "forge-bezalel"
+  description    = "Bezalel AI assistant — OpenClaw, Hindsight, Telegram"
   node_name      = var.proxmox_node
   cores          = 4
   memory         = 12288
-  disk_size      = 64
+  disk_size      = 100
   storage_pool   = "vm-fast"
   disk_interface = "scsi0"
   cpu_type       = "x86-64-v2-AES"
@@ -136,5 +136,5 @@ module "forge_cortex" {
   gateway        = "10.10.50.1"
   ssh_public_key      = var.ssh_public_key
   cloud_init_password = var.cloud_init_password
-  tags                = ["ai", "forge-cortex"]
+  tags                = ["ai", "bezalel"]
 }
