@@ -32,3 +32,7 @@ terraform/terraform.tfvars
 # Claude
 .claude/
 CLAUDE.md
+
+# Gemini
+.gemini/
+GEMINI.md
