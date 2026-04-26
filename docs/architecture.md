@@ -29,7 +29,7 @@
 | 101 | forge-ai | Ubuntu 24.04 | 50 | 10.10.50.10 | 6 | 16GB | GPU passthrough + Ollama |
 | 102 | forge-dev | Arch Linux | 30 | 10.10.30.10 | 4 | 8GB | Dev environment |
 | 103 | forge-erp | Ubuntu 24.04 | 20 | 10.10.20.50 | 4 | 8GB | ERPNext (pending) |
-| 104 | forge-brain | Ubuntu 24.04 | 50 | 10.10.50.20 | 4 | 12GB | forge-cortex AI assistant (pending) |
+| 104 | forge-bezalel | Ubuntu 24.04 | 50 | 10.10.50.20 | 4 | 16GB | Bezalel AI assistant (OpenClaw + Engram consumer) |
 
 ---
 
