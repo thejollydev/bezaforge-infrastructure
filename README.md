@@ -21,7 +21,7 @@ Production-grade private cloud managed entirely as code. VM provisioning via Ter
 | **forge-ai** | GPU LLM inference | RX 7900 XT passthrough, ROCm 7.2.0 | Ubuntu 24.04 |
 | **forge-dev** | Development environment | 4 vCPU, 8GB RAM | Arch Linux + KDE Plasma 6 |
 | **forge-erp** | ERP (ERPNext v16) | 2 vCPU, 4GB RAM | Ubuntu 24.04 |
-| **forge-cortex** | AI assistant host | 4 vCPU, 12GB RAM | Ubuntu 24.04 |
+| **forge-bezalel** | Bezalel AI assistant (OpenClaw + Engram consumer) | 4 vCPU, 16GB RAM | Ubuntu 24.04 |
 
 ---
 
@@ -34,21 +34,22 @@ All VMs are declaratively defined and managed via Terraform using the [bpg/proxm
 A reusable `proxmox-vm` module (`terraform/modules/proxmox-vm/`) encapsulates all VM configuration. Each VM in `vms.tf` is a single module call with only the values that differ from defaults — keeping definitions concise and consistent.
 
 ```hcl
-module "forge_cortex" {
+module "forge_bezalel" {
   source = "./modules/proxmox-vm"
 
   vm_id        = 104
-  name         = "forge-cortex"
+  name         = "forge-bezalel"
+  description  = "Bezalel AI assistant — OpenClaw, Engram memory, Discord"
   node_name    = var.proxmox_node
   cores        = 4
-  memory       = 12288
-  disk_size    = 64
+  memory       = 16384
+  disk_size    = 100
   storage_pool = "vm-fast"
   vlan_id      = 50
   ip_address   = "10.10.50.20/24"
   gateway      = "10.10.50.1"
   ssh_public_key = var.ssh_public_key
-  tags         = ["ai", "forge-cortex"]
+  tags         = ["ai", "bezalel"]
 }
 ```
 
@@ -134,7 +135,7 @@ ansible-playbook site.yml -l forge-ops --check --diff --ask-become-pass --ask-va
 | 20 | Production | 10.10.20.0/24 | Docker services host (forge-ops) |
 | 30 | Development | 10.10.30.0/24 | Dev VM (forge-dev) |
 | 40 | Home | 10.10.40.0/24 | Personal devices, WiFi |
-| 50 | AI | 10.10.50.0/24 | GPU workloads (forge-ai, forge-cortex) |
+| 50 | AI | 10.10.50.0/24 | GPU workloads (forge-ai) and AI assistants (forge-bezalel) |
 
 **Inter-VLAN firewall rules** isolate home/personal devices from infrastructure.
 **AdGuard Home** serves as authoritative DNS for all VLANs with wildcard rewrite for `*.bezaforge.dev`.
@@ -246,7 +247,7 @@ bezaforge-infrastructure/
 │   ├── main.tf              # Provider configuration (bpg/proxmox)
 │   ├── variables.tf         # Root variables (api token, node, ssh key)
 │   ├── outputs.tf           # VM IP outputs
-│   ├── vms.tf               # VM definitions (forge-ai, forge-dev, forge-erp, forge-cortex)
+│   ├── vms.tf               # VM definitions (forge-ai, forge-dev, forge-erp, forge-bezalel)
 │   └── modules/
 │       └── proxmox-vm/      # Reusable VM module
 │           ├── main.tf      # Resource definition
