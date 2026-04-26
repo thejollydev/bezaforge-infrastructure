@@ -1,0 +1,7 @@
+# Managed by Ansible — docker role
+# Holds docker.service until NFS mounts are active so containers
+# don't bind-mount empty mountpoints when started before NFS comes up.
+[Unit]
+RequiresMountsFor={% for m in nfs_mounts %}{{ m.path }}{% if not loop.last %} {% endif %}{% endfor %}
+
+After={% for m in nfs_mounts %}{{ m.path | regex_replace('^/', '') | replace('/', '-') }}.mount{% if not loop.last %} {% endif %}{% endfor %}

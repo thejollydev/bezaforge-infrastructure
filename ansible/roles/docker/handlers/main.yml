@@ -1,0 +1,9 @@
+---
+# Reload systemd so docker.service picks up the new drop-in,
+# then restart docker so containers re-bind to the live NFS
+# mount instead of any stale mountpoint they may have captured.
+- name: reload systemd and restart docker
+  ansible.builtin.systemd:
+    name: docker
+    daemon_reload: true
+    state: restarted
