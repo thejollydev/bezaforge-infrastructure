@@ -210,3 +210,32 @@
   community.docker.docker_network:
     name: bezaforge-net
     state: present
+
+# ------------------------------------------------------------
+# Wait-for-NFS systemd drop-in
+# ------------------------------------------------------------
+# When forge-ops reboots, Docker can start before the NFS
+# mounts at /mnt/bezapool/{media,downloads} come up. Containers
+# that bind-mount those paths then capture the empty mountpoint;
+# NFS later mounts on top, but the containers still see the
+# stale empty dir. Symptom: Jellyfin/Kavita libraries appear
+# empty after a reboot until the containers are recreated.
+#
+# This drop-in tells systemd to hold docker.service until the
+# NFS mounts are active, eliminating the race entirely. Only
+# applied on hosts with nfs_client: true.
+
+- name: Create docker.service systemd drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service.d
+    state: directory
+    mode: '0755'
+  when: nfs_client | bool
+
+- name: Install wait-for-NFS drop-in for docker.service
+  ansible.builtin.template:
+    src: wait-for-nfs.conf.j2
+    dest: /etc/systemd/system/docker.service.d/wait-for-nfs.conf
+    mode: '0644'
+  when: nfs_client | bool
+  notify: reload systemd and restart docker
