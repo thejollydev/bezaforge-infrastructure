@@ -111,17 +111,17 @@ module "forge_erp" {
 }
 
 # ---------------------------------------------------------------------------
-# forge-bezalel — VMID 104
-# Ubuntu 24.04, Bezalel AI assistant (OpenClaw + Hindsight)
+# forge-brizza — VMID 104
+# Ubuntu 24.04, Brizza AI assistant (OpenClaw + Cognee MCP consumer)
 # VLAN 50 (AI), 10.10.50.20
 # ---------------------------------------------------------------------------
 
-module "forge_bezalel" {
+module "forge_brizza" {
   source = "./modules/proxmox-vm"
 
   vm_id               = 104
-  name                = "forge-bezalel"
-  description         = "Bezalel AI assistant — OpenClaw, shared memory consumer, Discord"
+  name                = "forge-brizza"
+  description         = "Brizza AI assistant — OpenClaw, Cognee MCP consumer, Discord"
   node_name           = var.proxmox_node
   cores               = 4
   memory              = 16384
@@ -136,6 +136,6 @@ module "forge_bezalel" {
   gateway             = "10.10.50.1"
   ssh_public_key      = var.ssh_public_key
   cloud_init_password = var.cloud_init_password
-  tags                = ["ai", "bezalel"]
+  tags                = ["ai", "brizza"]
 }
 
