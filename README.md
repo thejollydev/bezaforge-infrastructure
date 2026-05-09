@@ -21,7 +21,7 @@ Production-grade private cloud managed entirely as code. VM provisioning via Ter
 | **forge-ai** | GPU LLM inference | RX 7900 XT passthrough, ROCm 7.2.0 | Ubuntu 24.04 |
 | **forge-dev** | Development environment | 4 vCPU, 8GB RAM | Arch Linux + KDE Plasma 6 |
 | **forge-erp** | ERP (ERPNext v16) | 2 vCPU, 4GB RAM | Ubuntu 24.04 |
-| **forge-bezalel** | Bezalel AI assistant (OpenClaw + Engram consumer) | 4 vCPU, 16GB RAM | Ubuntu 24.04 |
+| **forge-bezalel** | Bezalel AI assistant (OpenClaw + shared memory consumer) | 4 vCPU, 16GB RAM | Ubuntu 24.04 |
 
 ---
 
@@ -39,7 +39,7 @@ module "forge_bezalel" {
 
   vm_id        = 104
   name         = "forge-bezalel"
-  description  = "Bezalel AI assistant — OpenClaw, Engram memory, Discord"
+  description  = "Bezalel AI assistant — OpenClaw, shared memory consumer, Discord"
   node_name    = var.proxmox_node
   cores        = 4
   memory       = 16384

@@ -121,7 +121,7 @@ module "forge_bezalel" {
 
   vm_id               = 104
   name                = "forge-bezalel"
-  description         = "Bezalel AI assistant — OpenClaw, Engram memory, Discord"
+  description         = "Bezalel AI assistant — OpenClaw, shared memory consumer, Discord"
   node_name           = var.proxmox_node
   cores               = 4
   memory              = 16384
