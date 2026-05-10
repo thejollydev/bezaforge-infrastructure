@@ -1,0 +1,14 @@
+---
+# Connection
+ansible_host: 10.10.50.20
+ansible_user: joseph
+
+# Machine identity
+hostname: forge-brizza
+timezone: America/Detroit
+locale: en_US.UTF-8
+
+# Feature flags
+# nfs_client flips to true when the vault NFS-RW mount from forge-ops goes live
+# (Phase 2 guide 08 — Cognee deployment, Phase A.4).
+nfs_client: false
