@@ -67,27 +67,6 @@ services:
     networks:
       - bezaforge-net
 
-  netbox-housekeeping:
-    image: netboxcommunity/netbox:latest
-    container_name: netbox-housekeeping
-    restart: unless-stopped
-    command: /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py housekeeping
-    depends_on:
-      - netbox
-    environment:
-      DB_HOST: netbox-postgres
-      DB_PORT: "5432"
-      DB_NAME: netbox
-      DB_USER: netbox
-      DB_PASSWORD: ${NETBOX_DB_PASSWORD}
-      REDIS_HOST: netbox-redis
-      REDIS_PORT: "6379"
-      REDIS_CACHE_HOST: netbox-redis-cache
-      REDIS_CACHE_PORT: "6379"
-      SECRET_KEY: ${NETBOX_SECRET_KEY}
-    networks:
-      - bezaforge-net
-
   netbox-postgres:
     image: postgres:16-alpine
     container_name: netbox-postgres

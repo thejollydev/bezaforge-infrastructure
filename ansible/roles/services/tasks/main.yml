@@ -61,11 +61,5 @@
   community.docker.docker_compose_v2:
     project_src: "{{ bezaforge_root }}/{{ item }}"
     state: present
+    remove_orphans: true
   loop: "{{ compose_services }}"
-
-- name: Netbox idempotency note
-  ansible.builtin.debug:
-    msg: >-
-      NOTE: netbox always reports changed=1 because the netbox-housekeeping
-      container is a one-shot task (runs manage.py housekeeping then exits).
-      Docker Compose restarts it on every "up -d". This is expected and harmless.
