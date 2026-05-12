@@ -1,0 +1,4 @@
+---
+# No handlers required yet. The role's services start themselves
+# via systemd module calls. Add restart handlers here if future
+# tasks edit config files (e.g., chrony.conf).

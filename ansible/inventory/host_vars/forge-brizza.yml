@@ -9,6 +9,23 @@ timezone: America/Detroit
 locale: en_US.UTF-8
 
 # Feature flags
-# nfs_client flips to true when the vault NFS-RW mount from forge-ops goes live
-# (Phase 2 guide 08 — Cognee deployment, Phase A.4).
-nfs_client: false
+# Phase 1b enabled 2026-05-10. NFS mount for the bezapool/gdrive vault chain
+# from forge-hypervisor, and Insync apt repo + package install in joseph's
+# autologin GNOME session (Insync OAuth still has to happen once via the
+# Proxmox web Console — see Master-Mind vault
+# 05_Projects/brizza/phases/Phase-1-Deploy.md step 5).
+nfs_client: true
+forge_brizza_install_insync: true
+
+# NFS mounts (used by forge-brizza role when nfs_client is true).
+# Source is forge-hypervisor's bezapool/gdrive ZFS dataset.
+nfs_mounts:
+  - src: 10.10.10.10:/bezapool/gdrive
+    path: /mnt/bezapool/gdrive
+
+# Desktop package override. Role default is ubuntu-desktop-minimal as
+# the conservative pick for a generic assistant host; forge-brizza
+# wants the full meta because OpenClaw may need a complete desktop
+# environment (browser, file manager helpers, full app menu) to
+# automate against.
+forge_brizza_desktop_package: ubuntu-desktop

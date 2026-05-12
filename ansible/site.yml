@@ -30,3 +30,11 @@
       tags: common
     - role: ollama
       tags: ollama
+
+- name: Configure BezaForge assistant hosts
+  hosts: assistant_hosts
+  become: true
+
+  roles:
+    - role: forge-brizza
+      tags: forge-brizza

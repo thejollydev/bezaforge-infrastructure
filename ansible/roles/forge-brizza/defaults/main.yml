@@ -1,0 +1,53 @@
+---
+# ============================================================
+# forge-brizza role defaults
+# ============================================================
+# Override in inventory/host_vars/forge-brizza.yml when needed.
+
+# --- Apt baseline ---
+forge_brizza_base_packages:
+  - curl
+  - wget
+  - git
+  - build-essential
+  - jq
+  - htop
+  - btop
+  - tree
+  - vim
+  - nano
+  - unzip
+  - zip
+  - ca-certificates
+  - gnupg
+
+# --- Time sync ---
+# Cloud-init's systemd-timesyncd is already active and synchronized
+# on forge-brizza; chrony was in the roadmap but offers no concrete
+# advantage here. Timezone change still happens via community.general.timezone
+# (timedatectl under the hood, daemon-agnostic).
+
+# --- Desktop ---
+# ubuntu-desktop-minimal: real GNOME without the LibreOffice/Firefox/Thunderbird payload.
+forge_brizza_desktop_package: ubuntu-desktop-minimal
+forge_brizza_gdm_autologin_user: joseph
+
+# --- Prometheus node_exporter ---
+forge_brizza_node_exporter_enabled: true
+
+# --- Insync (Phase 1b) ---
+# Official apt repo for Ubuntu 24.04 (noble). The pinned-.deb workaround
+# from the deprecated headless-on-Trixie reference does NOT apply here:
+# this is the GUI desktop client, sourced from Insync's own Ubuntu repo,
+# which ships current fixed builds.
+# Flip forge_brizza_install_insync to true once GNOME is up and you're
+# ready for Phase 1b.
+forge_brizza_install_insync: false
+# Upstream serves the key in ASCII-armored (PEM) form; we dearmor it into
+# /etc/apt/trusted.gpg.d/insync.gpg before referencing it from the apt source.
+forge_brizza_insync_apt_key_url: "https://apt.insync.io/insynchq.gpg"
+forge_brizza_insync_keyring_path: /etc/apt/trusted.gpg.d/insync.gpg
+forge_brizza_insync_apt_repo: "deb [signed-by=/etc/apt/trusted.gpg.d/insync.gpg] http://apt.insync.io/ubuntu noble non-free contrib"
+forge_brizza_insync_packages:
+  - insync
+  - insync-nautilus
