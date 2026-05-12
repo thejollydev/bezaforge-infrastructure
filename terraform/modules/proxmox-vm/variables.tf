@@ -157,3 +157,15 @@ variable "cloud_init_password" {
   sensitive   = true
   default     = ""
 }
+
+variable "vga_type" {
+  description = "Virtual VGA card. 'std' (default) gives a 16 MB stdvga sufficient for GDM/X11 on Linux guests; 'none' for true headless VMs that won't run a desktop session. Other valid values: qxl, qxl2-4, vmware, virtio, virtio-gl, serial0-3."
+  type        = string
+  default     = "std"
+}
+
+variable "vga_memory" {
+  description = "VGA memory in MB. 16 is the Proxmox default for std/qxl and works for a desktop session."
+  type        = number
+  default     = 16
+}

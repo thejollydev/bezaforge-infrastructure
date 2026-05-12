@@ -24,6 +24,7 @@ module "forge_ai" {
   gateway              = "10.10.50.1"
   ssh_public_key       = var.ssh_public_key
   tags                 = ["ai", "gpu", "ollama"]
+  vga_type             = "none"  # headless — no Proxmox console rendering, SSH only
   create_from_template = false
   scsi_hardware        = "virtio-scsi-single"
   disk_iothread        = true
@@ -68,6 +69,7 @@ module "forge_dev" {
   ssh_public_key       = var.ssh_public_key
   cloud_init_password  = var.cloud_init_password
   tags                 = ["dev", "arch"]
+  vga_type             = "serial0"  # preserves current Proxmox web-console-via-serial behavior; revisit if KDE Plasma is ever actually used
   create_from_template = true
   template_id          = 9001
   scsi_hardware        = "virtio-scsi-single"
@@ -103,6 +105,8 @@ module "forge_erp" {
   gateway              = "10.10.20.1"
   ssh_public_key       = var.ssh_public_key
   tags                 = ["erp", "production"]
+  # vga_type omitted intentionally — inherits module default "std", which matches
+  # forge-erp's effective current Proxmox state (vga unset on Proxmox = std default).
   create_from_template = false
   scsi_hardware        = "virtio-scsi-single"
   disk_iothread        = true

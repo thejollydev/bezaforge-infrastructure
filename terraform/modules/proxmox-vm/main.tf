@@ -64,6 +64,11 @@ resource "proxmox_virtual_environment_vm" "vm" {
     model   = "virtio"
   }
 
+  vga {
+    type   = var.vga_type
+    memory = var.vga_memory
+  }
+
   operating_system {
     type = "l26"
   }
