@@ -51,3 +51,10 @@ scrape_configs:
       - targets: ['10.10.20.50:9100']
         labels:
           instance: 'forge-erp'
+
+  - job_name: 'node-exporter-forge-brizza'
+    static_configs:
+      - targets: ['10.10.50.20:9100']
+        labels:
+          instance: 'forge-brizza'
+          role: 'assistant-host'
