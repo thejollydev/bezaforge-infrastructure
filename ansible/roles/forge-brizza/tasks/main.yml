@@ -12,8 +12,8 @@
 # Companion docs (Master-Mind vault):
 #   - 05_Projects/brizza/ROADMAP.md
 #   - 05_Projects/brizza/phases/Phase-1-Deploy.md
-#   - 05_Projects/bezaforge-infrastructure/implementation/
-#       phase-2-automation/08-memory-system-role.md
+#   - 05_Projects/bezaforge-infrastructure/phases/2-automation/
+#       08-memory-system-role.md
 #         → "Phase A continuation on forge-brizza"
 # ============================================================
 
@@ -154,15 +154,28 @@
 # permission prompts) — not a daily-driver remote desktop.
 
 # ------------------------------------------------------------
-# NFS client (Phase 1b)
+# NFS client (Phase 1b) — tuned for metadata-heavy workloads
 # ------------------------------------------------------------
 # Gated on the existing nfs_client host var. nfs_mounts is a
-# list of {src, path} dicts; first entry will be the bezapool
-# gdrive mount once host_vars is updated for Phase 1b.
-- name: Install NFS client
+# list of {src, path[, opts]} dicts; first entry will be the
+# bezapool gdrive mount once host_vars is updated for Phase 1b.
+#
+# cachefilesd installs the userspace daemon that backs the `fsc`
+# mount option — without it `fsc` is a no-op. See defaults/main.yml
+# `forge_brizza_nfs_default_opts` for tuning rationale.
+- name: Install NFS client + fscache daemon
   ansible.builtin.apt:
-    name: nfs-common
+    name:
+      - nfs-common
+      - cachefilesd
     state: present
+  when: nfs_client | bool
+
+- name: Enable cachefilesd
+  ansible.builtin.systemd:
+    name: cachefilesd
+    enabled: true
+    state: started
   when: nfs_client | bool
 
 - name: Create NFS mount points
@@ -178,7 +191,7 @@
     src: "{{ item.src }}"
     path: "{{ item.path }}"
     fstype: nfs
-    opts: defaults,_netdev,nofail,noatime
+    opts: "{{ item.opts | default(forge_brizza_nfs_default_opts) }}"
     state: mounted
   loop: "{{ nfs_mounts | default([]) }}"
   when: nfs_client | bool
