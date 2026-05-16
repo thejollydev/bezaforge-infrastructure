@@ -35,6 +35,24 @@ forge_brizza_gdm_autologin_user: joseph
 # --- Prometheus node_exporter ---
 forge_brizza_node_exporter_enabled: true
 
+# --- NFS client tuning (Phase 1b) ---
+# Default mount options for entries in the host_vars `nfs_mounts` list.
+# A per-mount `opts:` key in nfs_mounts overrides this default.
+#
+# Tuning rationale (2026-05-15): forge-brizza's Insync verify pass against
+# bezapool/gdrive (millions of small files in __pycache__, .git/objects,
+# typeshed stubs, etc.) was metadata-bound — Insync's RSS climbed to ~14.8 GB
+# three times in five days and was OOM-killed each time on the 15 GiB VM.
+# These options tune the NFS client to amortize per-RPC latency and cache
+# repeat reads locally; cachefilesd backs the `fsc` option.
+#
+#   nconnect=8      — 8 parallel TCP connections to the NFS server
+#   actimeo=600     — cache attribute lookups (stat/getattr) for 10 min
+#   fsc             — enable local on-disk cache (requires cachefilesd)
+#   rsize/wsize=1M  — 1 MB read/write chunks (NFSv4.2 typically negotiates
+#                     this anyway; explicit is safer)
+forge_brizza_nfs_default_opts: "defaults,_netdev,nofail,noatime,nconnect=8,actimeo=600,fsc,rsize=1048576,wsize=1048576"
+
 # --- Insync (Phase 1b) ---
 # Official apt repo for Ubuntu 24.04 (noble). The pinned-.deb workaround
 # from the deprecated headless-on-Trixie reference does NOT apply here:
