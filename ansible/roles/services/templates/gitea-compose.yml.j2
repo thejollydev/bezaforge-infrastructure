@@ -33,6 +33,12 @@ services:
       - GITEA__server__DOMAIN=git.{{ domain }}
       - GITEA__server__ROOT_URL=https://git.{{ domain }}
       - GITEA__server__SSH_DOMAIN=git.{{ domain }}
+      # Push-to-create: `git push <new-url>` auto-creates the repo under
+      # the user's namespace. Default visibility is private — toggle in
+      # the Gitea UI if a repo should be public.
+      - GITEA__repository__ENABLE_PUSH_CREATE_USER=true
+      - GITEA__repository__ENABLE_PUSH_CREATE_ORG=true
+      - GITEA__repository__DEFAULT_PUSH_CREATE_PRIVATE=true
     volumes:
       - /opt/bezaforge/gitea/data:/data
     ports:
