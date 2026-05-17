@@ -1,0 +1,21 @@
+[Unit]
+Description=BezaForge daily restic backup → Google Cloud Storage
+Documentation=https://github.com/thejollydev/bezaforge-infrastructure
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Restic uses ~/.cache/restic/ to remember what's already uploaded.
+# Without HOME, it falls back to re-reading every file every run — slow,
+# but not broken. With HOME=/root, second+ backups are seconds, not minutes.
+Environment=HOME=/root
+ExecStart=/usr/local/bin/bezaforge-restic-backup.sh
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=2h
+# IOWeight=10  # Optionally throttle so restic doesn't compete with VM I/O.
+# Nice=15
+
+[Install]
+WantedBy=multi-user.target

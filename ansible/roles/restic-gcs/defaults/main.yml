@@ -1,0 +1,60 @@
+---
+# ============================================================
+# restic-gcs role defaults
+#
+# Daily restic backup of bezapool/forge-ops-backup → Google
+# Cloud Storage Nearline bucket. Runs on forge-hypervisor.
+# Per ADR 0001.
+#
+# Secrets (gcs_credentials_json, restic_password) MUST come
+# from the encrypted vault — NEVER set them in this file or
+# in vars.yml. Defaults here are non-secret config knobs only.
+# ============================================================
+
+# ------------------------------------------------------------
+# What to back up
+# ------------------------------------------------------------
+# Restic reads these paths directly from the live ZFS dataset.
+# Scheduled at 04:00 EDT — well after the 02:45 rsync has settled.
+# Future iteration: switch to backing up a ZFS snapshot mount
+# (e.g. /bezapool/forge-ops-backup/.zfs/snapshot/<latest>/) for
+# point-in-time consistency. v1 trades that for simplicity.
+restic_backup_sources:
+  - /bezapool/forge-ops-backup
+
+# Daily fire at 04:00 — sanoid's 03:00 daily snapshot will already
+# include the latest rsync/dumps from 02:30+02:45, so restic backs
+# up a consistent steady-state.
+restic_schedule: "*-*-* 04:00:00"
+
+# A separate weekly integrity check (full restic check, no data
+# transfer). Pulls and verifies metadata in the repo.
+restic_check_schedule: "Sun *-*-* 05:00:00"
+
+# ------------------------------------------------------------
+# Retention (managed via restic forget --keep-* after each backup)
+# ------------------------------------------------------------
+# All values ≥ 30 days so Nearline minimum-storage doesn't bite.
+restic_keep_daily: 7
+restic_keep_weekly: 4
+restic_keep_monthly: 6
+
+# ------------------------------------------------------------
+# Local config locations
+# ------------------------------------------------------------
+restic_etc_dir: /etc/bezaforge
+restic_password_file: "{{ restic_etc_dir }}/restic-password"
+restic_gcs_credentials_file: "{{ restic_etc_dir }}/gcs-backup-sa.json"
+
+# ------------------------------------------------------------
+# GCS / restic repository config (NON-secret defaults)
+# ------------------------------------------------------------
+# Override these per-host in host_vars/forge-hypervisor.yml
+# once the GCS bucket is created. Bucket name will be something
+# like bezaforge-backups-<random-suffix>.
+gcs_project_id: ""
+gcs_bucket: ""
+restic_repository: "gs:{{ gcs_bucket }}:/"
+
+# Hostname tag — embedded in each snapshot's metadata.
+restic_hostname: "forge-hypervisor"

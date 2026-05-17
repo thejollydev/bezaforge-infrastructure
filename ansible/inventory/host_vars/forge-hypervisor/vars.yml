@@ -1,0 +1,31 @@
+---
+# Connection
+# Proxmox VE 9.x on Debian 13. Default user is root (Proxmox-managed).
+# Joseph ran `ssh-copy-id root@10.10.10.10` once on 2026-05-17 so Ansible's
+# SSH key auth works. If that gets lost (key rotation, new workstation),
+# re-run ssh-copy-id or fall back to `--ask-pass` on the playbook command.
+ansible_host: 10.10.10.10
+ansible_user: root
+
+# Machine identity
+hostname: forge-hypervisor
+timezone: America/Detroit
+locale: en_US.UTF-8
+
+# Network
+management_ip: 10.10.10.10
+domain: bezaforge.dev
+
+# Storage
+zfs_pool: bezapool
+
+# ------------------------------------------------------------
+# restic-gcs role config (non-secret)
+# Secrets (vault_restic_password, vault_gcs_credentials_json)
+# live in vault.yml in this same directory, encrypted with
+# ansible-vault. Project ID + bucket name are not secrets —
+# anyone with bucket read access could enumerate the project
+# from the bucket's resource ARN, so no value in hiding them.
+# ------------------------------------------------------------
+gcs_project_id: bezaforge-backups
+gcs_bucket: bezaforge-backups-95d56ebe

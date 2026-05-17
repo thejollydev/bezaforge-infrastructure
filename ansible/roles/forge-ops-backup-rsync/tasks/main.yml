@@ -1,0 +1,46 @@
+---
+# ============================================================
+# forge-ops-backup-rsync role — nightly rsync on forge-ops
+#
+# Deploys the rsync script + systemd service + timer. Runs at
+# 02:45 EDT, 15 min after the db-dumps timer so DB dumps land
+# in the same snapshot window as the rsync'd /opt/bezaforge data.
+#
+# Requires: NFS mount of bezapool/forge-ops-backup is live
+# (managed by the common role's nfs_mounts list).
+# ============================================================
+
+- name: Deploy bezaforge-backup-rsync.sh
+  ansible.builtin.template:
+    src: bezaforge-backup-rsync.sh.j2
+    dest: /usr/local/bin/bezaforge-backup-rsync.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Deploy bezaforge-backup-rsync.service
+  ansible.builtin.template:
+    src: bezaforge-backup-rsync.service.j2
+    dest: /etc/systemd/system/bezaforge-backup-rsync.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: reload systemd
+
+- name: Deploy bezaforge-backup-rsync.timer
+  ansible.builtin.template:
+    src: bezaforge-backup-rsync.timer.j2
+    dest: /etc/systemd/system/bezaforge-backup-rsync.timer
+    owner: root
+    group: root
+    mode: '0644'
+  notify: reload systemd
+
+- name: Flush handlers (reload systemd)
+  ansible.builtin.meta: flush_handlers
+
+- name: Ensure bezaforge-backup-rsync.timer is enabled and running
+  ansible.builtin.systemd:
+    name: bezaforge-backup-rsync.timer
+    enabled: true
+    state: started

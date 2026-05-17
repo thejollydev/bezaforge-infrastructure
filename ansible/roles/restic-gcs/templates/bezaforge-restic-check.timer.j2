@@ -1,0 +1,12 @@
+[Unit]
+Description=Schedule for BezaForge weekly restic check
+Documentation=https://github.com/thejollydev/bezaforge-infrastructure
+
+[Timer]
+OnCalendar={{ restic_check_schedule }}
+Persistent=true
+RandomizedDelaySec=10min
+Unit=bezaforge-restic-check.service
+
+[Install]
+WantedBy=timers.target

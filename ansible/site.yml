@@ -1,7 +1,18 @@
 ---
 # ============================================================
-# BezaForge Infrastructure — forge-ops + forge-ai
+# BezaForge Infrastructure — forge-hypervisor + forge-ops +
+# forge-ai + forge-brizza
 # ============================================================
+
+- name: Configure BezaForge hypervisor
+  hosts: hypervisor_hosts
+  become: false  # ansible_user is root on forge-hypervisor
+
+  roles:
+    - role: sanoid
+      tags: sanoid
+    - role: restic-gcs
+      tags: restic-gcs
 
 - name: Configure BezaForge Docker hosts
   hosts: docker_hosts
@@ -20,6 +31,10 @@
       tags: monitoring
     - role: services
       tags: services
+    - role: db-dumps
+      tags: backups
+    - role: forge-ops-backup-rsync
+      tags: backups
 
 - name: Configure BezaForge GPU hosts
   hosts: gpu_hosts

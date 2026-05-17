@@ -1,0 +1,12 @@
+[Unit]
+Description=Schedule for BezaForge nightly /opt/bezaforge → bezapool rsync
+Documentation=https://github.com/thejollydev/bezaforge-infrastructure
+
+[Timer]
+OnCalendar={{ rsync_schedule }}
+Persistent=true
+RandomizedDelaySec=2min
+Unit=bezaforge-backup-rsync.service
+
+[Install]
+WantedBy=timers.target

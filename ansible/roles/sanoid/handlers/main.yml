@@ -1,0 +1,12 @@
+---
+# Sanoid handlers
+#
+# 'run sanoid' fires only when sanoid.conf actually changes,
+# triggering a one-shot policy evaluation immediately rather
+# than waiting up to 15 min for the next timer fire. The
+# --cron flag suppresses interactive output so the handler
+# doesn't hang Ansible.
+
+- name: run sanoid
+  ansible.builtin.command: /usr/sbin/sanoid --cron
+  changed_when: false

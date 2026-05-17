@@ -1,0 +1,48 @@
+---
+# ============================================================
+# db-dumps role — nightly Postgres dumps on forge-ops
+#
+# Deploys: the dump script, a oneshot systemd service that
+# runs it, and a daily timer. Idempotent — re-running just
+# updates the script + reloads the timer if needed.
+#
+# Requires: NFS mount of bezapool/forge-ops-backup is live
+# (managed by the common role's nfs_mounts list).
+# ============================================================
+
+- name: Deploy bezaforge-db-dump.sh
+  ansible.builtin.template:
+    src: bezaforge-db-dump.sh.j2
+    dest: /usr/local/bin/bezaforge-db-dump.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Deploy bezaforge-db-dumps.service
+  ansible.builtin.template:
+    src: bezaforge-db-dumps.service.j2
+    dest: /etc/systemd/system/bezaforge-db-dumps.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: reload systemd
+
+- name: Deploy bezaforge-db-dumps.timer
+  ansible.builtin.template:
+    src: bezaforge-db-dumps.timer.j2
+    dest: /etc/systemd/system/bezaforge-db-dumps.timer
+    owner: root
+    group: root
+    mode: '0644'
+  notify: reload systemd
+
+# Flush handlers before enabling — the timer needs the new
+# unit files visible to systemd to enable cleanly.
+- name: Flush handlers (reload systemd)
+  ansible.builtin.meta: flush_handlers
+
+- name: Ensure bezaforge-db-dumps.timer is enabled and running
+  ansible.builtin.systemd:
+    name: bezaforge-db-dumps.timer
+    enabled: true
+    state: started

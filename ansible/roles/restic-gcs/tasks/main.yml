@@ -1,0 +1,132 @@
+---
+# ============================================================
+# restic-gcs role — off-site backup to Google Cloud Storage
+#
+# Deploys restic, the GCS credentials, the backup + check
+# scripts, and their systemd timers on forge-hypervisor.
+# Per ADR 0001.
+#
+# Required vars (from ansible-vault inventory/host_vars/forge-hypervisor/vault.yml):
+#   - vault_restic_password           (string)
+#   - vault_gcs_credentials_json      (string — full JSON contents)
+# Required vars (from vars.yml or vault.yml — non-secret):
+#   - gcs_project_id                  (string, e.g. "bezaforge-backups")
+#   - gcs_bucket                      (string, e.g. "bezaforge-backups-abcd1234")
+#
+# Pre-deploy guard: refuses to deploy if required vars are empty,
+# so we don't accidentally enable a timer pointing at a nonexistent
+# repo.
+# ============================================================
+
+- name: Sanity-check required restic-gcs vars are set
+  ansible.builtin.assert:
+    that:
+      - gcs_project_id | length > 0
+      - gcs_bucket | length > 0
+      - vault_restic_password is defined
+      - vault_gcs_credentials_json is defined
+    fail_msg: >
+      restic-gcs role requires gcs_project_id + gcs_bucket (non-secret,
+      in vars) AND vault_restic_password + vault_gcs_credentials_json
+      (encrypted, in vault). See ADR 0001 §"Implementation order".
+
+- name: Install restic
+  ansible.builtin.apt:
+    name: restic
+    state: present
+    update_cache: true
+
+- name: Ensure /etc/bezaforge directory
+  ansible.builtin.file:
+    path: "{{ restic_etc_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Deploy restic password (from vault)
+  ansible.builtin.copy:
+    dest: "{{ restic_password_file }}"
+    content: "{{ vault_restic_password }}"
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+
+- name: Deploy GCS service account credentials (from vault)
+  ansible.builtin.copy:
+    dest: "{{ restic_gcs_credentials_file }}"
+    content: "{{ vault_gcs_credentials_json }}"
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+
+- name: Deploy restic.env (non-secret env vars)
+  ansible.builtin.template:
+    src: restic.env.j2
+    dest: /etc/bezaforge/restic.env
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Deploy bezaforge-restic-backup.sh
+  ansible.builtin.template:
+    src: bezaforge-restic-backup.sh.j2
+    dest: /usr/local/bin/bezaforge-restic-backup.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Deploy bezaforge-restic-check.sh
+  ansible.builtin.template:
+    src: bezaforge-restic-check.sh.j2
+    dest: /usr/local/bin/bezaforge-restic-check.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Deploy backup systemd unit + timer
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "/etc/systemd/system/{{ item.dest }}"
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+    - { src: 'bezaforge-restic-backup.service.j2', dest: 'bezaforge-restic-backup.service' }
+    - { src: 'bezaforge-restic-backup.timer.j2',   dest: 'bezaforge-restic-backup.timer' }
+    - { src: 'bezaforge-restic-check.service.j2',  dest: 'bezaforge-restic-check.service' }
+    - { src: 'bezaforge-restic-check.timer.j2',    dest: 'bezaforge-restic-check.timer' }
+  notify: reload systemd
+
+- name: Flush handlers (reload systemd)
+  ansible.builtin.meta: flush_handlers
+
+- name: Initialize restic repository if not already
+  ansible.builtin.command: restic init
+  environment:
+    RESTIC_REPOSITORY: "{{ restic_repository }}"
+    RESTIC_PASSWORD_FILE: "{{ restic_password_file }}"
+    GOOGLE_APPLICATION_CREDENTIALS: "{{ restic_gcs_credentials_file }}"
+    GOOGLE_PROJECT_ID: "{{ gcs_project_id }}"
+  register: restic_init
+  # restic init refuses with "already initialized" if the repo exists.
+  # That's exactly what we want on every run after the first — treat
+  # it as not-changed, not-failed. Any other rc != 0 is a real failure.
+  failed_when:
+    - restic_init.rc != 0
+    - "'already initialized' not in restic_init.stderr"
+  changed_when: "'already initialized' not in restic_init.stderr"
+
+- name: Enable + start backup timer
+  ansible.builtin.systemd:
+    name: bezaforge-restic-backup.timer
+    enabled: true
+    state: started
+
+- name: Enable + start check timer
+  ansible.builtin.systemd:
+    name: bezaforge-restic-check.timer
+    enabled: true
+    state: started

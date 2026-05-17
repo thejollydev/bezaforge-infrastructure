@@ -1,0 +1,93 @@
+---
+# ============================================================
+# sanoid role defaults
+#
+# Sanoid takes ZFS snapshots on a schedule. Snapshots are
+# block-level and instant, so the retention policy controls
+# both disk usage and recovery granularity.
+#
+# Templates define retention. Datasets reference a template.
+# Edits should happen here — the rendered sanoid.conf is
+# regenerated on every Ansible run.
+# ============================================================
+
+# ------------------------------------------------------------
+# Retention templates
+#
+# Each template defines how many snapshots of each cadence
+# to keep. Sanoid runs every 15 min via systemd timer and
+# decides whether to take/prune snapshots based on these.
+#
+# Picking retention numbers:
+# - hourly: short-term oops protection ("I deleted that file")
+# - daily:  one-day-ago snapshots, sized by working-set churn
+# - weekly: drift detection / config rollback over weeks
+# - monthly: long-tail recovery (compliance, "what did X look
+#           like before this big refactor")
+#
+# For the four BezaForge datasets we have different needs:
+# - gdrive: hottest path (vault edits constantly). Hourly
+#           granularity is genuinely useful.
+# - forge-ops-backup: derivative copy refreshed nightly. No
+#           value in hourly. 7 dailies plus weeklies/monthlies.
+# - downloads: ephemeral (qBittorrent in-flight). Lightweight.
+# - media: large + slow-churn. Don't need lots of snapshots.
+# - vzdump: large compressed VM images, also slow-churn.
+# ------------------------------------------------------------
+sanoid_templates:
+  gdrive:
+    hourly: 24
+    daily: 14
+    weekly: 8
+    monthly: 12
+  forge_ops_backup:
+    hourly: 0
+    daily: 7
+    weekly: 4
+    monthly: 6
+  downloads:
+    hourly: 0
+    daily: 7
+    weekly: 0
+    monthly: 0
+  media:
+    hourly: 0
+    daily: 4
+    weekly: 4
+    monthly: 3
+  vzdump:
+    hourly: 0
+    daily: 4
+    weekly: 2
+    monthly: 2
+
+# ------------------------------------------------------------
+# Datasets covered by sanoid
+#
+# Each entry binds a ZFS dataset to a retention template.
+# Order matters only for readability of the rendered conf.
+#
+# recursive: "no" means: snapshot this dataset only, not
+# children. If a child dataset gets its own row, it can use
+# a different template. (We're not using recursion today.)
+# ------------------------------------------------------------
+sanoid_datasets:
+  - dataset: "bezapool/gdrive"
+    template: "gdrive"
+    recursive: "no"
+
+  - dataset: "bezapool/forge-ops-backup"
+    template: "forge_ops_backup"
+    recursive: "no"
+
+  - dataset: "bezapool/downloads"
+    template: "downloads"
+    recursive: "no"
+
+  - dataset: "bezapool/media"
+    template: "media"
+    recursive: "no"
+
+  - dataset: "bezapool/vzdump"
+    template: "vzdump"
+    recursive: "no"

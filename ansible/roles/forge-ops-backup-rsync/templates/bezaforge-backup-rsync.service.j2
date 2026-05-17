@@ -1,0 +1,18 @@
+[Unit]
+Description=BezaForge nightly rsync of /opt/bezaforge → bezapool/forge-ops-backup
+Documentation=https://github.com/thejollydev/bezaforge-infrastructure
+RequiresMountsFor={{ backup_dest_root }}
+# Run AFTER the dumps timer so DB dumps land in /<svc>/dumps before
+# we rsync /<svc>/data — keeps both halves of a single nightly run
+# in the same sanoid snapshot window.
+After=bezaforge-db-dumps.service network-online.target docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/bezaforge-backup-rsync.sh
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=1h
+
+[Install]
+WantedBy=multi-user.target

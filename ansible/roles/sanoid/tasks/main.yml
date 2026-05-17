@@ -1,0 +1,53 @@
+---
+# ============================================================
+# sanoid role — ZFS snapshot policy on forge-hypervisor
+#
+# Manages /etc/sanoid/sanoid.conf and ensures the sanoid
+# systemd timer is enabled. Idempotent — safe to re-run.
+#
+# Pre-existing state (2026-05-17 audit): sanoid was already
+# installed and running on bezapool/gdrive only. This role
+# brings that hand-managed config under Ansible control AND
+# extends coverage to forge-ops-backup, downloads, media, and
+# vzdump per ADR 0001.
+# ============================================================
+
+- name: Install sanoid (idempotent if already installed)
+  ansible.builtin.apt:
+    name: sanoid
+    state: present
+    update_cache: true
+
+- name: Ensure /etc/sanoid exists
+  ansible.builtin.file:
+    path: /etc/sanoid
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Back up any hand-managed sanoid.conf on first deploy
+  ansible.builtin.copy:
+    src: /etc/sanoid/sanoid.conf
+    dest: "/etc/sanoid/sanoid.conf.pre-ansible-{{ ansible_date_time.iso8601_basic_short }}"
+    remote_src: true
+    force: false
+  failed_when: false
+  # ^ Don't fail if sanoid.conf doesn't exist yet, or if a backup
+  # has already been taken (force: false). Best-effort one-time
+  # safety net so we don't silently overwrite a hand edit.
+
+- name: Deploy sanoid.conf from template
+  ansible.builtin.template:
+    src: sanoid.conf.j2
+    dest: /etc/sanoid/sanoid.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: run sanoid
+
+- name: Ensure sanoid.timer is enabled and running
+  ansible.builtin.systemd:
+    name: sanoid.timer
+    enabled: true
+    state: started
