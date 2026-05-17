@@ -8,7 +8,7 @@ services:
     container_name: homepage
     restart: unless-stopped
     environment:
-      HOMEPAGE_ALLOWED_HOSTS: home.bezaforge.dev
+      HOMEPAGE_ALLOWED_HOSTS: bezaforge.dev,home.bezaforge.dev
       HOMEPAGE_VAR_JELLYFIN_API_KEY: ${HOMEPAGE_VAR_JELLYFIN_API_KEY}
       HOMEPAGE_VAR_KAVITA_PASSWORD: ${HOMEPAGE_VAR_KAVITA_PASSWORD}
       HOMEPAGE_VAR_QBITTORRENT_PASSWORD: ${HOMEPAGE_VAR_QBITTORRENT_PASSWORD}
@@ -20,7 +20,7 @@ services:
       - bezaforge-net
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.homepage.rule=Host(`home.bezaforge.dev`)"
+      - "traefik.http.routers.homepage.rule=Host(`bezaforge.dev`) || Host(`home.bezaforge.dev`)"
       - "traefik.http.routers.homepage.entrypoints=websecure"
       - "traefik.http.routers.homepage.tls.certresolver=letsencrypt"
       - "traefik.http.services.homepage.loadbalancer.server.port=3000"
