@@ -1,0 +1,460 @@
+/* ────────────────────────────────────────────────────────────────────
+   bezaforge homepage — custom.css
+   ────────────────────────────────────────────────────────────────────
+   Brand: BezaCore Labs "Ember & Cobalt" palette, locked 2026-05-09.
+   - Beza ink     #0A0E1F  primary surface
+   - Beza cobalt  #1D4ED8  signature (one element per surface)
+   - Beza gold    #F59E0B  ┐
+   - Beza fire    #EA580C  ├ warm gradient (hero only)
+   - Beza ember   #B91C1C  ┘
+   - Beza paper   #FAFAFA  ink-on-dark
+   Type: Inter / Inter Display, lowercase wordmarks.
+   ──────────────────────────────────────────────────────────────────── */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+
+:root {
+  --beza-ink:    #0A0E1F;
+  --beza-ink-2:  #131829;   /* lifted surface — cards */
+  --beza-ink-3:  #1B2238;   /* hover surface */
+  --beza-cobalt: #1D4ED8;
+  --beza-cobalt-soft: rgba(29, 78, 216, 0.18);
+  --beza-cobalt-glow: rgba(29, 78, 216, 0.45);
+  --beza-gold:   #F59E0B;
+  --beza-fire:   #EA580C;
+  --beza-ember:  #B91C1C;
+  --beza-paper:  #FAFAFA;
+  --beza-muted:  #7A8499;
+  --beza-border: rgba(250, 250, 250, 0.06);
+
+  --radius-card: 14px;
+  --radius-pill: 999px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* ── Base surface + typography ─────────────────────────────────────── */
+
+html, body, #__next, .dark {
+  background-color: var(--beza-ink) !important;
+  color: var(--beza-paper) !important;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif !important;
+  font-feature-settings: "ss01", "cv11";
+  letter-spacing: -0.005em;
+}
+
+body {
+  background-image:
+    radial-gradient(1100px 600px at 15% -10%, rgba(29, 78, 216, 0.22), transparent 60%),
+    radial-gradient(900px 500px at 85% -20%, rgba(234, 88, 12, 0.10), transparent 65%),
+    linear-gradient(180deg, rgba(10, 14, 31, 0) 0%, var(--beza-ink) 70%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+* { -webkit-font-smoothing: antialiased; }
+
+/* ── Hero / information-widgets row ────────────────────────────────── */
+
+#information-widgets {
+  position: relative;
+  padding: 18px 24px !important;
+  margin-bottom: 18px !important;
+  min-height: 96px;
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: wrap;
+  gap: 18px;
+  background:
+    linear-gradient(180deg, rgba(19, 24, 41, 0.85) 0%, rgba(19, 24, 41, 0.4) 100%),
+    var(--beza-ink) !important;
+  border: 1px solid var(--beza-border);
+  border-radius: var(--radius-card);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 30px 80px -40px rgba(0, 0, 0, 0.6);
+}
+
+#information-widgets > * {
+  align-self: center !important;
+}
+
+#information-widgets::before {
+  /* Warm gradient ribbon — reserved single-use moment */
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--beza-gold) 25%,
+    var(--beza-fire) 50%,
+    var(--beza-ember) 75%,
+    transparent 100%);
+  opacity: 0.55;
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
+  pointer-events: none;
+}
+
+#information-widgets::after {
+  /* Cobalt glow halo behind the logo */
+  content: "";
+  position: absolute;
+  top: -60px;
+  left: -40px;
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle, var(--beza-cobalt-soft), transparent 65%);
+  pointer-events: none;
+  z-index: 0;
+  border-radius: 50%;
+}
+
+/* Logo treatment — gethomepage renders as img inside .information-widget-logo */
+#information-widgets .information-widget-logo,
+#information-widgets [class*="logo"] {
+  display: flex !important;
+  align-items: center !important;
+  position: relative;
+  z-index: 2;
+}
+
+#information-widgets .information-widget-logo img,
+#information-widgets [class*="logo"] img,
+#information-widgets img[src*="bezaforge-mark"],
+#information-widgets img[src*="/images/"] {
+  height: 44px !important;
+  width: auto !important;
+  max-width: none !important;
+  object-fit: contain !important;
+  filter: drop-shadow(0 0 18px rgba(29, 78, 216, 0.35));
+}
+
+/* Greeting / wordmark */
+#information-widgets .information-widget-greeting,
+.greeting {
+  font-family: "Inter", sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 28px !important;
+  letter-spacing: -0.02em !important;
+  text-transform: lowercase !important;
+  color: var(--beza-paper) !important;
+}
+.greeting::after {
+  content: ".dev";
+  color: var(--beza-cobalt);
+  font-weight: 400;
+  margin-left: 2px;
+}
+
+/* Search field */
+#information-widgets input[type="text"],
+input[id*="search"] {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid var(--beza-border) !important;
+  border-radius: var(--radius-pill) !important;
+  color: var(--beza-paper) !important;
+  padding: 10px 18px !important;
+  transition: all 180ms var(--ease);
+}
+#information-widgets input[type="text"]:focus,
+input[id*="search"]:focus {
+  border-color: var(--beza-cobalt) !important;
+  box-shadow: 0 0 0 3px var(--beza-cobalt-soft) !important;
+  outline: none !important;
+}
+
+/* Datetime + weather + resources blocks */
+#information-widgets .information-widget-datetime,
+#information-widgets .information-widget-openmeteo,
+#information-widgets .information-widget-resources {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--beza-border);
+  border-radius: var(--radius-card);
+  padding: 12px 16px;
+}
+
+/* Resource bars — cobalt fill */
+.information-widget-resources [class*="bg-theme"],
+.information-widget-resources progress::-webkit-progress-value,
+.information-widget-resources progress::-moz-progress-bar {
+  background-color: var(--beza-cobalt) !important;
+}
+
+/* ── Tabs (Dashboard | Hosts) ──────────────────────────────────────── */
+
+#tabbed,
+.tabbed {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--beza-border);
+  border-radius: var(--radius-pill);
+  margin: 10px 0 22px;
+  width: max-content;
+}
+
+#tabbed a,
+.tabbed a,
+button[role="tab"] {
+  padding: 8px 18px !important;
+  border-radius: var(--radius-pill) !important;
+  color: var(--beza-muted) !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  text-transform: lowercase !important;
+  letter-spacing: 0.01em !important;
+  transition: all 180ms var(--ease);
+  border: none !important;
+}
+
+#tabbed a:hover,
+.tabbed a:hover {
+  color: var(--beza-paper) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+#tabbed a.active,
+.tabbed a.active,
+button[role="tab"][aria-selected="true"] {
+  background: var(--beza-cobalt) !important;
+  color: var(--beza-paper) !important;
+  box-shadow: 0 4px 14px -2px var(--beza-cobalt-glow);
+}
+
+/* ── Service group headers ─────────────────────────────────────────── */
+
+.services-group,
+[id^="myorg-services"] > div > div {
+  margin-bottom: 24px !important;
+}
+
+.services-group h2,
+.services-group .services-group-name,
+h2.text-theme-800 {
+  font-family: "Inter", sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  letter-spacing: 0.06em !important;
+  text-transform: lowercase !important;
+  color: var(--beza-paper) !important;
+  padding-bottom: 8px !important;
+  margin-bottom: 14px !important;
+  border-bottom: none !important;
+  position: relative;
+  display: inline-block;
+}
+
+.services-group h2::after,
+.services-group .services-group-name::after,
+h2.text-theme-800::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 28px;
+  height: 2px;
+  background: var(--beza-cobalt);
+  border-radius: 2px;
+}
+
+/* ── Service cards ─────────────────────────────────────────────────── */
+
+#myorg-services .service-card,
+.service-card,
+li.service > a,
+a[href].service-block,
+.service-container {
+  background: var(--beza-ink-2) !important;
+  border: 1px solid var(--beza-border) !important;
+  border-radius: var(--radius-card) !important;
+  padding: 14px !important;
+  transition: all 220ms var(--ease) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+#myorg-services .service-card::before,
+.service-card::before,
+a[href].service-block::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 0%, var(--beza-cobalt-soft) 100%);
+  opacity: 0;
+  transition: opacity 220ms var(--ease);
+  pointer-events: none;
+  border-radius: var(--radius-card);
+}
+
+#myorg-services .service-card:hover,
+.service-card:hover,
+a[href].service-block:hover,
+li.service > a:hover {
+  background: var(--beza-ink-3) !important;
+  border-color: var(--beza-cobalt) !important;
+  transform: translateY(-1px);
+  box-shadow:
+    0 10px 32px -16px var(--beza-cobalt-glow),
+    0 1px 0 rgba(255, 255, 255, 0.05) inset;
+}
+
+#myorg-services .service-card:hover::before,
+.service-card:hover::before {
+  opacity: 1;
+}
+
+/* Service icon */
+.service-card img,
+.service-card svg,
+li.service img,
+li.service svg {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 4px;
+}
+
+/* Service title */
+.service-card .service-name,
+li.service .service-name,
+.service-name {
+  color: var(--beza-paper) !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  letter-spacing: -0.01em !important;
+}
+
+/* Service description */
+.service-card .service-description,
+li.service .service-description,
+.service-description {
+  color: var(--beza-muted) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  letter-spacing: 0 !important;
+  margin-top: 2px;
+}
+
+/* Live widget stat blocks inside cards */
+.service-card .service-widget,
+.service-widget {
+  margin-top: 10px !important;
+  padding-top: 10px !important;
+  border-top: 1px solid var(--beza-border) !important;
+}
+
+.service-widget .text-theme-700,
+.service-widget [class*="text-theme"] {
+  color: var(--beza-paper) !important;
+}
+.service-widget [class*="text-xs"] {
+  color: var(--beza-muted) !important;
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Status dots (ping / siteMonitor) ──────────────────────────────── */
+
+.status-dot {
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 50% !important;
+  box-shadow: 0 0 0 0 currentColor;
+  animation: bf-pulse 2.4s var(--ease) infinite;
+}
+
+.status-up,
+[class*="status-up"],
+[class*="bg-emerald"],
+[class*="bg-green"] {
+  background-color: #34D399 !important;
+  color: #34D399 !important;
+}
+.status-down,
+[class*="status-down"],
+[class*="bg-rose"],
+[class*="bg-red"] {
+  background-color: var(--beza-ember) !important;
+  color: var(--beza-ember) !important;
+}
+.status-warning,
+[class*="status-warning"],
+[class*="bg-amber"],
+[class*="bg-yellow"] {
+  background-color: var(--beza-gold) !important;
+  color: var(--beza-gold) !important;
+}
+
+@keyframes bf-pulse {
+  0%   { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
+  70%  { box-shadow: 0 0 0 6px transparent; opacity: 0.85; }
+  100% { box-shadow: 0 0 0 0 transparent; opacity: 1; }
+}
+
+/* ── Bookmarks ─────────────────────────────────────────────────────── */
+
+#myorg-bookmarks {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--beza-border);
+}
+
+.bookmark-text,
+.bookmark-name {
+  color: var(--beza-paper) !important;
+  text-transform: lowercase !important;
+  font-weight: 500 !important;
+}
+
+.bookmark-card,
+.bookmark a {
+  background: transparent !important;
+  border: 1px solid var(--beza-border) !important;
+  border-radius: 10px !important;
+  transition: all 180ms var(--ease);
+}
+.bookmark-card:hover,
+.bookmark a:hover {
+  border-color: var(--beza-cobalt) !important;
+  background: rgba(29, 78, 216, 0.06) !important;
+}
+
+.bookmark-abbr {
+  background: var(--beza-cobalt) !important;
+  color: var(--beza-paper) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em !important;
+}
+
+/* ── Footer ────────────────────────────────────────────────────────── */
+
+#footer {
+  margin-top: 40px !important;
+  padding: 16px 0 !important;
+  border-top: 1px solid var(--beza-border) !important;
+  color: var(--beza-muted) !important;
+  font-size: 12px !important;
+  text-align: center;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
+#footer::before {
+  content: "bezaforge · bezacore labs · petoskey, mi";
+  display: block;
+  opacity: 0.7;
+}
+
+/* ── Misc cleanup ──────────────────────────────────────────────────── */
+
+a, a:hover, a:focus { text-decoration: none !important; }
+
+/* Hide stray default labels we don't want */
+.information-widget-greeting > span:empty { display: none; }
+
+/* Tighter widget grid on smaller screens */
+@media (max-width: 768px) {
+  #information-widgets { padding: 20px 18px !important; }
+  .greeting { font-size: 22px !important; }
+}

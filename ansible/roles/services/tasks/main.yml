@@ -41,6 +41,54 @@
     mode: "0600"
   loop: "{{ compose_services | intersect(['netbox', 'langfuse', 'homepage']) }}"
 
+# --- Homepage config + brand assets ---
+# Homepage's YAML config and image assets are version-controlled in
+# docker/homepage/{config,images}/ at the repo root. The compose file already
+# bind-mounts those paths into the container. gethomepage hot-reloads its
+# YAML on disk change, so an explicit restart is only triggered when the
+# images dir changes (the container caches /app/public/images at boot).
+
+- name: Ensure homepage subdirs exist
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/homepage/{{ item }}"
+    state: directory
+    owner: joseph
+    group: joseph
+    mode: "0755"
+  loop:
+    - config
+    - images
+  when: "'homepage' in compose_services"
+
+- name: Deploy homepage YAML config
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../docker/homepage/config/"
+    dest: "{{ bezaforge_root }}/homepage/config/"
+    owner: joseph
+    group: joseph
+    mode: "0644"
+    directory_mode: "0755"
+  when: "'homepage' in compose_services"
+
+- name: Deploy homepage brand images
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../docker/homepage/images/"
+    dest: "{{ bezaforge_root }}/homepage/images/"
+    owner: joseph
+    group: joseph
+    mode: "0644"
+    directory_mode: "0755"
+  when: "'homepage' in compose_services"
+  register: homepage_images
+
+- name: Restart homepage when brand images change
+  community.docker.docker_compose_v2:
+    project_src: "{{ bezaforge_root }}/homepage"
+    state: restarted
+  when:
+    - "'homepage' in compose_services"
+    - homepage_images.changed
+
 # --- Simple services (no secrets) ---
 
 - name: Deploy simple service compose files

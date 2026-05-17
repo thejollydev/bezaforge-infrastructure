@@ -1,0 +1,25 @@
+---
+# bezaforge homepage — bookmarks
+# Quick links that live below the service grid.
+
+- Reference:
+    - BezaForge docs:
+        - abbr: BF
+          href: https://github.com/thejollydev/bezaforge-infrastructure
+    - Traefik dashboard:
+        - abbr: TR
+          href: https://traefik.bezaforge.dev
+    - Grafana:
+        - abbr: GF
+          href: https://grafana.bezaforge.dev
+
+- BezaCore Labs:
+    - bezacore.com:
+        - abbr: BC
+          href: https://bezacore.com
+    - intelligrace.com:
+        - abbr: IG
+          href: https://intelligrace.com
+    - soper.dev:
+        - abbr: SD
+          href: https://soper.dev

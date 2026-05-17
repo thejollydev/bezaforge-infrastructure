@@ -1,0 +1,38 @@
+---
+# bezaforge homepage — info widgets (top bar)
+# These render in the header above the service grid.
+
+- logo:
+    icon: /images/bezaforge-mark.png
+
+- greeting:
+    text_size: xl
+    text: bezaforge
+
+- search:
+    provider: duckduckgo
+    focus: false
+    showSearchSuggestions: true
+    target: _blank
+
+- datetime:
+    text_size: l
+    format:
+      timeStyle: short
+      dateStyle: long
+      hourCycle: h23
+
+- resources:
+    label: forge-ops
+    cpu: true
+    memory: true
+    disk: /
+    units: metric
+
+- openmeteo:
+    label: Petoskey
+    latitude: 45.3733
+    longitude: -84.9553
+    timezone: America/Detroit
+    units: imperial
+    cache: 5
