@@ -1,0 +1,8 @@
+---
+# bezaforge homepage — docker integration
+# Lets services with `server: my-docker` + `container: <name>` show live
+# container status / stats. Currently disabled by default — uncomment to enable
+# auto-status indicators next to services that match a running container name.
+
+# my-docker:
+#   socket: /var/run/docker.sock

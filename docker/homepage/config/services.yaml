@@ -1,0 +1,195 @@
+---
+# bezaforge homepage — services
+#
+# Icon names use the selfh.st / dashboard-icons sets shipped with gethomepage.
+# href values match Traefik routes in production (*.bezaforge.dev) or direct
+# host:port for non-routed services.
+#
+# Widgets requiring secrets pull from /opt/bezaforge/homepage/.env
+# (HOMEPAGE_VAR_* — managed by ansible/roles/services/templates/homepage-env.j2).
+
+# ─────────────────────────── Dashboard tab ───────────────────────────
+
+- AI & Memory:
+    - LangFuse:
+        href: https://langfuse.bezaforge.dev
+        description: LLM observability + tracing
+        icon: langfuse.png
+        siteMonitor: https://langfuse.bezaforge.dev
+    - Ollama:
+        href: http://10.10.50.10:11434
+        description: Local LLM runtime · forge-ai
+        icon: ollama.png
+        ping: 10.10.50.10
+    - Cognee:
+        description: Memory MCP · planned at memory.bezaforge.dev/mcp · Phase B
+        icon: mdi-database-clock-#475569
+
+- Observability:
+    - Grafana:
+        href: https://grafana.bezaforge.dev
+        description: Dashboards · metrics · logs
+        icon: grafana.png
+        siteMonitor: https://grafana.bezaforge.dev
+    - Prometheus:
+        href: https://prometheus.bezaforge.dev
+        description: Metrics scraper + TSDB
+        icon: prometheus.png
+        siteMonitor: https://prometheus.bezaforge.dev
+    - Loki:
+        href: https://grafana.bezaforge.dev/explore
+        description: Log aggregation
+        icon: grafana-loki.png
+    - Uptime Kuma:
+        href: https://uptime.bezaforge.dev
+        description: Service status monitoring
+        icon: uptime-kuma.png
+        siteMonitor: https://uptime.bezaforge.dev
+
+- Knowledge:
+    - Wiki.js:
+        href: https://wiki.bezaforge.dev
+        description: Internal documentation
+        icon: wikijs.png
+        siteMonitor: https://wiki.bezaforge.dev
+    - NetBox:
+        href: https://netbox.bezaforge.dev
+        description: Network + DCIM source of truth
+        icon: netbox.png
+        siteMonitor: https://netbox.bezaforge.dev
+    - Taiga:
+        href: https://taiga.bezaforge.dev
+        description: Project + sprint tracking
+        icon: taiga.png
+        siteMonitor: https://taiga.bezaforge.dev
+    - ERPNext:
+        href: https://erp.bezaforge.dev
+        description: Business ops · accounting · CRM
+        icon: erpnext.png
+        siteMonitor: https://erp.bezaforge.dev
+
+- Media:
+    - Jellyfin:
+        href: https://jellyfin.bezaforge.dev
+        description: Movies · TV · music
+        icon: jellyfin.png
+        widget:
+          type: jellyfin
+          url: http://jellyfin:8096
+          key: "{{HOMEPAGE_VAR_JELLYFIN_API_KEY}}"
+          enableNowPlaying: true
+          enableUser: false
+    - Kavita:
+        href: https://kavita.bezaforge.dev
+        description: Comics · manga · ebooks
+        icon: kavita.png
+        widget:
+          type: kavita
+          url: http://kavita:5000
+          username: admin
+          password: "{{HOMEPAGE_VAR_KAVITA_PASSWORD}}"
+    - Seedbox:
+        href: https://seedbox.bezaforge.dev
+        description: qBittorrent via Gluetun (ProtonVPN)
+        icon: qbittorrent.png
+        widget:
+          type: qbittorrent
+          url: http://gluetun:8080
+          username: admin
+          password: "{{HOMEPAGE_VAR_QBITTORRENT_PASSWORD}}"
+
+- Edge & Network:
+    - Traefik:
+        href: https://traefik.bezaforge.dev
+        description: Reverse proxy · TLS · routing
+        icon: traefik.png
+        siteMonitor: https://traefik.bezaforge.dev
+    - AdGuard Home:
+        href: http://10.10.20.20:3053
+        description: DNS · ad-blocking · LAN names
+        icon: adguard-home.png
+        ping: 10.10.20.20
+    - Omada Controller:
+        href: https://10.10.10.5:8043
+        description: TP-Link switches + APs
+        icon: tp-link.png
+        ping: 10.10.10.5
+    - Proxmox VE:
+        href: https://10.10.10.10:8006
+        description: Hypervisor management
+        icon: proxmox.png
+        ping: 10.10.10.10
+
+- Dev & Ops:
+    - Harbor:
+        description: Private container registry · planned (needs revive for BezaChain)
+        icon: mdi-package-variant-#475569
+    - Gitea:
+        href: https://git.bezaforge.dev
+        description: Self-hosted git · primary push remote
+        icon: gitea.png
+        siteMonitor: https://git.bezaforge.dev
+    - GitHub:
+        href: https://github.com/thejollydev
+        description: Public mirror
+        icon: github.png
+    - Vault:
+        href: obsidian://open?vault=Master-Mind
+        description: Master-Mind knowledge base
+        icon: obsidian.png
+
+# ─────────────────────────── Hosts tab ───────────────────────────
+
+- Hosts:
+    - forge-hypervisor:
+        href: https://10.10.10.10:8006
+        description: 10.10.10.10 · Proxmox VE 9.x · bezapool ZFS
+        icon: proxmox.png
+        ping: 10.10.10.10
+    - forge-ops:
+        href: https://traefik.bezaforge.dev
+        description: 10.10.20.20 · Debian · Docker services host
+        icon: docker.png
+        ping: 10.10.20.20
+    - forge-ai:
+        href: http://10.10.50.10:11434
+        description: 10.10.50.10 · VMID 101 · Ubuntu · GPU · Ollama
+        icon: ollama.png
+        ping: 10.10.50.10
+    - forge-dev:
+        href: ssh://joseph@10.10.30.10
+        description: 10.10.30.10 · VMID 102 · Arch KDE workstation
+        icon: arch-linux.png
+        ping: 10.10.30.10
+    - forge-erp:
+        href: https://erp.bezaforge.dev
+        description: 10.10.20.50 · VMID 103 · Ubuntu · ERPNext
+        icon: erpnext.png
+        ping: 10.10.20.50
+    - forge-brizza:
+        href: ssh://joseph@10.10.50.20
+        description: 10.10.50.20 · VMID 104 · Ubuntu · Brizza · Insync
+        icon: mdi-robot-#1D4ED8
+        ping: 10.10.50.20
+
+- External:
+    - GitHub:
+        href: https://github.com/thejollydev
+        description: Public mirror · CI · releases
+        icon: github.png
+    - GitLab:
+        href: https://gitlab.com/thejollydev
+        description: Mirror push remote
+        icon: gitlab.png
+    - Discord (BezaForge):
+        href: https://discord.com/channels/1470608637905866819
+        description: BezaForge server
+        icon: discord.png
+    - Cloudflare:
+        href: https://dash.cloudflare.com
+        description: DNS for bezaforge.dev
+        icon: cloudflare.png
+    - ProtonVPN:
+        href: https://account.protonvpn.com
+        description: VPN account · used by Gluetun
+        icon: protonvpn.png

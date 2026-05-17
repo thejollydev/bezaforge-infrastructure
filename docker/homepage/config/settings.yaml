@@ -1,0 +1,72 @@
+---
+# bezaforge homepage — settings
+# Brand: BezaCore Labs "Ember & Cobalt" palette, dark-primary surface.
+# See docker/homepage/config/custom.css for the visual layer.
+
+title: bezaforge
+favicon: /images/favicon.ico
+
+headerStyle: clean
+target: _blank
+language: en
+fiveColumns: false
+useEqualHeights: true
+hideVersion: true
+disableCollapse: false
+statusStyle: "dot"
+
+# Two tabs surface in the header nav. Group → tab mapping is set in `layout` below.
+# Order here defines the tab order in the header.
+# (gethomepage derives the tab list from the values used in `layout`.)
+
+theme: dark
+color: slate
+
+quicklaunch:
+  searchDescriptions: true
+  hideInternetSearch: false
+  showSearchSuggestions: true
+  hideVisitURL: false
+
+# Group → tab + display style. Sections render in this order within each tab.
+layout:
+  AI & Memory:
+    tab: Dashboard
+    style: row
+    columns: 4
+    icon: mdi-brain-#1D4ED8
+  Observability:
+    tab: Dashboard
+    style: row
+    columns: 4
+    icon: mdi-chart-line-#1D4ED8
+  Knowledge:
+    tab: Dashboard
+    style: row
+    columns: 4
+    icon: mdi-book-open-variant-#1D4ED8
+  Media:
+    tab: Dashboard
+    style: row
+    columns: 3
+    icon: mdi-play-circle-#1D4ED8
+  Edge & Network:
+    tab: Dashboard
+    style: row
+    columns: 4
+    icon: mdi-shield-outline-#1D4ED8
+  Dev & Ops:
+    tab: Dashboard
+    style: row
+    columns: 4
+    icon: mdi-tools-#1D4ED8
+  Hosts:
+    tab: Hosts
+    style: row
+    columns: 3
+    icon: mdi-server-#1D4ED8
+  External:
+    tab: Hosts
+    style: row
+    columns: 5
+    icon: mdi-cloud-outline-#1D4ED8
