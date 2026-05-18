@@ -121,9 +121,6 @@
         ping: 10.10.10.10
 
 - Dev & Ops:
-    - Harbor:
-        description: Private container registry · planned (needs revive for BezaChain)
-        icon: mdi-package-variant-#475569
     - Gitea:
         href: https://git.bezaforge.dev
         description: Self-hosted git · primary push remote
