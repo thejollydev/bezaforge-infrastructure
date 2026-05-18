@@ -131,7 +131,9 @@
     - grafana
     - loki
     - gitea
-    - wiki
+    # wiki removed 2026-05-17 (Wiki.js retired — see ROADMAP carryover #21).
+    # The dir on forge-ops is renamed to _retired-wikijs-2026-05-17/ by the
+    # ship-down runbook; this list intentionally no longer creates a new wiki/.
     - taiga
     - uptime-kuma
     - netbox
