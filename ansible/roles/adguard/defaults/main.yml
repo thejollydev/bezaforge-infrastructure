@@ -1,0 +1,21 @@
+---
+# ============================================================
+# adguard role defaults
+#
+# Most AdGuard config is set via the web UI on first install
+# (and intentionally NOT managed by this role — see the comment
+# at the top of tasks/main.yml). But a few keys are worth pinning
+# in code so they survive container rebuilds + a fresh setup
+# wizard pass.
+# ============================================================
+
+# Query log retention. AdGuard's default after the setup wizard
+# is 2160h (90 days), which writes a huge JSON log of every DNS
+# query made on the LAN. For a homelab with ~6 devices doing
+# thousands of queries/day, that climbs into the GB. 168h is a
+# week — long enough to investigate "what was that weird DNS
+# query" without the unbounded growth.
+#
+# AdGuard prunes existing entries on the next maintenance pass
+# when this value is decreased.
+adguard_querylog_interval: "168h"

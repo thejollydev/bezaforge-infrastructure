@@ -75,3 +75,32 @@
   community.docker.docker_compose_v2:
     project_src: "{{ bezaforge_root }}/adguard"
     state: present
+
+# ------------------------------------------------------------
+# Query log retention enforcement
+# ------------------------------------------------------------
+# AdGuard's web UI setup wizard sets the query log retention to
+# 2160h (90 days) by default, which grew /opt/bezaforge/adguard/
+# to ~3 GB by 2026-05-17. This task pins the value in code so:
+#   1. A fresh setup wizard pass after a rebuild doesn't silently
+#      reintroduce the 90-day default.
+#   2. Drift from manual UI changes is caught on the next Ansible
+#      run.
+#
+# 'after' + 'before' scope the regex to the querylog: section
+# only, so we never accidentally match statistics:'s interval.
+# Triggers 'restart adguard' on actual change — AdGuard reads
+# this on container start (and mutates it in-memory thereafter).
+
+- name: Enforce AdGuard query log retention
+  # Inline (?s) flag enables DOTALL so '.' matches newlines, which lets
+  # us bind the regex to the querylog: block specifically (via a non-greedy
+  # match between the section header and its 'interval:' key). This is more
+  # robust than the after/before anchors I tried first — those silently
+  # no-op'd in the 2026-05-17 deploy, likely due to a subtle CR/whitespace
+  # issue or the way after/before scope interacts with the multiline regex.
+  ansible.builtin.replace:
+    path: "{{ bezaforge_root }}/adguard/conf/AdGuardHome.yaml"
+    regexp: '(?s)(querylog:.*?\n  interval:)[ \t]+\S+'
+    replace: '\1 {{ adguard_querylog_interval }}'
+  notify: restart adguard
