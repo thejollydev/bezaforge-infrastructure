@@ -1,94 +1,32 @@
-# Architecture Notes
+# Architecture
 
-## Physical Hardware
+This file is intentionally minimal. The canonical, living architecture document for BezaForge lives in the Master-Mind Obsidian vault — that's where it's actively maintained and where the diagrams, IP allocation tables, sanoid retention rules, backup architecture, NFS chain, Cognee plan, and per-VM memory layout all live alongside each other.
 
-### forge-hypervisor
-- **CPU:** AMD Ryzen 7 5800X (8-core, 16-thread)
-- **RAM:** 48GB DDR4
-- **GPU:** AMD RX 7900 XT (24GB VRAM) — passed through to forge-ai VM
-- **Storage:**
-  - 2× 4TB HDD — ZFS mirror pool (`bezapool`)
-  - 1TB NVMe — VM storage pool (`vm-fast`)
-  - 500GB NVMe — scratch pool (`vm-scratch`)
-- **OS:** Proxmox VE 9.1
-- **Role:** Hypervisor — runs all VMs
+## Canonical source
 
-### forge-ops
-- **CPU:** Intel i9-12900H
-- **RAM:** 32GB DDR5
-- **Network:** Dual NIC (VLAN 10 management + VLAN 20 production)
-- **OS:** Debian 13.3 Trixie
-- **Role:** Docker service host — all production services run here
+Obsidian vault (Master-Mind):
 
----
+- **Architecture:** `05_Projects/bezaforge-infrastructure/design/architecture.md`
+- **IP allocation:** `05_Projects/bezaforge-infrastructure/design/ip-allocation.md`
+- **ADRs:** `05_Projects/bezaforge-infrastructure/design/decisions/`
+- **Phase plans + per-service guides:** `05_Projects/bezaforge-infrastructure/phases/`
+- **Roadmap (live status):** `05_Projects/bezaforge-infrastructure/ROADMAP.md`
 
-## VM Inventory
+Open the vault via Obsidian on a workstation that has the Master-Mind vault synced. Claude Code reads it via the `obsidian-http` MCP server (see `CLAUDE.md` in this repo for the session-startup sequence).
 
-| VMID | Name | OS | VLAN | IP | vCPU | RAM | Purpose |
-|------|------|----|------|-----|------|-----|---------|
-| 101 | forge-ai | Ubuntu 24.04 | 50 | 10.10.50.10 | 6 | 16GB | GPU passthrough + Ollama |
-| 102 | forge-dev | Arch Linux | 30 | 10.10.30.10 | 4 | 8GB | Dev environment |
-| 103 | forge-erp | Ubuntu 24.04 | 20 | 10.10.20.50 | 4 | 8GB | ERPNext (pending) |
-| 104 | forge-brizza | Ubuntu 24.04 | 50 | 10.10.50.20 | 4 | 16GB | Brizza AI assistant (OpenClaw + Cognee MCP consumer) |
+## Repo-local references that *are* worth checking in
 
----
+The vault is canonical for design, but a few facts live alongside the code because they're operationally inseparable from it:
 
-## Network Architecture
+- **Service inventory + bezaforge.dev URL table** → `README.md` in this repo (top of file)
+- **Hardware spec + per-VM resource list** → `README.md` (Infrastructure section) and `terraform/vms.tf` (authoritative for VM definitions)
+- **VLAN ACLs + DNS** → not in repo; configured in the Omada controller UI. See vault `02_Knowledge-Base/Quick-References/Networking/` for snapshots. (Carryover #18 on the ROADMAP — community Omada Terraform provider exists but isn't worth adopting yet.)
+- **Backups** → `README.md` (Backups section) summarizes the four-layer architecture. ADR 0001 in `05_Projects/bezaforge-infrastructure/design/decisions/0001-backup-architecture.md` (vault) has the full decision record.
+- **Per-service Docker Compose** → `ansible/roles/services/templates/*-compose.yml.j2`
+- **Per-role secrets schema** → `ansible/inventory/host_vars/*/vault.yml` (ansible-vault encrypted)
 
-### SDN Hardware
-- **Router:** TP-Link ER7412-M2 (2.5GbE multi-WAN)
-- **Controller:** TP-Link OC220 (Omada hardware controller)
-- **Access Point:** TP-Link EAP723 (WiFi 6, VLAN-aware)
+## History
 
-### VLAN Design
-Traffic isolation by function — each VLAN has its own subnet and firewall policy.
+This file was previously a partial architecture summary that drifted out of sync with the vault (last meaningful update Mar 2026; bypassed all of Phase 2). It was replaced with this stub on 2026-05-17 per ROADMAP carryover #20.
 
-**Firewall rules:**
-- VLAN 40 (Home) → cannot reach VLANs 10, 20, 30, 50
-- VLAN 50 (AI) → can reach VLAN 20 (for Prometheus scraping)
-- VLAN 30 (Dev) → can reach VLAN 20 (for service access)
-- VLAN 10 (Management) → can reach all VLANs (admin access)
-
-### DNS
-AdGuard Home runs on forge-ops (VLAN 20, port 53).
-Configured as DHCP DNS for all VLANs via Omada controller.
-
-**Wildcard DNS rewrite:**
-```
-*.bezaforge.dev → 10.10.20.20 (forge-ops / Traefik)
-```
-
-All subdomains resolve to Traefik, which routes to the correct service container.
-
----
-
-## SSL / TLS Architecture
-
-```
-Internet → Cloudflare DNS → forge-ops (Traefik)
-                                    ↓
-                         Let's Encrypt ACME
-                         (DNS-01 via CF API)
-                                    ↓
-                    Wildcard cert: *.bezaforge.dev
-                                    ↓
-                    All services served over HTTPS
-```
-
-Traefik holds the wildcard certificate and terminates TLS for all internal services. No service handles its own TLS.
-
----
-
-## GPU Passthrough Architecture
-
-```
-forge-hypervisor (Proxmox)
-├── IOMMU enabled (amd_iommu=on iommu=pt)
-├── RX 7900 XT → vfio-pci driver (bound at boot)
-└── forge-ai VM
-    ├── PCIe passthrough: RX 7900 XT + RX 7900 XT Audio
-    ├── ROCm 7.2.0 (amdgpu-dkms)
-    └── Ollama (GPU-accelerated inference)
-```
-
-The GPU is fully dedicated to forge-ai — forge-hypervisor uses integrated/headless graphics for console.
+Other stale files in this directory follow the same pattern — `hardware.md`, `services.md`, `deployment-notes.md` predate Phase 2 and may also be out of date. Trust the vault first; if a repo-local doc is needed for operational reasons, the README and `docs/runbooks/` are the right homes.

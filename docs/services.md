@@ -70,16 +70,6 @@ Base path: `/opt/bezaforge/{service}/docker-compose.yml`
 - **Role:** Self-hosted Git server (internal repos, mirrors)
 - **Storage:** Persistent volume for repositories
 
-### Harbor
-- **Image:** `goharbor/harbor`
-- **Role:** Private container registry with vulnerability scanning
-- **Notes:** Traefik labels go on the `proxy` service (nginx) at port 8080, NOT the `core` service
-
-### Wiki.js
-- **Image:** `requarks/wiki`
-- **Role:** Internal technical documentation
-- **Storage:** PostgreSQL backend
-
 ### Taiga
 - **Image:** `taigaio/taiga-*` (multi-container)
 - **Role:** Agile project management (sprints, backlog, kanban)

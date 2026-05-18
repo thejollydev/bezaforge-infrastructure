@@ -46,12 +46,10 @@
         icon: uptime-kuma.png
         siteMonitor: https://uptime.bezaforge.dev
 
+# Wiki.js retired 2026-05-17 — see ROADMAP carryover #21.
+# Looking for a replacement; tracked in 00-INBOX/For-Claude.md.
+
 - Knowledge:
-    - Wiki.js:
-        href: https://wiki.bezaforge.dev
-        description: Internal documentation
-        icon: wikijs.png
-        siteMonitor: https://wiki.bezaforge.dev
     - NetBox:
         href: https://netbox.bezaforge.dev
         description: Network + DCIM source of truth

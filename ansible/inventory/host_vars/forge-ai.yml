@@ -10,3 +10,31 @@ locale: en_US.UTF-8
 
 # Feature flags
 nfs_client: false
+
+# ------------------------------------------------------------
+# ollama role (see ansible/roles/ollama/defaults/main.yml for
+# all knobs + commentary)
+# ------------------------------------------------------------
+# Models the role should ensure are pulled. `ollama pull` is
+# idempotent, so the role no-ops on re-runs once the digest
+# matches. Run `ollama list` on forge-ai to see what's currently
+# loaded; copy the names + tags here so the role matches reality
+# before the next playbook pass.
+# Format: YAML list of bare model NAME:TAG values — names only, no
+# IDs / sizes / dates from `ollama list`. Cloud models (SIZE shown
+# as `-` in `ollama list`, suffix `-cloud`) are streamed from the
+# Ollama cloud at inference time, not pulled locally — leave them
+# out of this list. `gemma4:31b-cloud` is the current example;
+# include it only if/when `ollama pull` supports cloud refs.
+ollama_models:
+  - gemma4:26b
+  - gemma4:latest
+  - nomic-embed-text:latest
+  - deepseek-r1-16k:latest
+  - devstral-32k:latest
+
+# Long keep-alive so interactive back-and-forth doesn't pay the
+# cold-load cost every prompt. Override here if a different
+# pattern emerges.
+ollama_keep_alive: "24h"
+

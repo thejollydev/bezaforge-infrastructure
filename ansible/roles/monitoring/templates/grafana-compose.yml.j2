@@ -13,6 +13,12 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD={{ grafana_admin_password }}
     volumes:
       - {{ bezaforge_root }}/grafana/data:/var/lib/grafana
+      # Filesystem provisioning — dashboard JSON files are
+      # synced from ansible/roles/monitoring/files/grafana/
+      # by the monitoring role. Read-only inside the container;
+      # Grafana picks up changes within 30s (see bezaforge.yaml).
+      - {{ bezaforge_root }}/grafana/provisioning:/etc/grafana/provisioning:ro
+      - {{ bezaforge_root }}/grafana/dashboards:/var/lib/grafana/dashboards:ro
     networks:
       - bezaforge-net
     labels:

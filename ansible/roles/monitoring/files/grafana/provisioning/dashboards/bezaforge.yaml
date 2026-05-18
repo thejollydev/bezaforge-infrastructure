@@ -1,0 +1,24 @@
+# Grafana dashboard provisioning provider — bezaforge
+#
+# Grafana watches `path` on the schedule below and (re-)imports
+# any *.json it finds. allowUiUpdates=true means dashboards can
+# still be edited in the UI for ad-hoc tweaks, but the JSON on
+# disk wins on container restart.
+#
+# Source of truth for these JSON files:
+#   ansible/roles/monitoring/files/grafana/dashboards/
+# Export procedure:
+#   docs/runbooks/grafana-dashboards-export.md
+apiVersion: 1
+
+providers:
+  - name: bezaforge
+    orgId: 1
+    folder: BezaForge
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: true

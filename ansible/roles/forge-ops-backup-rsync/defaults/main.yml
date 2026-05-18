@@ -42,4 +42,4 @@ backup_services:
   - name: taiga
   - name: traefik
   - name: uptime-kuma
-  - name: wiki
+# wiki removed 2026-05-17 (Wiki.js retired — see ROADMAP carryover #21)

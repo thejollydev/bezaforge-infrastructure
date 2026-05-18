@@ -2,9 +2,11 @@
 # Services role — deploys all application compose stacks
 #
 # Services fall into three categories based on how secrets are managed:
-#   1. Template services (gitea, taiga, wiki) — secrets baked into compose via Jinja2
+#   1. Template services (gitea, taiga) — secrets baked into compose via Jinja2
 #   2. Env-var services (netbox, langfuse, homepage) — compose uses ${VAR}, secrets in .env file
 #   3. Simple services (uptime-kuma) — no secrets at all
+#
+# (wiki was a template service; retired 2026-05-17 per ROADMAP carryover #21)
 #
 # We don't need handlers here. The "start stack" task at the bottom runs
 # docker compose up -d for every service. If a compose file or .env changed,
@@ -19,7 +21,7 @@
     owner: joseph
     group: joseph
     mode: "0600"
-  loop: "{{ compose_services | intersect(['gitea', 'taiga', 'wiki']) }}"
+  loop: "{{ compose_services | intersect(['gitea', 'taiga']) }}"
 
 # --- Env-var services (secrets in .env file) ---
 
@@ -69,6 +71,7 @@
     mode: "0644"
     directory_mode: "0755"
   when: "'homepage' in compose_services"
+  register: homepage_config
 
 - name: Deploy homepage brand images
   ansible.builtin.copy:
@@ -81,13 +84,19 @@
   when: "'homepage' in compose_services"
   register: homepage_images
 
-- name: Restart homepage when brand images change
+# Homepage is supposed to hot-reload services.yaml on disk change, but
+# the page is served as a pre-rendered Next.js SSG chunk — the rendered
+# HTML stays cached until the container restarts. Caught 2026-05-17
+# while removing the Wiki.js card: file synced, hot-reload didn't show
+# in the rendered HTML, manual `docker compose restart homepage` fixed it.
+# Same restart trigger now covers config/ changes (not just images/).
+- name: Restart homepage when config or brand images change
   community.docker.docker_compose_v2:
     project_src: "{{ bezaforge_root }}/homepage"
     state: restarted
   when:
     - "'homepage' in compose_services"
-    - homepage_images.changed
+    - homepage_config.changed or homepage_images.changed
 
 # --- Simple services (no secrets) ---
 

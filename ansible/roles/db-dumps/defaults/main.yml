@@ -33,6 +33,5 @@ postgres_dumps:
     container: netbox-postgres
   - service: taiga
     container: taiga-db
-  - service: wiki
-    container: wiki-db
 # harbor removed 2026-05-17 (retired — see ROADMAP carryover #8)
+# wiki removed 2026-05-17 (Wiki.js retired — see ROADMAP carryover #21)

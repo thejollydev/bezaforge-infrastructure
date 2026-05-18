@@ -116,7 +116,7 @@ module "forge_erp" {
 
 # ---------------------------------------------------------------------------
 # forge-brizza — VMID 104
-# Ubuntu 24.04, Brizza AI assistant (OpenClaw + Cognee MCP consumer)
+# Ubuntu 24.04, Brizza AI assistant (Python + LangGraph, Cognee MCP consumer)
 # VLAN 50 (AI), 10.10.50.20
 # ---------------------------------------------------------------------------
 
@@ -125,7 +125,7 @@ module "forge_brizza" {
 
   vm_id               = 104
   name                = "forge-brizza"
-  description         = "Brizza AI assistant — OpenClaw, Cognee MCP consumer, Discord"
+  description         = "Brizza AI assistant — Python + LangGraph, Cognee MCP consumer, Discord"
   node_name           = var.proxmox_node
   cores               = 4
   memory              = 16384

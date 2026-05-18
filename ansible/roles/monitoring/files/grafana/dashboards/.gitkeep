@@ -1,0 +1,12 @@
+# Drop exported Grafana dashboard JSON files in this directory.
+# See docs/runbooks/grafana-dashboards-export.md for the procedure.
+#
+# Files dropped here are bind-mounted into the Grafana container
+# at /var/lib/grafana/dashboards/ and auto-imported by the
+# bezaforge provisioning provider (see ../provisioning/dashboards/bezaforge.yaml).
+#
+# Subdirectories are honored — Grafana renders the folder
+# structure (foldersFromFilesStructure: true). Example layout:
+#   dashboards/Infrastructure/host-overview.json
+#   dashboards/Services/jellyfin.json
+#   dashboards/Logs/loki-explore.json

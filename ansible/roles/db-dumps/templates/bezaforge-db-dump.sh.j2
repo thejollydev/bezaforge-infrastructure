@@ -42,10 +42,10 @@ fi
     mkdir -p "${svc_dir}"
     target="${svc_dir}/${TS}.sql.gz"
     # Auto-discover the superuser from the container's env. Every
-    # official postgres image (and Harbor's fork) sets POSTGRES_USER
-    # to whatever superuser was bootstrapped at first init. Falling
-    # back to "postgres" is the documented default if the var is
-    # unset (which the docker-entrypoint also assumes).
+    # official postgres image sets POSTGRES_USER to whatever superuser
+    # was bootstrapped at first init. Falling back to "postgres" is
+    # the documented default if the var is unset (which the
+    # docker-entrypoint also assumes).
     superuser="$(docker exec {{ entry.container }} sh -c 'echo "${POSTGRES_USER:-postgres}"' 2>/dev/null)"
     if [[ -z "${superuser}" ]]; then
         echo "FAIL {{ entry.service }} ({{ entry.container }}) — could not read POSTGRES_USER from container" >&2
