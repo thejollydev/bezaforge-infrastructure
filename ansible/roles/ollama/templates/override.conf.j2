@@ -1,0 +1,7 @@
+{{ ansible_managed | comment }}
+# Drop-in override for ollama.service. Loaded after the unit
+# shipped by the install script; values here win on conflict.
+# See `systemctl cat ollama` for the merged unit.
+
+[Service]
+EnvironmentFile=-/etc/default/ollama

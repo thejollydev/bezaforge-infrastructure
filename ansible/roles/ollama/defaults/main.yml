@@ -1,0 +1,89 @@
+---
+# ============================================================
+# ollama role defaults
+#
+# Codifies the Ollama install on forge-ai (Ubuntu 24.04 +
+# AMD RX 7900 XT + ROCm). Ollama itself has been running
+# manually since Phase 1 — this role brings the install
+# under config management without re-installing from
+# scratch (the install script is idempotent and skips
+# work when the binary is already at the requested version).
+# ============================================================
+
+# Install method.
+#   "script"  → run https://ollama.com/install.sh (the upstream
+#               recommendation; handles rocm/cuda detection)
+#   "skip"    → assume ollama is already installed by some other
+#               means; only manage systemd unit + models
+ollama_install_method: script
+
+# Pin to a specific version, or leave empty to install whatever
+# the upstream script ships today. When set, the install task
+# only re-runs the script if the local binary's version differs.
+# Check current upstream releases at https://github.com/ollama/ollama/releases
+ollama_version: ""
+
+# ------------------------------------------------------------
+# Runtime config (rendered into /etc/systemd/system/ollama.service.d/override.conf)
+# ------------------------------------------------------------
+
+# Bind address. 0.0.0.0 exposes the API to the VLAN — required so
+# forge-ops + forge-brizza can hit http://10.10.50.10:11434.
+# UFW + Omada SDN enforce the actual ACL; ollama itself has no auth.
+ollama_host: "0.0.0.0:11434"
+
+# Where models live. Matches the upstream-installed default so
+# this role is a no-op on the live forge-ai install instead of
+# silently moving the model dir on first run (which would make
+# every existing model look gone).
+#
+# Moving models is a deliberate operation: stop ollama, rsync
+# the dir, set this var, run the role, verify with `ollama list`.
+# A single 70B model is ~40 GB, so if root fills up consider
+# bind-mounting /usr/share/ollama → a larger LV instead of
+# changing this path.
+ollama_models_dir: "/usr/share/ollama/.ollama/models"
+
+# How long an idle loaded model stays in VRAM before unload.
+# "5m" is the upstream default; "24h" trades VRAM availability
+# for cold-start latency. Joseph's pattern is interactive
+# back-and-forth, so a long keep-alive is preferable.
+ollama_keep_alive: "24h"
+
+# How many models may be loaded concurrently. RX 7900 XT has
+# 20 GB VRAM — one large model at a time is the realistic ceiling.
+ollama_max_loaded_models: 1
+
+# ROCm GPU detection override. The 7900 XT (gfx1100) is supported
+# natively in ROCm 6+; older boards may need HSA_OVERRIDE_GFX_VERSION.
+# Leave empty unless ROCm fails to detect the card.
+ollama_hsa_override_gfx_version: ""
+
+# Extra arbitrary env vars merged into the systemd EnvironmentFile.
+# Example: { OLLAMA_DEBUG: "1", OLLAMA_NUM_PARALLEL: "4" }
+ollama_extra_env: {}
+
+# ------------------------------------------------------------
+# Model seeding
+# ------------------------------------------------------------
+# Models to pull on first run. Each entry is the upstream model
+# name (https://ollama.com/library) — `ollama pull` is idempotent
+# and a no-op when the model is already at the requested tag.
+# Override per-host in inventory/host_vars/<host>.yml.
+ollama_models: []
+
+# Whether `ollama pull` failures should fail the play. False keeps
+# the play green when a single model name is wrong or temporarily
+# unavailable; the failure is still logged.
+ollama_models_fail_on_error: false
+
+# ------------------------------------------------------------
+# Firewall
+# ------------------------------------------------------------
+# UFW rule allowing the API port from approved VLANs. The 'common'
+# role already pins UFW defaults; this just adds the per-source
+# allow rules. Empty list → no UFW changes.
+ollama_ufw_allow_from:
+  - 10.10.50.0/24   # AI VLAN (forge-brizza)
+  - 10.10.20.0/24   # Mgmt VLAN (forge-ops services)
+  - 10.10.30.0/24   # Dev VLAN (forge-dev, jolly-LOQ-arch when on this VLAN)

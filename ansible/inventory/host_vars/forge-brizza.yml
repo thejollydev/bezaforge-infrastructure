@@ -25,7 +25,8 @@ nfs_mounts:
 
 # Desktop package override. Role default is ubuntu-desktop-minimal as
 # the conservative pick for a generic assistant host; forge-brizza
-# wants the full meta because OpenClaw may need a complete desktop
-# environment (browser, file manager helpers, full app menu) to
-# automate against.
+# wants the full meta because Insync needs a complete GNOME session
+# (browser for OAuth, file manager, full app menu) and the future
+# Brizza Python + LangGraph runtime may want it too for any GUI
+# automation tasks.
 forge_brizza_desktop_package: ubuntu-desktop

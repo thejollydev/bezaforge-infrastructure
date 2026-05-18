@@ -2,9 +2,11 @@
 # Services role — deploys all application compose stacks
 #
 # Services fall into three categories based on how secrets are managed:
-#   1. Template services (gitea, taiga, wiki) — secrets baked into compose via Jinja2
+#   1. Template services (gitea, taiga) — secrets baked into compose via Jinja2
 #   2. Env-var services (netbox, langfuse, homepage) — compose uses ${VAR}, secrets in .env file
 #   3. Simple services (uptime-kuma) — no secrets at all
+#
+# (wiki was a template service; retired 2026-05-17 per ROADMAP carryover #21)
 #
 # We don't need handlers here. The "start stack" task at the bottom runs
 # docker compose up -d for every service. If a compose file or .env changed,
@@ -19,7 +21,7 @@
     owner: joseph
     group: joseph
     mode: "0600"
-  loop: "{{ compose_services | intersect(['gitea', 'taiga', 'wiki']) }}"
+  loop: "{{ compose_services | intersect(['gitea', 'taiga']) }}"
 
 # --- Env-var services (secrets in .env file) ---
 

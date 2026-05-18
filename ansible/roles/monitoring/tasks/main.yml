@@ -110,6 +110,48 @@
     mode: '0600'
   notify: restart grafana
 
+# ------------------------------------------------------------
+# Grafana filesystem provisioning — datasources + dashboards
+# ------------------------------------------------------------
+# Dashboards live in repo under files/grafana/dashboards/ and
+# are bind-mounted read-only into the container. The provider
+# config at files/grafana/provisioning/dashboards/bezaforge.yaml
+# tells Grafana to auto-import them. See
+# docs/runbooks/grafana-dashboards-export.md for how to capture
+# new dashboards from the live UI back into version control.
+#
+# Datasources are also provisionable (drop a YAML in
+# files/grafana/provisioning/datasources/). Left empty by
+# default because the existing Grafana SQLite DB already
+# has Prometheus + Loki datasources defined manually; this
+# scaffolding is ready when you decide to migrate them.
+
+- name: Ensure Grafana provisioning + dashboards directories exist
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/grafana/{{ item }}"
+    state: directory
+    owner: "472"   # Grafana container UID
+    group: "472"
+    mode: '0755'
+  loop:
+    - provisioning
+    - provisioning/dashboards
+    - provisioning/datasources
+    - dashboards
+
+- name: Sync Grafana provisioning + dashboards from repo
+  ansible.builtin.copy:
+    src: "grafana/{{ item }}/"
+    dest: "{{ bezaforge_root }}/grafana/{{ item }}/"
+    owner: "472"
+    group: "472"
+    mode: '0644'
+    directory_mode: '0755'
+  loop:
+    - provisioning
+    - dashboards
+  notify: restart grafana
+
 - name: Start Grafana
   community.docker.docker_compose_v2:
     project_src: "{{ bezaforge_root }}/grafana"

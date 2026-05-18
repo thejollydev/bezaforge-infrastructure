@@ -10,3 +10,23 @@ locale: en_US.UTF-8
 
 # Feature flags
 nfs_client: false
+
+# ------------------------------------------------------------
+# ollama role (see ansible/roles/ollama/defaults/main.yml for
+# all knobs + commentary)
+# ------------------------------------------------------------
+# Models the role should ensure are pulled. `ollama pull` is
+# idempotent, so the role no-ops on re-runs once the digest
+# matches. Run `ollama list` on forge-ai to see what's currently
+# loaded; copy the names + tags here so the role matches reality
+# before the next playbook pass.
+ollama_models: []
+#  - llama3.1:8b
+#  - qwen2.5-coder:14b
+#  - nomic-embed-text:latest
+
+# Long keep-alive so interactive back-and-forth doesn't pay the
+# cold-load cost every prompt. Override here if a different
+# pattern emerges.
+ollama_keep_alive: "24h"
+

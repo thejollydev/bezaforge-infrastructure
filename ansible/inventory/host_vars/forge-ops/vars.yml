@@ -40,12 +40,11 @@ bezaforge_root: /opt/bezaforge
 
 # Docker services deployed by the 'services' role
 # (traefik, adguard, monitoring have their own roles)
-# NOTE: harbor uses its own offline installer (not a simple compose stack)
-# NOTE: wikijs was never deployed in Phase 1
+# NOTE: harbor used its own offline installer (retired 2026-05-17)
+# NOTE: wiki was retired 2026-05-17 (Wiki.js — ROADMAP carryover #21)
 compose_services:
   - gitea
   - taiga
-  - wiki
   - uptime-kuma
   - netbox
   - langfuse

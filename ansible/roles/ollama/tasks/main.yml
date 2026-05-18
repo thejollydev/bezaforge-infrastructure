@@ -1,3 +1,158 @@
 ---
-# ollama role — placeholder, will be implemented
-[]
+# ============================================================
+# ollama role — Ollama LLM runtime on forge-ai
+#
+# Codifies the manual Phase 1 install. Ollama has been running
+# on forge-ai since 2026-03-02; this role brings it under config
+# management without destructive change to the live install.
+#
+# Assumes the host already has ROCm installed via the AMD repo
+# (handled out-of-band during forge-ai's VM build — ROCm has
+# its own upstream packaging that isn't worth duplicating here).
+# Validate ROCm with `rocm-smi` before running this role.
+#
+# Idempotency:
+#   - install task is skipped when the binary is at the desired
+#     version (or any version, when ollama_version is "")
+#   - systemd unit drop-in writes only on change → reload + restart
+#   - `ollama pull` is itself idempotent (no-op when up-to-date)
+# ============================================================
+
+# ------------------------------------------------------------
+# Install
+# ------------------------------------------------------------
+# The upstream install script (https://ollama.com/install.sh):
+#   * detects GPU (ROCm/CUDA) and installs the matching binary
+#   * creates the `ollama` system user
+#   * drops a systemd unit at /etc/systemd/system/ollama.service
+#   * starts the service
+#
+# It's idempotent — re-running upgrades in place. We gate it on
+# version drift so the play stays fast and quiet.
+
+- name: Probe installed ollama version
+  ansible.builtin.command: ollama --version
+  register: ollama_version_probe
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Compute install-needed flag
+  ansible.builtin.set_fact:
+    ollama_install_needed: >-
+      {{
+        (ollama_install_method == 'script') and (
+          ollama_version_probe.rc != 0 or
+          (ollama_version | length > 0 and ollama_version not in ollama_version_probe.stdout)
+        )
+      }}
+
+- name: Install Ollama via upstream script
+  ansible.builtin.shell: >
+    set -o pipefail;
+    curl -fsSL https://ollama.com/install.sh
+    {% if ollama_version | length > 0 %}| OLLAMA_VERSION={{ ollama_version | quote }} sh{% else %}| sh{% endif %}
+  args:
+    executable: /bin/bash
+  when: ollama_install_needed | bool
+  notify:
+    - reload systemd
+    - restart ollama
+
+# ------------------------------------------------------------
+# Data dir
+# ------------------------------------------------------------
+# Models live on the docker LV, not the root partition. The
+# `ollama` user is created by the install script.
+
+- name: Ensure models directory exists
+  ansible.builtin.file:
+    path: "{{ ollama_models_dir }}"
+    state: directory
+    owner: ollama
+    group: ollama
+    mode: "0755"
+
+# ------------------------------------------------------------
+# systemd drop-in + environment file
+# ------------------------------------------------------------
+# We don't replace the upstream-shipped unit — we layer a
+# drop-in that sources /etc/default/ollama. Changes to the
+# env file trigger a restart; changes to the override.conf
+# trigger daemon-reload + restart.
+
+- name: Create systemd drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/ollama.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render ollama systemd drop-in
+  ansible.builtin.template:
+    src: override.conf.j2
+    dest: /etc/systemd/system/ollama.service.d/override.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - reload systemd
+    - restart ollama
+
+- name: Render ollama environment file
+  ansible.builtin.template:
+    src: ollama.env.j2
+    dest: /etc/default/ollama
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart ollama
+
+# ------------------------------------------------------------
+# Service enable + start
+# ------------------------------------------------------------
+
+- name: Ensure ollama is enabled and running
+  ansible.builtin.systemd:
+    name: ollama
+    enabled: true
+    state: started
+
+# ------------------------------------------------------------
+# Firewall — allow API from approved VLANs
+# ------------------------------------------------------------
+# UFW is already enabled by roles/common. Each rule below is
+# idempotent — UFW deduplicates by source/port/proto.
+
+- name: Open ollama API port to approved VLANs
+  community.general.ufw:
+    rule: allow
+    from_ip: "{{ item }}"
+    to_port: "{{ ollama_host.split(':')[-1] }}"
+    proto: tcp
+    comment: "ollama API (managed by ansible/roles/ollama)"
+  loop: "{{ ollama_ufw_allow_from }}"
+  when: ollama_ufw_allow_from | length > 0
+
+# ------------------------------------------------------------
+# Model seeding
+# ------------------------------------------------------------
+# `ollama pull` is itself idempotent: if the model + tag is
+# already present at the expected digest, it exits 0 immediately.
+# We run after a flush so the service is using the final config.
+
+- name: Flush handlers before seeding models
+  ansible.builtin.meta: flush_handlers
+
+- name: Seed configured models
+  ansible.builtin.command: "ollama pull {{ item }}"
+  loop: "{{ ollama_models }}"
+  register: ollama_pull_result
+  changed_when: "'pulling' in (ollama_pull_result.stdout | default('') | lower)"
+  failed_when:
+    - ollama_models_fail_on_error | bool
+    - ollama_pull_result.rc != 0
+  when: ollama_models | length > 0
+  environment:
+    OLLAMA_HOST: "{{ ollama_host }}"

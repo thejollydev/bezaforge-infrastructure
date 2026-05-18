@@ -150,8 +150,8 @@
 # same-user sessions (incompatible with our autologin-for-Insync pattern);
 # x11vnc/TigerVNC don't support Wayland. Proxmox web Console sidesteps all
 # of these because it operates on the QEMU framebuffer below the OS, and
-# Joseph only needs occasional GUI access (Insync OAuth, OpenClaw portal
-# permission prompts) — not a daily-driver remote desktop.
+# Joseph only needs occasional GUI access (Insync OAuth, occasional
+# browser prompts) — not a daily-driver remote desktop.
 
 # ------------------------------------------------------------
 # NFS client (Phase 1b) — tuned for metadata-heavy workloads
