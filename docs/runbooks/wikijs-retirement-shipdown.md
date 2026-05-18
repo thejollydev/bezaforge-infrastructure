@@ -10,42 +10,50 @@ This mirrors the Harbor retirement (commit `64c6a59`, 2026-05-17). The compose s
 
 ## On forge-ops (10.10.20.20)
 
-```bash
-ssh -t joseph@10.10.20.20 'bash -s' <<'EOF'
-set -euo pipefail
+The Phase 1 `joseph` user on forge-ops is in the `docker` group + owns the per-service dirs under `/opt/bezaforge/`, so neither `docker compose` nor renaming the dir needs sudo. Run interactively (one ssh, sequential commands) so any unexpected prompt can be answered:
 
+```bash
+ssh joseph@10.10.20.20
+```
+
+Then on forge-ops:
+
+```bash
+set -euo pipefail
 cd /opt/bezaforge
 
-# 1. Take a final pg_dump just in case (the db-dumps role already
-#    dumped wiki nightly until today's repo edit removed it, so
-#    the last dump on bezapool/forge-ops-backup/wiki/ is at most
-#    24 hours old — this is belt + suspenders).
+# 1. Final pg_dump — belt + suspenders. The db-dumps role
+#    dumped wiki nightly until today's repo edit; the most
+#    recent dump in bezapool/forge-ops-backup/wiki/ is at
+#    most 24h old. This pins the very-last state right here
+#    alongside the install dir so it travels with the archive.
 if [ -d wiki ]; then
   docker exec wiki-db pg_dumpall -U wiki \
     | gzip > "wiki/final-pgdump-$(date +%Y-%m-%d).sql.gz"
   ls -lh "wiki/final-pgdump-$(date +%Y-%m-%d).sql.gz"
 fi
 
-# 2. Stop + remove containers + volumes (the postgres data dir
-#    on the host is bind-mounted, so -v only nukes anonymous
-#    volumes; the persistent data on disk survives).
+# 2. Stop + remove containers + anonymous volumes. The
+#    postgres data dir is bind-mounted under /opt/bezaforge/wiki/
+#    so the persistent data on disk survives `down -v`.
 if [ -d wiki ]; then
-  cd /opt/bezaforge/wiki
-  sudo docker compose down -v
-  cd /opt/bezaforge
+  ( cd /opt/bezaforge/wiki && docker compose down -v )
 fi
 
 # 3. Archive the install dir with a dated retired- prefix
-#    (same pattern as Harbor on 2026-05-17).
+#    (same pattern as Harbor on 2026-05-17). If this `mv`
+#    fails with permission denied, your /opt/bezaforge/ is
+#    root-owned — fall back to `sudo mv` interactively.
 if [ -d wiki ]; then
-  sudo mv wiki _retired-wikijs-2026-05-17
+  mv wiki _retired-wikijs-2026-05-17
   ls -ld _retired-wikijs-2026-05-17
 fi
 
 # 4. Show the final state
 docker ps --filter "name=wiki" --format 'STILL RUNNING: {{.Names}}'  # should be empty
 ls -ld /opt/bezaforge/_retired-* 2>/dev/null
-EOF
+
+exit  # back to your workstation
 ```
 
 ## Verify (from workstation)
