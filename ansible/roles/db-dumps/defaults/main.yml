@@ -1,0 +1,38 @@
+---
+# ============================================================
+# db-dumps role defaults
+#
+# Defines the schedule + container list for nightly Postgres
+# dumps on forge-ops. Each entry maps a service (used as the
+# subdirectory under the backup root) to its Postgres container.
+# ============================================================
+
+# Where dumps land. Must be the NFS mount of bezapool/forge-ops-backup
+# (see forge-ops nfs_mounts in inventory/host_vars/forge-ops/vars.yml).
+backup_root: /mnt/bezapool/forge-ops-backup
+
+# Number of local gzipped dumps to keep per service. Anything
+# older relies on sanoid snapshots for retention.
+dump_retention_count: 14
+
+# When to fire. systemd OnCalendar syntax.
+# 02:30 EDT keeps it well clear of sanoid's :00/:15/:30/:45 ticks
+# and before the rsync timer at 02:45.
+dump_schedule: "*-*-* 02:30:00"
+
+# Service ↔ container mapping. The 'service' name becomes the
+# subdirectory under backup_root/; 'container' is what docker exec
+# talks to. The superuser is auto-discovered at runtime by reading
+# POSTGRES_USER from each container's env — no static config needed.
+postgres_dumps:
+  - service: gitea
+    container: gitea-db
+  - service: langfuse
+    container: langfuse-db
+  - service: netbox
+    container: netbox-postgres
+  - service: taiga
+    container: taiga-db
+  - service: wiki
+    container: wiki-db
+# harbor removed 2026-05-17 (retired — see ROADMAP carryover #8)

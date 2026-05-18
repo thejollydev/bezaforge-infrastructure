@@ -1,0 +1,21 @@
+[Unit]
+Description=BezaForge nightly Postgres dumps to bezapool/forge-ops-backup
+Documentation=https://github.com/thejollydev/bezaforge-infrastructure
+# RequiresMountsFor implies After= on the corresponding *.mount unit,
+# so no need to spell that out separately. The path is auto-resolved
+# by systemd at activation time.
+RequiresMountsFor={{ backup_root }}
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/bezaforge-db-dump.sh
+StandardOutput=journal
+StandardError=journal
+# 30 minute timeout — pg_dumpall on the largest DB (Gitea) is
+# expected to finish in seconds, but allow generous slack so a
+# slow Postgres doesn't false-fail the unit.
+TimeoutStartSec=30min
+
+[Install]
+WantedBy=multi-user.target

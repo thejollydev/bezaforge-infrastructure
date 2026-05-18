@@ -1,0 +1,45 @@
+---
+# ============================================================
+# forge-ops-backup-rsync role defaults
+#
+# Defines what to rsync from /opt/bezaforge/* → bezapool/forge-ops-backup
+# and when. Per-service exclude patterns can be added below.
+# ============================================================
+
+# Sources + targets
+backup_source_root: "{{ bezaforge_root | default('/opt/bezaforge') }}"
+backup_dest_root: /mnt/bezapool/forge-ops-backup
+
+# When to fire — 15 min after db-dumps. systemd OnCalendar syntax.
+rsync_schedule: "*-*-* 02:45:00"
+
+# Services to back up. Each entry rsyncs
+#   {{ backup_source_root }}/<name>/  →  {{ backup_dest_root }}/<name>/data/
+# Excludes are appended to a baseline (see template). Add
+# `excludes` per-service to skip ephemeral subpaths.
+#
+# Skipped:
+# - lost+found/ : ext4 metadata, not service state
+# (vault/ and wikijs/ were removed as empty stubs 2026-05-17.
+#  Add them back here if/when HashiCorp Vault is deployed.)
+backup_services:
+  - name: adguard
+  - name: gitea
+  - name: grafana
+  # harbor removed 2026-05-17 (retired — see ROADMAP carryover #8)
+  - name: homepage
+  - name: jellyfin
+  - name: kavita
+  - name: langfuse
+  - name: loki
+  - name: netbox
+  - name: prometheus
+    excludes:
+      # The write-ahead-log is constantly mutating during scrape.
+      # Skip it — TSDB will rebuild on restart.
+      - "data/wal/"
+  - name: seedbox
+  - name: taiga
+  - name: traefik
+  - name: uptime-kuma
+  - name: wiki

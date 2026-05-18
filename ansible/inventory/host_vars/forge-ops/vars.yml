@@ -14,11 +14,18 @@ production_ip: 10.10.20.20
 domain: bezaforge.dev
 
 # NFS mounts
+# gdrive was previously mounted out-of-band during Cognee Phase A — added
+# here 2026-05-17 so it's Ansible-managed (audit drift fix).
+# forge-ops-backup is new 2026-05-17 per ADR 0001 — nightly backup target.
 nfs_mounts:
   - src: "10.10.10.10:/bezapool/media"
     path: "/mnt/bezapool/media"
   - src: "10.10.10.10:/bezapool/downloads"
     path: "/mnt/bezapool/downloads"
+  - src: "10.10.10.10:/bezapool/gdrive"
+    path: "/mnt/bezapool/gdrive"
+  - src: "10.10.10.10:/bezapool/forge-ops-backup"
+    path: "/mnt/bezapool/forge-ops-backup"
 
 # Media directories to create under /mnt/bezapool/media
 media_dirs:
