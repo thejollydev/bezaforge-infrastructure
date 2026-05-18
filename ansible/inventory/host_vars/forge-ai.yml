@@ -20,10 +20,18 @@ nfs_client: false
 # matches. Run `ollama list` on forge-ai to see what's currently
 # loaded; copy the names + tags here so the role matches reality
 # before the next playbook pass.
-ollama_models: []
-#  - llama3.1:8b
-#  - qwen2.5-coder:14b
-#  - nomic-embed-text:latest
+# Format: YAML list of bare model NAME:TAG values — names only, no
+# IDs / sizes / dates from `ollama list`. Cloud models (SIZE shown
+# as `-` in `ollama list`, suffix `-cloud`) are streamed from the
+# Ollama cloud at inference time, not pulled locally — leave them
+# out of this list. `gemma4:31b-cloud` is the current example;
+# include it only if/when `ollama pull` supports cloud refs.
+ollama_models:
+  - gemma4:26b
+  - gemma4:latest
+  - nomic-embed-text:latest
+  - deepseek-r1-16k:latest
+  - devstral-32k:latest
 
 # Long keep-alive so interactive back-and-forth doesn't pay the
 # cold-load cost every prompt. Override here if a different
