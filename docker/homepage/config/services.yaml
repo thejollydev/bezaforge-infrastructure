@@ -39,7 +39,7 @@
     - Loki:
         href: https://grafana.bezaforge.dev/explore
         description: Log aggregation
-        icon: grafana-loki.png
+        icon: loki.png
     - Uptime Kuma:
         href: https://uptime.bezaforge.dev
         description: Service status monitoring
