@@ -88,21 +88,29 @@ Ansible automates all post-provisioning configuration for forge-ops. A single co
 
 ### Roles
 
-| Role | Tasks | What It Manages |
-|------|-------|----------------|
-| `common` | 24 | Packages, locale, timezone, SSH hardening, UFW firewall (10 rules), sysctl tuning, systemd-resolved DNS, NFS client mounts |
-| `docker` | 14 | Docker CE install, `/opt/bezaforge/` directory tree, container UID ownership, `bezaforge-net` bridge network |
-| `traefik` | 6 | Reverse proxy, wildcard TLS via Cloudflare DNS challenge, security headers middleware |
-| `adguard` | 3 | DNS server compose stack |
-| `monitoring` | 8 | Prometheus + Grafana + Loki + Promtail + node-exporter + cAdvisor |
-| `services` | 6 | 7 application services across 3 secret management patterns |
+| Role | What It Manages |
+|------|----------------|
+| `common` | Packages, locale, timezone, SSH hardening, UFW firewall, sysctl tuning, systemd-resolved DNS, NFS client mounts |
+| `docker` | Docker CE install (`deb822_repository`), `/opt/bezaforge/` directory tree, container UID ownership, `bezaforge-net` bridge network |
+| `traefik` | Reverse proxy, wildcard TLS via Let's Encrypt DNS-01 (Cloudflare), security headers middleware |
+| `adguard` | AdGuard Home DNS server (codified `querylog_interval: 168h`) |
+| `monitoring` | Prometheus + Grafana + Loki + Promtail + node-exporter + cAdvisor; Grafana dashboards provisioned from VCS (`files/grafana/dashboards/`) |
+| `services` | Codified application services (gitea, netbox, langfuse, homepage, uptime-kuma) across 3 secret-management patterns |
+| `outline` | Outline wiki (`docs.bezaforge.dev`) — Outline + Postgres + Redis; Google OIDC; local-FS uploads |
+| `plane` | Plane PM (`plane.bezaforge.dev`) — upstream v1.3.1 compose with bind-mounts + Traefik integration; per-service Postgres/Redis/RabbitMQ/MinIO; Google OAuth; `IS_GOOGLE_ENABLED` seed task workaround (upstream issue #8679) |
+| `ollama` | GPU LLM inference on forge-ai (idempotent install, env-file, UFW rules to VLANs 50/20/30, model seed list) |
+| `forge-brizza` | forge-brizza host config — Insync GUI sync host, NFS tuning (`nconnect=8`, `actimeo=600`, `fsc`), cachefilesd |
+| `sanoid` | ZFS auto-snapshots on forge-hypervisor — per-dataset retention on `bezapool` (gdrive 24h/14d/8w/12m, forge-ops-backup 7d/4w/6m, etc.) |
+| `db-dumps` | Nightly 02:30 EDT `pg_dumpall` per Postgres container on forge-ops → NFS-mounted `bezapool/forge-ops-backup` |
+| `forge-ops-backup-rsync` | Nightly 02:45 EDT rsync of `/opt/bezaforge/<svc>/` → NFS-mounted `bezapool/forge-ops-backup` |
+| `restic-gcs` | Daily 04:00 EDT restic snapshot of `bezapool/forge-ops-backup` → GCS Nearline (`bezaforge-backups-95d56ebe`) |
 
 ### Secret Management
 
-14 secrets (DB passwords, API tokens, secret keys) are stored in an ansible-vault encrypted file (`host_vars/forge-ops/vault.yml`). Three patterns handle secret injection:
+Secrets (DB passwords, API tokens, secret keys, OIDC client secrets) are stored in an ansible-vault encrypted file (`host_vars/forge-ops/vault.yml`). Inventory + rotation policy in `docs/runbooks/secret-rotation.md`. Three patterns handle secret injection across the codified services:
 
-- **Template services** (gitea, taiga, wiki) — Jinja2 compose files with vault variables
-- **Env-var services** (netbox, langfuse) — `.env` files templated from vault, compose files copied as-is
+- **Template services** (gitea) — Jinja2 compose files with vault variables
+- **Env-var services** (netbox, langfuse, outline, plane) — `.env` files templated from vault, compose files copied or bind-mounted as-is
 - **Simple services** (homepage, uptime-kuma) — no secrets, plain file copy
 
 ### Usage
@@ -156,7 +164,8 @@ All services run on **forge-ops** via Docker Compose at `/opt/bezaforge/{service
 | **Loki + Promtail** | Log aggregation from all containers | Grafana data source |
 | **Uptime Kuma** | Service availability monitoring | `uptime.bezaforge.dev` |
 | **Gitea** | Self-hosted Git server (SSH on port 2222) | `git.bezaforge.dev` |
-| **Taiga** | Agile project management (7 containers) | `taiga.bezaforge.dev` |
+| **Outline** | Self-hosted wiki (Google Workspace OIDC; replaces retired Wiki.js) | `docs.bezaforge.dev` |
+| **Plane** | Self-hosted Linear-style project management (Google Workspace OIDC; replaces retired Taiga) | `plane.bezaforge.dev` |
 | **NetBox** | IP address management + network docs | `netbox.bezaforge.dev` |
 | **Langfuse** | LLM observability and tracing | `langfuse.bezaforge.dev` |
 | **Homepage** | Unified service dashboard | `home.bezaforge.dev` |
@@ -252,13 +261,20 @@ bezaforge-infrastructure/
 │   │       │   └── vault.yml    # Encrypted secrets (ansible-vault)
 │   │       └── forge-ai.yml     # Minimal host vars
 │   └── roles/
-│       ├── common/              # Base setup, SSH, UFW, NFS, sysctl
-│       ├── docker/              # Docker CE, directory tree, bezaforge-net
-│       ├── traefik/             # Reverse proxy + TLS + middleware
-│       ├── adguard/             # DNS server
-│       ├── monitoring/          # Prometheus + Grafana + Loki + Promtail
-│       ├── services/            # 7 app services (3 secret patterns)
-│       └── ollama/              # GPU inference (forge-ai, planned)
+│       ├── common/                    # Base setup, SSH, UFW, NFS, sysctl
+│       ├── docker/                    # Docker CE, directory tree, bezaforge-net
+│       ├── traefik/                   # Reverse proxy + TLS + middleware
+│       ├── adguard/                   # DNS server (codified log retention)
+│       ├── monitoring/                # Prometheus + Grafana + Loki + Promtail (dashboards in VCS)
+│       ├── services/                  # Codified app services (gitea, netbox, langfuse, homepage, uptime-kuma)
+│       ├── outline/                   # Outline wiki (docs.bezaforge.dev) — Google OIDC
+│       ├── plane/                     # Plane PM (plane.bezaforge.dev) — Google OAuth
+│       ├── ollama/                    # GPU inference on forge-ai (5 models seeded)
+│       ├── forge-brizza/              # forge-brizza host (Insync, NFS tuning, cachefilesd)
+│       ├── sanoid/                    # ZFS auto-snapshots on forge-hypervisor (bezapool)
+│       ├── db-dumps/                  # Nightly pg_dumpall per Postgres container → NFS
+│       ├── forge-ops-backup-rsync/    # Nightly rsync of /opt/bezaforge/<svc>/ → NFS
+│       └── restic-gcs/                # Daily restic → GCS Nearline (off-site backup)
 ├── terraform/
 │   ├── main.tf              # Provider configuration (bpg/proxmox)
 │   ├── variables.tf         # Root variables (api token, node, ssh key)
@@ -289,7 +305,7 @@ bezaforge-infrastructure/
 
 ## Technologies
 
-`Terraform` `Ansible` `Proxmox VE` `Docker` `Docker Compose` `Traefik v3` `Prometheus` `Grafana` `Loki` `Promtail` `Uptime Kuma` `AdGuard Home` `Gitea` `Taiga` `NetBox` `Langfuse` `Jellyfin` `Kavita` `qBittorrent` `Gluetun` `Ollama` `ROCm` `ZFS` `sanoid` `restic` `Google Cloud Storage` `NFS` `Linux (Arch / Debian / Ubuntu)` `Cloudflare` `Let's Encrypt` `TP-Link Omada SDN` `Bash` `YAML` `HCL` `Jinja2`
+`Terraform` `Ansible` `Proxmox VE` `Docker` `Docker Compose` `Traefik v3` `Prometheus` `Grafana` `Loki` `Promtail` `Uptime Kuma` `AdGuard Home` `Gitea` `Outline` `Plane` `NetBox` `Langfuse` `Jellyfin` `Kavita` `qBittorrent` `Gluetun` `Ollama` `ROCm` `ZFS` `sanoid` `restic` `Google Cloud Storage` `NFS` `Linux (Arch / Debian / Ubuntu)` `Cloudflare` `Let's Encrypt` `TP-Link Omada SDN` `Bash` `YAML` `HCL` `Jinja2`
 
 ---
 

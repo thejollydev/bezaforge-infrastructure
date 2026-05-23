@@ -70,12 +70,21 @@ Base path: `/opt/bezaforge/{service}/docker-compose.yml`
 - **Role:** Self-hosted Git server (internal repos, mirrors)
 - **Storage:** Persistent volume for repositories
 
-### Taiga
-- **Image:** `taigaio/taiga-*` (multi-container)
-- **Role:** Agile project management (sprints, backlog, kanban)
-- **Notes:**
-  - RabbitMQ service MUST be named `taiga-async-rabbitmq` (hardcoded in Taiga)
-  - `EVENTS_PUSH_BACKEND_URL` is required in taiga-back or all writes return 500
+### Outline
+- **Image:** `outlinewiki/outline:1.7.1` + `postgres:15-alpine` + `redis:7-alpine`
+- **Role:** Self-hosted wiki at `docs.bezaforge.dev` (replaced retired Wiki.js)
+- **Auth:** Google Workspace OIDC, redirect URI `/auth/oidc.callback`
+- **Storage:** Local-FS uploads at `/opt/bezaforge/outline/uploads/` (no MinIO — overkill for solo wiki use)
+- **Ansible role:** `ansible/roles/outline/`
+
+### Plane
+- **Image:** Upstream `makeplane/plane-*` v1.3.1 multi-container compose, vendored verbatim with 3 mods (bind-mounts replace named volumes; `proxy` host port-binding stripped — Traefik handles 80/443; `proxy` added to `bezaforge-net` for Traefik labels)
+- **Role:** Self-hosted Linear-style project management at `plane.bezaforge.dev` (replaced retired Taiga)
+- **Auth:** Google OAuth (registered callback URLs include the trailing-slash variant `https://plane.bezaforge.dev/auth/google/callback/` that Plane v1.3.1 actually sends — see `~/.claude/projects/.../memory/reference_plane_oauth_callback_urls.md`)
+- **Known upstream bugs (workarounds codified in role):**
+  - `IS_GOOGLE_ENABLED` row missing from `instance_configurations` on fresh init ([makeplane/plane#8679](https://github.com/makeplane/plane/issues/8679)) — idempotent post-init task seeds it via `community.docker.docker_container_exec` + `ON CONFLICT DO NOTHING`. Remove when upstream PR #8740 merges + we bump.
+  - Caddy parser quirk: empty `CERT_ACME_CA` env var crashes parser even when `SITE_ADDRESS=:80` (plain HTTP). Set to Let's Encrypt default — never invoked, satisfies parser.
+- **Ansible role:** `ansible/roles/plane/`
 
 ### NetBox
 - **Image:** `netboxcommunity/netbox`
