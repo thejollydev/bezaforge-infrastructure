@@ -1,0 +1,123 @@
+---
+# ============================================================
+# plane role — Plane self-hosted PM (AGPL Community)
+#
+# ~10 containers from upstream + per-service Postgres + Redis
+# + RabbitMQ + bundled MinIO. Routed by Traefik at
+# https://plane.bezaforge.dev (the bundled plane-proxy handles
+# per-path routing internally).
+#
+# Dependencies: docker role (creates bezaforge-net), traefik
+# role (TLS termination via letsencrypt).
+#
+# Backups: pg_dumpall via db-dumps role; full /opt/bezaforge/plane/
+# tree via forge-ops-backup-rsync.
+#
+# Post-deploy: Plane Community OAuth is configured in the
+# admin UI (god-mode), NOT env vars. See defaults/main.yml
+# for the OIDC setup procedure.
+# ============================================================
+
+- name: Create Plane install root
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/plane"
+    state: directory
+    owner: joseph
+    group: joseph
+    mode: "0755"
+
+# NOTE: postgres/redis/rabbitmq/minio data dirs are deliberately NOT
+# managed here. Docker creates them on first `compose up` (the
+# bind-mount target lands as root-owned), and each container's
+# entrypoint chowns to its expected uid (postgres=70, redis=999,
+# rabbitmq=100, minio=root). Managing them in Ansible reverts those
+# uids back to joseph (1000) on every re-run, which silently breaks
+# the containers on their next restart. Caught 2026-05-22 when a
+# re-run flipped postgres from 0700/70 → 0755/1000.
+- name: Create Plane app + log directories
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/plane/{{ item }}"
+    state: directory
+    owner: joseph
+    group: joseph
+    mode: "0755"
+  loop:
+    - proxy/config
+    - proxy/data
+    - logs/api
+    - logs/worker
+    - logs/beat-worker
+    - logs/migrator
+
+- name: Deploy Plane docker-compose.yml
+  ansible.builtin.copy:
+    src: docker-compose.yml
+    dest: "{{ bezaforge_root }}/plane/docker-compose.yml"
+    owner: joseph
+    group: joseph
+    mode: "0644"
+
+- name: Deploy Plane .env
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ bezaforge_root }}/plane/.env"
+    owner: joseph
+    group: joseph
+    mode: "0600"
+
+- name: Start Plane
+  community.docker.docker_compose_v2:
+    project_src: "{{ bezaforge_root }}/plane"
+    state: present
+    remove_orphans: true
+
+# ------------------------------------------------------------
+# Workaround for makeplane/plane#8679
+# ------------------------------------------------------------
+# Plane Community v1.2.2+ ships with `IS_GOOGLE_ENABLED` missing
+# from the instance_configurations table. The bug: configure_instance.py
+# uses an all-or-nothing exists() check when seeding OAuth IS_*_ENABLED
+# rows, and since IS_GITEA_ENABLED is seeded earlier through a separate
+# code path, the check always returns True → the other three flags
+# (Google, GitHub, GitLab) get skipped silently.
+#
+# Symptom: god-mode "Configure authentication modes" → Google → toggle
+# enable → UI says "Configuration saved" + PATCH returns 200, but the
+# toggle never sticks because bulk_update finds zero rows for the
+# missing IS_GOOGLE_ENABLED key. Sign-in page never shows the Google
+# button.
+#
+# Fix: https://github.com/makeplane/plane/pull/8740 — open since
+# 2026-03-09, unmerged as of 2026-05-22 (review backlog). When that PR
+# lands in a released Plane version we use, REMOVE THIS TASK.
+#
+# Seeding value '0' (disabled). The user then flips the toggle in
+# god-mode to enable; PATCH succeeds because the row now exists.
+- name: Seed IS_GOOGLE_ENABLED row (workaround for upstream #8679)
+  community.docker.docker_container_exec:
+    container: plane-plane-db-1
+    argv:
+      - psql
+      - -U
+      - plane
+      - -d
+      - plane
+      - -tAc
+      - >-
+        INSERT INTO instance_configurations
+          (id, key, value, category, is_encrypted, created_at, updated_at)
+        VALUES
+          (gen_random_uuid(), 'IS_GOOGLE_ENABLED', '0', 'GOOGLE', false, now(), now())
+        ON CONFLICT (key) DO NOTHING
+        RETURNING key;
+    env:
+      PGPASSWORD: "{{ plane_db_password }}"
+  register: plane_oauth_seed
+  # 20 × 6s = 2 min wait window. Covers both fresh-deploy waiting for
+  # migrator + the case where plane-db is still finishing initdb.
+  retries: 20
+  delay: 6
+  until: plane_oauth_seed.rc is defined and plane_oauth_seed.rc == 0
+  # psql -tA returns just the value with no header/padding. INSERT
+  # RETURNING outputs the key on insert, empty on conflict (no-op).
+  changed_when: "'IS_GOOGLE_ENABLED' in plane_oauth_seed.stdout"

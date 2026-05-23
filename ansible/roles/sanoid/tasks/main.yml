@@ -29,7 +29,7 @@
 - name: Back up any hand-managed sanoid.conf on first deploy
   ansible.builtin.copy:
     src: /etc/sanoid/sanoid.conf
-    dest: "/etc/sanoid/sanoid.conf.pre-ansible-{{ ansible_date_time.iso8601_basic_short }}"
+    dest: "/etc/sanoid/sanoid.conf.pre-ansible-{{ ansible_facts['date_time']['iso8601_basic_short'] }}"
     remote_src: true
     force: false
   failed_when: false

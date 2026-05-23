@@ -1,0 +1,58 @@
+networks:
+  {{ outline_network }}:
+    external: true
+
+services:
+  outline-db:
+    image: {{ outline_postgres_image }}
+    container_name: outline-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: outline
+      POSTGRES_USER: outline
+      POSTGRES_PASSWORD: ${OUTLINE_DB_PASSWORD}
+    volumes:
+      - /opt/bezaforge/outline/postgres:/var/lib/postgresql/data
+    networks:
+      - {{ outline_network }}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U outline"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  outline-redis:
+    image: {{ outline_redis_image }}
+    container_name: outline-redis
+    restart: unless-stopped
+    volumes:
+      - /opt/bezaforge/outline/redis:/data
+    networks:
+      - {{ outline_network }}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  outline:
+    image: outlinewiki/outline:{{ outline_image_tag }}
+    container_name: outline
+    restart: unless-stopped
+    depends_on:
+      outline-db:
+        condition: service_healthy
+      outline-redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - /opt/bezaforge/outline/uploads:/var/lib/outline/data
+    networks:
+      - {{ outline_network }}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.outline.rule=Host(`{{ outline_host }}`)"
+      - "traefik.http.routers.outline.entrypoints=websecure"
+      - "traefik.http.routers.outline.tls.certresolver=letsencrypt"
+      - "traefik.http.services.outline.loadbalancer.server.port=3000"

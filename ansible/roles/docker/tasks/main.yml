@@ -51,23 +51,32 @@
     path: /etc/apt/keyrings/docker.gpg
     mode: '0644'
 
-# apt_repository adds a line to /etc/apt/sources.list.d/.
-# ansible_distribution_release is a fact gathered automatically
-# — on Debian 13 it resolves to 'trixie'. This means the role
+# deb822_repository writes /etc/apt/sources.list.d/docker.sources in
+# the modern deb822 format. ansible.builtin.apt_repository is deprecated
+# as of ansible-core 2.21 and will be removed in 2.25 — switched
+# 2026-05-22. ansible_distribution_release is a fact gathered
+# automatically — on Debian 13 it resolves to 'trixie' — so the role
 # works on any Debian version without hardcoding the codename.
 #
-# signed-by points at the GPG key we just downloaded — apt
-# will only install packages from this repo if they're signed
-# by that key. This is a security measure that prevents
-# tampering with packages in transit.
+# signed_by points at the GPG key we just downloaded — apt will only
+# install packages from this repo if they're signed by that key.
 - name: Add Docker repository
-  ansible.builtin.apt_repository:
-    repo: >-
-      deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg]
-      https://download.docker.com/linux/debian
-      {{ ansible_distribution_release }} stable
+  ansible.builtin.deb822_repository:
+    name: docker
+    uris: https://download.docker.com/linux/debian
+    suites: "{{ ansible_facts['distribution_release'] }}"
+    components: stable
+    architectures: amd64
+    signed_by: /etc/apt/keyrings/docker.gpg
     state: present
-    filename: docker
+    enabled: true
+
+# Clean up the legacy .list file the previous apt_repository task
+# created. Safe to run unconditionally; no-op if the file doesn't exist.
+- name: Remove legacy docker.list (replaced by docker.sources above)
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/docker.list
+    state: absent
 
 # The five packages that make up a modern Docker installation:
 # - docker-ce: the Docker daemon (dockerd)

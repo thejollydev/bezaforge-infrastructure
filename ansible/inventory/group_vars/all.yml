@@ -1,0 +1,12 @@
+---
+# ============================================================
+# group_vars/all — applies to every host in the inventory
+# ============================================================
+
+# Silences the "discovered Python interpreter" warning Ansible
+# prints on every play. `auto_silent` keeps the auto-discovery
+# behavior (so Python upgrades on the target host don't break
+# the playbook) but suppresses the deprecation warning.
+# Documented at:
+# https://docs.ansible.com/ansible-core/devel/reference_appendices/interpreter_discovery.html
+ansible_python_interpreter: auto_silent

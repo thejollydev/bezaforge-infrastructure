@@ -1,0 +1,30 @@
+---
+# ============================================================
+# plane role defaults — Plane self-hosted PM (AGPL Community)
+#
+# Replaces Taiga (retired in same session as this role lands).
+# Dedicated role rather than living in 'services' composite
+# because it ships ~10 containers from upstream + per-service
+# Postgres + Redis + RabbitMQ + bundled MinIO.
+#
+# Auth: Google Workspace OIDC, configured in the Plane admin
+# UI at https://plane.bezaforge.dev/god-mode/ post-deploy
+# (Plane Community does NOT support env-var OIDC config).
+# Redirect URI registered in Google Cloud Console (verify in
+# Plane's god-mode → Authentication → Google panel):
+#   https://plane.bezaforge.dev/auth/google/callback
+# ============================================================
+
+# Upstream release pin. All 6 makeplane/* images share this
+# tag via APP_RELEASE in .env (frontend / space / admin / live
+# / backend / proxy).
+plane_release: "v1.3.1"
+
+# Public URL — Traefik routes plane.bezaforge.dev → plane-proxy
+# on Docker's bezaforge-net. AdGuard rewrites the host to
+# 10.10.20.20.
+plane_url: "https://plane.{{ domain }}"
+plane_host: "plane.{{ domain }}"
+
+# Internal Docker network (created by the docker role).
+plane_network: bezaforge-net

@@ -1,0 +1,55 @@
+---
+# ============================================================
+# outline role — Outline self-hosted wiki on forge-ops
+#
+# Three containers: outline + per-service postgres + redis.
+# Routed by Traefik at https://docs.bezaforge.dev.
+# Auth: Google Workspace OIDC against bezacore.com.
+#
+# Dependencies: docker role (creates bezaforge-net),
+# traefik role (handles TLS termination via letsencrypt).
+#
+# Backups: pg_dumpall covered by db-dumps role; install dir
+# /opt/bezaforge/outline/ covered by forge-ops-backup-rsync.
+# Both lists updated alongside this role being added.
+# ============================================================
+
+- name: Create Outline install root + uploads dir
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/outline/{{ item }}"
+    state: directory
+    owner: joseph
+    group: joseph
+    mode: "0755"
+  loop:
+    - "."
+    - uploads
+
+# NOTE: postgres/ + redis/ data dirs are deliberately NOT managed here.
+# Each container's entrypoint chowns its dir to the expected uid on
+# first boot (postgres=70 mode 0700, redis=999). Managing them in
+# Ansible reverts the uids back to joseph (1000) on every re-run,
+# silently breaking the containers on their next restart. Same fix
+# applied to plane role 2026-05-22.
+
+- name: Deploy Outline docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ bezaforge_root }}/outline/docker-compose.yml"
+    owner: joseph
+    group: joseph
+    mode: "0644"
+
+- name: Deploy Outline .env
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ bezaforge_root }}/outline/.env"
+    owner: joseph
+    group: joseph
+    mode: "0600"
+
+- name: Start Outline
+  community.docker.docker_compose_v2:
+    project_src: "{{ bezaforge_root }}/outline"
+    state: present
+    remove_orphans: true

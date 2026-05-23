@@ -21,7 +21,10 @@
     owner: joseph
     group: joseph
     mode: "0600"
-  loop: "{{ compose_services | intersect(['gitea', 'taiga']) }}"
+  loop: "{{ compose_services | intersect(['gitea']) }}"
+# taiga removed from intersect list 2026-05-22 (retired — Plane replacement live).
+# When the next template service lands (something else needing secrets baked into
+# compose vs .env-file), add it here.
 
 # --- Env-var services (secrets in .env file) ---
 

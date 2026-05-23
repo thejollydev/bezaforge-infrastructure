@@ -33,13 +33,20 @@ backup_services:
   - name: langfuse
   - name: loki
   - name: netbox
+  - name: outline
+  - name: plane
+    excludes:
+      # RabbitMQ + Valkey state rebuilds from Postgres + queue replay.
+      # MinIO uploads cover via the bind-mounted /opt/bezaforge/plane/minio.
+      # Skip the high-churn live-update + log dirs.
+      - "logs/"
   - name: prometheus
     excludes:
       # The write-ahead-log is constantly mutating during scrape.
       # Skip it — TSDB will rebuild on restart.
       - "data/wal/"
   - name: seedbox
-  - name: taiga
   - name: traefik
   - name: uptime-kuma
 # wiki removed 2026-05-17 (Wiki.js retired — see ROADMAP carryover #21)
+# taiga removed 2026-05-22 (Taiga retired — replaced by Plane per guide 12)
