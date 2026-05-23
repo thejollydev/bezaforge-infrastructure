@@ -31,6 +31,10 @@
       tags: monitoring
     - role: services
       tags: services
+    - role: outline
+      tags: outline
+    - role: plane
+      tags: plane
     - role: db-dumps
       tags: backups
     - role: forge-ops-backup-rsync

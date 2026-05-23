@@ -44,11 +44,11 @@ bezaforge_root: /opt/bezaforge
 # NOTE: wiki was retired 2026-05-17 (Wiki.js — ROADMAP carryover #21)
 compose_services:
   - gitea
-  - taiga
   - uptime-kuma
   - netbox
   - langfuse
   - homepage
+# taiga retired 2026-05-22 — see ROADMAP carryover #23 / guide 12. Replaced by Plane.
 
 # Feature flags
 nfs_client: true

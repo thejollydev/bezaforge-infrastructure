@@ -46,24 +46,31 @@
         icon: uptime-kuma.png
         siteMonitor: https://uptime.bezaforge.dev
 
-# Wiki.js retired 2026-05-17 — see ROADMAP carryover #21.
-# Looking for a replacement; tracked in 00-INBOX/For-Claude.md.
-
 - Knowledge:
     - NetBox:
         href: https://netbox.bezaforge.dev
         description: Network + DCIM source of truth
         icon: netbox.png
         siteMonitor: https://netbox.bezaforge.dev
-    - Taiga:
-        href: https://taiga.bezaforge.dev
-        description: Project + sprint tracking
-        icon: taiga.png
-        siteMonitor: https://taiga.bezaforge.dev
+    - Outline:
+        href: https://docs.bezaforge.dev
+        description: Self-hosted wiki + docs · replaces Wiki.js
+        icon: outline.png
+        siteMonitor: https://docs.bezaforge.dev
+    - Plane:
+        href: https://plane.bezaforge.dev
+        description: Linear-style project + work tracking
+        icon: plane.png
+        siteMonitor: https://plane.bezaforge.dev
+    # Taiga retired 2026-05-22 — replaced by Plane (above). See ROADMAP carryover #23 / guide 12.
     - ERPNext:
+        # MDI fallback — ERPNext logo isn't in homarr-labs/dashboard-icons.
+        # If a custom PNG ever lands at docker/homepage/images/erpnext.png,
+        # swap this back to `icon: /icons/erpnext.png` (or `erpnext.png` if
+        # we add it to the dashboard-icons set as a custom mount).
         href: https://erp.bezaforge.dev
         description: Business ops · accounting · CRM
-        icon: erpnext.png
+        icon: mdi-finance-#1E40AF
         siteMonitor: https://erp.bezaforge.dev
 
 - Media:

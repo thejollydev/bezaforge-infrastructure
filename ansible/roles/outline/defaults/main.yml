@@ -1,0 +1,37 @@
+---
+# ============================================================
+# outline role defaults — Outline self-hosted wiki
+#
+# Replaces Wiki.js (retired 2026-05-17 per ROADMAP carryover
+# #21). Single dedicated role rather than living in the
+# 'services' composite role because it has its own
+# per-service Postgres + Redis + OIDC config + .env split.
+#
+# Auth: Google Workspace OIDC. Generic OIDC provider against
+# Google's endpoints, restricted to the bezacore.com domain.
+# Redirect URI registered in Google Cloud Console:
+#   https://docs.bezaforge.dev/auth/oidc.callback
+# ============================================================
+
+# Image pin. Outline drops the leading 'v' on its Docker tags
+# (GitHub release v1.7.1 → Docker tag 1.7.1).
+outline_image_tag: "1.7.1"
+
+# Public URL — Traefik routes this to outline:3000 over the
+# bezaforge-net Docker network. AdGuard rewrites the host to
+# 10.10.20.20.
+outline_url: "https://docs.{{ domain }}"
+outline_host: "docs.{{ domain }}"
+
+# Internal Docker network (created by the docker role).
+outline_network: bezaforge-net
+
+# Storage. Outline supports local-FS storage natively; we skip
+# MinIO to keep the deploy lean. The 'uploads/' bind-mount
+# below lands in the standard nightly rsync → bezapool path.
+outline_file_storage_max_size: "26214400"  # 25 MiB per upload
+
+# Postgres pin matches the rest of forge-ops (gitea/langfuse/
+# netbox all run postgres:15-alpine).
+outline_postgres_image: "postgres:15-alpine"
+outline_redis_image: "redis:7-alpine"
