@@ -40,10 +40,21 @@ The following secret variable names appear in templates under `ansible/roles/*/t
 | Variable | Class | Stored in | Used by | Last rotated |
 |----------|-------|-----------|---------|--------------|
 | `gitea_db_password` | Internal DB | `host_vars/forge-ops/vault.yml` | Gitea Postgres | — (initial) |
-| `taiga_db_password` | Internal DB | `host_vars/forge-ops/vault.yml` | Taiga Postgres | — (initial) |
-| `taiga_rabbitmq_password` | Internal DB | `host_vars/forge-ops/vault.yml` | Taiga RabbitMQ | — (initial) |
-| `taiga_secret_key` | App framework | `host_vars/forge-ops/vault.yml` | Taiga Django `SECRET_KEY` | — (initial) |
-| `wiki_db_password` | Internal DB | `host_vars/forge-ops/vault.yml` | Wiki.js Postgres | Removed 2026-05-17 (Wiki.js retired) |
+| `taiga_db_password` | Internal DB | `host_vars/forge-ops/vault.yml` | Taiga Postgres | Removed 2026-05-22 (Taiga retired — replaced by Plane per guide 12) |
+| `taiga_rabbitmq_password` | Internal DB | `host_vars/forge-ops/vault.yml` | Taiga RabbitMQ | Removed 2026-05-22 (Taiga retired) |
+| `taiga_secret_key` | App framework | `host_vars/forge-ops/vault.yml` | Taiga Django `SECRET_KEY` | Removed 2026-05-22 (Taiga retired) |
+| `wiki_db_password` | Internal DB | `host_vars/forge-ops/vault.yml` | Wiki.js Postgres | Removed 2026-05-17 (Wiki.js retired — replaced by Outline per guide 12) |
+| `outline_db_password` | Internal DB | `host_vars/forge-ops/vault.yml` | Outline Postgres (referenced in `roles/outline/templates/env.j2` + interpolated into compose for the postgres service) | — (initial 2026-05-22) |
+| `outline_secret_key` | App framework | `host_vars/forge-ops/vault.yml` | Outline `SECRET_KEY` (session signing) | — (initial 2026-05-22) |
+| `outline_utils_secret` | App framework | `host_vars/forge-ops/vault.yml` | Outline `UTILS_SECRET` (sub-token signing) | — (initial 2026-05-22) |
+| `outline_oidc_client_id` | OIDC config (not sensitive) | `host_vars/forge-ops/vault.yml` | Outline OIDC client ID (Google Workspace OAuth client — IDs are public; stored in vault for templating convenience, not secrecy) | — (initial 2026-05-22) |
+| `outline_oidc_client_secret` | External-scope OIDC | `host_vars/forge-ops/vault.yml` | Outline OIDC client secret (Google Workspace OAuth) | — (initial 2026-05-22) |
+| `plane_db_password` | Internal DB | `host_vars/forge-ops/vault.yml` | Plane Postgres | — (initial 2026-05-22) |
+| `plane_rabbitmq_password` | Internal DB | `host_vars/forge-ops/vault.yml` | Plane RabbitMQ | — (initial 2026-05-22) |
+| `plane_secret_key` | App framework | `host_vars/forge-ops/vault.yml` | Plane Django `SECRET_KEY` | — (initial 2026-05-22) |
+| `plane_live_server_secret_key` | App framework | `host_vars/forge-ops/vault.yml` | Plane live-server (websocket) shared secret | — (initial 2026-05-22) |
+| `plane_minio_access_key` | Internal credential | `host_vars/forge-ops/vault.yml` | Plane bundled MinIO access key (internal — Plane is its only client) | — (initial 2026-05-22) |
+| `plane_minio_secret_key` | Internal credential | `host_vars/forge-ops/vault.yml` | Plane bundled MinIO secret key (internal — Plane is its only client) | — (initial 2026-05-22) |
 | `netbox_db_password` | Internal DB | `host_vars/forge-ops/vault.yml` | NetBox Postgres | — (initial) |
 | `netbox_secret_key` | App framework | `host_vars/forge-ops/vault.yml` | NetBox Django `SECRET_KEY` | — (initial) |
 | `netbox_superuser_password` | Admin UI | `host_vars/forge-ops/vault.yml` | NetBox superuser login | — (initial) |
@@ -67,8 +78,9 @@ The following secret variable names appear in templates under `ansible/roles/*/t
 - Jellyfin admin password
 - Kavita admin password
 - qBittorrent web UI password
-- Taiga superuser (created via `manage.py createsuperuser` at deploy; reset via password reset email)
 - NetBox superuser is `netbox_superuser_password` above *for initial seed only* — subsequent rotation is done in the NetBox UI.
+- **Outline:** sign-in is Google Workspace OIDC only — no local admin accounts to rotate. Outline OIDC client config (`outline_oidc_client_id` + `outline_oidc_client_secret`) IS in ansible-vault (see inventory above) and is rotated via Google Cloud Console + ansible-vault edit.
+- **Plane:** sign-in is Google OAuth only — no local admin accounts to rotate. Plane's Google OAuth client_id + client_secret are **NOT in ansible-vault** — they live in Plane's Postgres `instance_configurations` table, entered through Plane's god-mode UI on initial setup. Rotate via Google Cloud Console (issue new client secret) + Plane god-mode UI (paste the new secret). The `IS_GOOGLE_ENABLED` seed task in `roles/plane/tasks/main.yml` only sets the toggle row — it does not store credentials.
 
 ---
 
