@@ -1,0 +1,30 @@
+---
+# ============================================================
+# fail2ban role — SSH brute-force protection
+#
+# Self-contained: installs fail2ban, drops a managed jail.local
+# enabling the sshd jail (journald backend), enables the service.
+# Coexists with UFW — fail2ban inserts its own ban chains; UFW's
+# default-deny whitelist is unaffected.
+# ============================================================
+
+- name: Install fail2ban
+  ansible.builtin.apt:
+    name: fail2ban
+    state: present
+    update_cache: true
+
+- name: Deploy fail2ban jail.local
+  ansible.builtin.template:
+    src: jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart fail2ban
+
+- name: Enable and start fail2ban
+  ansible.builtin.systemd:
+    name: fail2ban
+    enabled: true
+    state: started

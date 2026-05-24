@@ -1,0 +1,34 @@
+---
+# ============================================================
+# brizza-postgres role defaults — dedicated Postgres for Brizza
+#
+# Standalone Postgres container on forge-ops backing Brizza's
+# LangGraph checkpointer + APScheduler job store (Brizza ADR
+# 0001). Unlike the other per-service Postgres containers
+# (gitea-db, outline-db, plane-db …) this one is reached by a
+# REMOTE client — forge-brizza on VLAN 50 — so it publishes
+# its port on the production IP and opens UFW for that host.
+#
+# One database 'brizza', one user 'brizza', two schemas
+# (checkpoints + scheduler) created by files/init/01-schemas.sql
+# on first init.
+#
+# Secret: brizza_db_password (ansible-vault, host_vars/forge-ops/vault.yml)
+# Backups: pg_dumpall via db-dumps role; install dir via
+#          forge-ops-backup-rsync (both lists updated alongside).
+# ============================================================
+
+# Image pin — newest stable Postgres major (18.4 released
+# 2026-05-14; 19 not due until Sept 2026). Plain Postgres,
+# no pgvector (that's Cognee's concern, not this).
+brizza_postgres_image: "postgres:18-alpine"
+
+# Internal Docker network (created by the docker role).
+brizza_postgres_network: bezaforge-net
+
+# Publish the port on forge-ops's production NIC only (VLAN 20),
+# NOT 0.0.0.0 — keeps the listener off any other interface.
+brizza_postgres_bind_ip: "{{ production_ip }}"
+
+# UFW source allowed to reach 5432. forge-brizza (VLAN 50) only.
+brizza_postgres_client_cidr: "10.10.50.20/32"

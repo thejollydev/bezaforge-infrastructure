@@ -40,6 +40,10 @@ backup_services:
       # MinIO uploads cover via the bind-mounted /opt/bezaforge/plane/minio.
       # Skip the high-churn live-update + log dirs.
       - "logs/"
+  - name: brizza-postgres
+    # Physical copy of the data dir alongside the logical pg_dumpall
+    # (db-dumps). The dump is the authoritative restore path; this
+    # mirrors the outline/plane pattern for parity.
   - name: prometheus
     excludes:
       # The write-ahead-log is constantly mutating during scrape.

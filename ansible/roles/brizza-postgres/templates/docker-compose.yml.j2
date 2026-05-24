@@ -1,0 +1,34 @@
+networks:
+  {{ brizza_postgres_network }}:
+    external: true
+
+services:
+  brizza-db:
+    image: {{ brizza_postgres_image }}
+    container_name: brizza-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: brizza
+      POSTGRES_USER: brizza
+      POSTGRES_PASSWORD: ${BRIZZA_DB_PASSWORD}
+    ports:
+      # LAN-scoped publish on the production NIC (VLAN 20) so
+      # forge-brizza (VLAN 50) can connect. Never 0.0.0.0.
+      - "{{ brizza_postgres_bind_ip }}:5432:5432"
+    volumes:
+      # Postgres 18+ stores data in a major-version subdirectory and
+      # wants the volume at /var/lib/postgresql (NOT .../data, which is
+      # the PG≤15 layout used by outline/plane). Mounting the old path
+      # makes the 18 image refuse to start. The host dir will then hold
+      # an 18/ subdir; backups (rsync + pg_dumpall) are unaffected.
+      - /opt/bezaforge/brizza-postgres/postgres:/var/lib/postgresql
+      # Runs ONLY on first init (empty data dir). Creates the
+      # checkpoints + scheduler schemas. Idempotent (IF NOT EXISTS).
+      - ./init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - {{ brizza_postgres_network }}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U brizza"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

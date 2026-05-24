@@ -1,0 +1,14 @@
+# Managed by Ansible — roles/fail2ban/templates/jail.local.j2
+# Local overrides; never edit /etc/fail2ban/jail.conf directly
+# (jail.local takes precedence and survives package upgrades).
+
+[DEFAULT]
+bantime  = {{ fail2ban_bantime }}
+findtime = {{ fail2ban_findtime }}
+maxretry = {{ fail2ban_maxretry }}
+backend  = {{ fail2ban_backend }}
+# Never ban the management VLAN or localhost.
+ignoreip = {{ fail2ban_ignoreip }}
+
+[sshd]
+enabled = true

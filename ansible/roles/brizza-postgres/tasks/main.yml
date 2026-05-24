@@ -1,0 +1,68 @@
+---
+# ============================================================
+# brizza-postgres role — dedicated Postgres for Brizza on forge-ops
+#
+# Single container brizza-db. Reached REMOTELY by forge-brizza
+# (VLAN 50 → forge-ops production IP VLAN 20, tcp/5432), so it
+# publishes its port on the production NIC and opens UFW for
+# that one source host.
+#
+# Dependencies: docker role (creates bezaforge-net).
+# Backups: pg_dumpall via db-dumps; install dir via
+#          forge-ops-backup-rsync (both lists updated with this role).
+# ============================================================
+
+- name: Create Brizza Postgres install root + init dir
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/brizza-postgres/{{ item }}"
+    state: directory
+    owner: joseph
+    group: joseph
+    mode: "0755"
+  loop:
+    - "."
+    - init
+
+# NOTE: the postgres/ data dir is deliberately NOT managed here.
+# The container entrypoint chowns it to uid 70 (alpine postgres)
+# mode 0700 on first boot. Managing it in Ansible reverts the uid
+# back to joseph (1000) on every re-run, silently breaking the
+# container on its next restart. Same trap documented in the
+# outline + plane roles.
+
+- name: Deploy Brizza Postgres schema init script
+  ansible.builtin.copy:
+    src: init/01-schemas.sql
+    dest: "{{ bezaforge_root }}/brizza-postgres/init/01-schemas.sql"
+    owner: joseph
+    group: joseph
+    mode: "0644"
+
+- name: Deploy Brizza Postgres docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ bezaforge_root }}/brizza-postgres/docker-compose.yml"
+    owner: joseph
+    group: joseph
+    mode: "0644"
+
+- name: Deploy Brizza Postgres .env
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ bezaforge_root }}/brizza-postgres/.env"
+    owner: joseph
+    group: joseph
+    mode: "0600"
+
+- name: Allow Postgres from forge-brizza
+  community.general.ufw:
+    rule: allow
+    src: "{{ brizza_postgres_client_cidr }}"
+    port: '5432'
+    proto: tcp
+
+- name: Start Brizza Postgres
+  community.docker.docker_compose_v2:
+    project_src: "{{ bezaforge_root }}/brizza-postgres"
+    state: present
+    remove_orphans: true
