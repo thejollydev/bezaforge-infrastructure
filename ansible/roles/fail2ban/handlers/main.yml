@@ -1,0 +1,6 @@
+---
+# Only fires when jail.local actually changes.
+- name: restart fail2ban
+  ansible.builtin.systemd:
+    name: fail2ban
+    state: restarted

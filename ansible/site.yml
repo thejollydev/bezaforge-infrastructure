@@ -21,6 +21,8 @@
   roles:
     - role: common
       tags: common
+    - role: fail2ban
+      tags: fail2ban
     - role: docker
       tags: docker
     - role: traefik
@@ -35,6 +37,8 @@
       tags: outline
     - role: plane
       tags: plane
+    - role: brizza-postgres
+      tags: brizza-postgres
     - role: db-dumps
       tags: backups
     - role: forge-ops-backup-rsync
@@ -47,6 +51,8 @@
   roles:
     - role: common
       tags: common
+    - role: fail2ban
+      tags: fail2ban
     - role: ollama
       tags: ollama
 
@@ -55,5 +61,7 @@
   become: true
 
   roles:
+    - role: fail2ban
+      tags: fail2ban
     - role: forge-brizza
       tags: forge-brizza

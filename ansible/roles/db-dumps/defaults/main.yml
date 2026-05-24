@@ -35,6 +35,8 @@ postgres_dumps:
     container: outline-db
   - service: plane
     container: plane-db
+  - service: brizza
+    container: brizza-db
 # harbor removed 2026-05-17 (retired — see ROADMAP carryover #8)
 # wiki removed 2026-05-17 (Wiki.js retired — see ROADMAP carryover #21)
 # taiga removed 2026-05-22 (Taiga retired — replaced by Plane per guide 12)

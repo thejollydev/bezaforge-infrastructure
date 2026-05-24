@@ -1,0 +1,20 @@
+---
+# ============================================================
+# fail2ban role defaults — SSH brute-force protection
+#
+# Pairs with the SSH hardening + UFW whitelist already in the
+# common role (pubkey-only, no root login, default-deny). This
+# adds active ban-on-failure for the sshd jail.
+#
+# backend=systemd reads the journald log directly — correct for
+# modern Debian/Ubuntu where /var/log/auth.log may not exist.
+#
+# ignoreip keeps the management VLAN (10.10.10.0/24) + localhost
+# permanently un-bannable — lockout insurance for admin access.
+# ============================================================
+
+fail2ban_bantime: "1h"
+fail2ban_findtime: "10m"
+fail2ban_maxretry: 5
+fail2ban_backend: "systemd"
+fail2ban_ignoreip: "127.0.0.1/8 ::1 10.10.10.0/24"
