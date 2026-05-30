@@ -36,5 +36,13 @@ certificatesResolvers:
       storage: /certs/acme.json
       dnsChallenge:
         provider: cloudflare
+        # Use public resolvers for zone-detection + propagation checks.
+        # The container resolves via AdGuard (split-horizon *.bezaforge.dev
+        # → forge-ops), which returns no SOA for the apex, so lego's zone
+        # walk mis-detects the apex as `dev.` and ACME fails. Public
+        # resolvers see Cloudflare's real SOA. (FORGE-22)
+        resolvers:
+          - "1.1.1.1:53"
+          - "8.8.8.8:53"
         propagation:
           delayBeforeChecks: 30s
