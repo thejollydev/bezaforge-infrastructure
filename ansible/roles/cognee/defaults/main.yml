@@ -1,0 +1,48 @@
+---
+# ============================================================
+# cognee role defaults — shared memory service on forge-ops
+#
+# Two containers on bezaforge-net:
+#   - cognee      : API backend (sqlite + lancedb + kuzu), healthchecked,
+#                   internal only (no published port)
+#   - cognee-mcp  : MCP server, Traefik-routed at memory.bezaforge.dev,
+#                   consumed by Claude Code / Codex / Gemini (Brizza uses
+#                   the cognee-integration-langgraph package directly, not
+#                   this MCP — Brizza ADR 0001).
+#
+# The Master-Mind vault is bind-mounted READ-ONLY at /vault.
+# Embeddings + LLM run on forge-ai (Ollama, OpenAI-compat /v1 path).
+#
+# Secret: cognee_api_token (ansible-vault, host_vars/forge-ops/vault.yml)
+#         — this is the MCP->backend token, NOT client-facing auth.
+# Backups: data/ + system/ bind-mounts via forge-ops-backup-rsync
+#          (added to backup_services alongside this role). No db-dumps
+#          entry — Cognee is sqlite, not Postgres.
+# ============================================================
+
+# Image pins — pinned by DIGEST, not the :main tag. The :main tag MOVES
+# silently (confirmed: the same cognee-mcp image reported 1.1.0 on
+# 2026-05-25 and 1.27.0 on 2026-05-29). Pin for reproducibility; bump
+# these digests deliberately to upgrade. See reference_cognee_deploy_gotchas.
+cognee_image: "cognee/cognee@sha256:9c9e4e526c261b2a71e031a5774a23dc7a979c6bb8c8cf630d0e2f41629c5778"          # :main @ 2026-05-20
+cognee_mcp_image: "cognee/cognee-mcp@sha256:03cb2e88d4e27bcab854c490b2dd766afce9bf5512a6d0e226294b6bb0fa55bf"  # :main @ 2026-05-24
+
+# Internal Docker network (created by the docker role).
+cognee_network: bezaforge-net
+
+# Traefik route host for the MCP server.
+cognee_hostname: "memory.bezaforge.dev"
+
+# Master-Mind vault — bind-mounted read-only into the backend at /vault.
+cognee_vault_mount: "/mnt/bezapool/gdrive/Obsidian/Master-Mind"
+
+# LLM + embeddings on forge-ai (Ollama). LLM uses the OpenAI-compat /v1
+# path; embeddings use the native endpoint. HUGGINGFACE_TOKENIZER is
+# MANDATORY when custom Ollama embeddings are set (backend crash-loops
+# without it).
+cognee_llm_model: "ollama/gemma4:26b"
+cognee_llm_endpoint: "http://forge-ai:11434/v1"
+cognee_embedding_model: "nomic-embed-text"
+cognee_embedding_endpoint: "http://forge-ai:11434"
+cognee_embedding_dimensions: 768
+cognee_hf_tokenizer: "nomic-ai/nomic-embed-text-v1.5"
