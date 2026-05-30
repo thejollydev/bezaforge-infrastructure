@@ -69,3 +69,20 @@ forge_brizza_insync_apt_repo: "deb [signed-by=/etc/apt/trusted.gpg.d/insync.gpg]
 forge_brizza_insync_packages:
   - insync
   - insync-nautilus
+
+# --- Docker engine (Hermes bridge — FORGE-24) ---
+# Docker CE from Docker's official apt repo, so forge-brizza can run
+# Brizza's Hermes Agent container (nousresearch/hermes-agent:latest) per
+# Brizza ADR 0009. Engine + compose plugin ONLY — no bezaforge-net or
+# /opt/bezaforge service-dir scaffolding (that's the forge-ops `docker`
+# role's job; forge-brizza is a standalone single-container host). The
+# repo path follows the host's own distro (ubuntu here) rather than the
+# debian path the forge-ops role hardcodes. Flip the flag in host_vars.
+forge_brizza_install_docker: false
+forge_brizza_docker_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
+forge_brizza_docker_user: joseph

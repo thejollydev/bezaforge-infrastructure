@@ -8,6 +8,9 @@
 #           desktop client (apt repo). Gated on host vars
 #           (nfs_client + forge_brizza_install_insync) so this
 #           role can run incrementally as Phase 1 progresses.
+# Hermes bridge (FORGE-24): Docker CE engine for the Hermes Agent
+#           container (Brizza ADR 0009). Gated on
+#           forge_brizza_install_docker.
 #
 # Companion docs (Master-Mind vault):
 #   - 05_Projects/brizza/ROADMAP.md
@@ -240,3 +243,81 @@
     name: "{{ forge_brizza_insync_packages }}"
     state: present
   when: forge_brizza_install_insync | bool
+
+# ------------------------------------------------------------
+# Docker engine (Hermes bridge — FORGE-24)
+# ------------------------------------------------------------
+# Docker CE from Docker's official apt repo so forge-brizza can run
+# Brizza's Hermes Agent container (nousresearch/hermes-agent:latest) per
+# Brizza ADR 0009. Engine + compose plugin only — no bezaforge-net or
+# /opt/bezaforge service scaffolding (that's the forge-ops `docker` role).
+# The repo path follows the host's distro ({{ ansible_facts['distribution'] | lower }})
+# rather than the debian path the forge-ops role hardcodes, so it resolves
+# correctly on this Ubuntu host. Gated on forge_brizza_install_docker.
+- name: Create apt keyrings directory (Docker)
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+  when: forge_brizza_install_docker | bool
+
+- name: Add Docker GPG key
+  ansible.builtin.shell:
+    cmd: "curl -fsSL https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg"
+    creates: /etc/apt/keyrings/docker.gpg
+  when: forge_brizza_install_docker | bool
+
+# Skipped in --check: the GPG-key shell task above doesn't actually create
+# the file in check mode, so this perms task would fail on an absent file.
+# Real runs create it first, then this sets 0644.
+- name: Set Docker GPG key permissions
+  ansible.builtin.file:
+    path: /etc/apt/keyrings/docker.gpg
+    mode: '0644'
+  when: forge_brizza_install_docker | bool and not ansible_check_mode
+
+- name: Add Docker repository
+  ansible.builtin.deb822_repository:
+    name: docker
+    uris: "https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}"
+    suites: "{{ ansible_facts['distribution_release'] }}"
+    components: stable
+    architectures: amd64
+    signed_by: /etc/apt/keyrings/docker.gpg
+    state: present
+    enabled: true
+  when: forge_brizza_install_docker | bool
+
+# In --check the Docker apt repo isn't really added (deb822 only simulates),
+# so these packages aren't visible and a check run would hard-fail finding
+# them. Same rationale as the node-exporter enable task above — ignore in
+# check mode only; the real apply adds the repo first, then installs.
+- name: Install Docker packages
+  ansible.builtin.apt:
+    name: "{{ forge_brizza_docker_packages }}"
+    state: present
+    update_cache: true
+  when: forge_brizza_install_docker | bool
+  ignore_errors: "{{ ansible_check_mode }}"
+
+# append: true ADDS docker without clobbering joseph's existing groups
+# (sudo, etc.) — dropping append is a classic footgun.
+# Check-mode: the docker group doesn't exist until the package is installed,
+# so the user module would fail in a dry run — ignore in check only.
+- name: Add {{ forge_brizza_docker_user }} to docker group
+  ansible.builtin.user:
+    name: "{{ forge_brizza_docker_user }}"
+    groups: docker
+    append: true
+  when: forge_brizza_install_docker | bool
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Enable and start Docker
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+    state: started
+  when: forge_brizza_install_docker | bool
+  # In --check the package isn't installed yet, so the unit file isn't on
+  # disk and this lookup fails. Real runs install first. Ignore in check only.
+  ignore_errors: "{{ ansible_check_mode }}"
