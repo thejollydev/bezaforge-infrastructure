@@ -36,13 +36,36 @@ cognee_hostname: "memory.bezaforge.dev"
 # Master-Mind vault — bind-mounted read-only into the backend at /vault.
 cognee_vault_mount: "/mnt/bezapool/gdrive/Obsidian/Master-Mind"
 
-# LLM + embeddings on forge-ai (Ollama). LLM uses the OpenAI-compat /v1
-# path; embeddings use the native endpoint. HUGGINGFACE_TOKENIZER is
-# MANDATORY when custom Ollama embeddings are set (backend crash-loops
-# without it).
-cognee_llm_model: "ollama/gemma4:26b"
+# LLM + embeddings on forge-ai (Ollama).
+#
+# CRITICAL (FORGE-5, 2026-06-02 — root-caused by reproducing the adapter):
+# Cognee's structured-output path (used by cognify AND the add-time LLM
+# connection test) does NOT go through litellm's router. For LLM_PROVIDER=ollama
+# it uses `OllamaAPIAdapter` = instructor.from_openai(OpenAI(base_url=ENDPOINT)),
+# a RAW OpenAI client. Two consequences:
+#   1. LLM_MODEL is passed VERBATIM as the OpenAI `model` param, so it must be
+#      the BARE Ollama name `gemma4:26b`. Any litellm prefix (`ollama/`,
+#      `ollama_chat/`) is sent as-is and Ollama returns 404 "model not found",
+#      which instructor RETRIES → the add-time test hangs to its 30s timeout.
+#   2. ENDPOINT is the OpenAI base; the SDK appends `/chat/completions`, so it
+#      MUST include `/v1` (a native base 404s on `/chat/completions`).
+# Verified working combo: bare `gemma4:26b` + `…:11434/v1` → structured output
+# returns in ~6.5s. (The original `ollama/gemma4:26b` + `/v1` was broken from
+# day one; invisible until first ingest because the MCP handshake never
+# exercises the backend LLM.)
+#
+# Embeddings use the NATIVE endpoint (no /v1) — that path is correct as-is.
+# HUGGINGFACE_TOKENIZER is MANDATORY with custom Ollama embeddings (backend
+# crash-loops without it).
+cognee_llm_model: "gemma4:26b"
 cognee_llm_endpoint: "http://forge-ai:11434/v1"
 cognee_embedding_model: "nomic-embed-text"
-cognee_embedding_endpoint: "http://forge-ai:11434"
+# OllamaEmbeddingEngine POSTs DIRECTLY to this URL (it is not a base — the
+# engine's own default is ".../api/embed"). So it must be the FULL native
+# embed path, not the bare host. The codified deploy had bare `…:11434`,
+# which POSTed to Ollama's root → embedding connection test hung to 30s
+# (same invisible-until-first-ingest bug as the LLM line). Verified: POST
+# `…/api/embed` {model,input,dimensions} returns vectors. (FORGE-5, 2026-06-02)
+cognee_embedding_endpoint: "http://forge-ai:11434/api/embed"
 cognee_embedding_dimensions: 768
 cognee_hf_tokenizer: "nomic-ai/nomic-embed-text-v1.5"
