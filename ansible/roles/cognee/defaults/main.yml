@@ -11,10 +11,12 @@
 #                   this MCP — Brizza ADR 0001).
 #
 # The Master-Mind vault is bind-mounted READ-ONLY at /vault.
-# Embeddings + LLM run on forge-ai (Ollama, OpenAI-compat /v1 path).
+# LLM is cloud Gemini (API key, paid tier = no-train); embeddings stay
+# LOCAL on forge-ai (Ollama /api/embed) — mixing providers is safe.
 #
-# Secret: cognee_api_token (ansible-vault, host_vars/forge-ops/vault.yml)
-#         — this is the MCP->backend token, NOT client-facing auth.
+# Secrets (ansible-vault, host_vars/forge-ops/vault.yml):
+#   cognee_api_token             — MCP->backend token, NOT client-facing auth
+#   vault_cognee_gemini_api_key  — Gemini API key for extraction LLM
 # Backups: data/ + system/ bind-mounts via forge-ops-backup-rsync
 #          (added to backup_services alongside this role). No db-dumps
 #          entry — Cognee is sqlite, not Postgres.
@@ -36,29 +38,39 @@ cognee_hostname: "memory.bezaforge.dev"
 # Master-Mind vault — bind-mounted read-only into the backend at /vault.
 cognee_vault_mount: "/mnt/bezapool/gdrive/Obsidian/Master-Mind"
 
-# LLM + embeddings on forge-ai (Ollama).
+# LLM — cloud Gemini via API key (FORGE-33 gate passed 2026-06-04; decision
+# trail in project memory + the Cognee KB doc).
 #
-# CRITICAL (FORGE-5, 2026-06-02 — root-caused by reproducing the adapter):
-# Cognee's structured-output path (used by cognify AND the add-time LLM
-# connection test) does NOT go through litellm's router. For LLM_PROVIDER=ollama
-# it uses `OllamaAPIAdapter` = instructor.from_openai(OpenAI(base_url=ENDPOINT)),
-# a RAW OpenAI client. Two consequences:
-#   1. LLM_MODEL is passed VERBATIM as the OpenAI `model` param, so it must be
-#      the BARE Ollama name `gemma4:26b`. Any litellm prefix (`ollama/`,
-#      `ollama_chat/`) is sent as-is and Ollama returns 404 "model not found",
-#      which instructor RETRIES → the add-time test hangs to its 30s timeout.
-#   2. ENDPOINT is the OpenAI base; the SDK appends `/chat/completions`, so it
-#      MUST include `/v1` (a native base 404s on `/chat/completions`).
-# Verified working combo: bare `gemma4:26b` + `…:11434/v1` → structured output
-# returns in ~6.5s. (The original `ollama/gemma4:26b` + `/v1` was broken from
-# day one; invisible until first ingest because the MCP handshake never
-# exercises the backend LLM.)
+# Gemini wiring rules (verified against the pinned image 2026-06-04):
+#   - LLM_MODEL REQUIRES the `gemini/` prefix — this path routes through
+#     litellm, UNLIKE the Ollama-era OllamaAPIAdapter which wanted the bare
+#     tag (that root-cause writeup: Cognee KB doc + reference_cognee_deploy_gotchas).
+#   - NO LLM_ENDPOINT — litellm routes to the public Gemini API itself.
+#   - LLM_INSTRUCTOR_MODE stays UNSET (Gemini's Cognee default `json_mode` is
+#     correct; the `json_schema_mode` advice was Ollama/OpenAI-era only).
+#   - Both model ids below are present in the pinned image's litellm 1.83.7
+#     registry (probed in-container) — no registry-lag `KeyError: max_tokens`.
+#   - Safety filters: defaults are Off for Gemini 3 models; Cognee sends no
+#     safety_settings, so server defaults apply (FORGE-33 verdict).
 #
-# Embeddings use the NATIVE endpoint (no /v1) — that path is correct as-is.
-# HUGGINGFACE_TOKENIZER is MANDATORY with custom Ollama embeddings (backend
-# crash-loops without it).
-cognee_llm_model: "gemma4:26b"
-cognee_llm_endpoint: "http://forge-ai:11434/v1"
+# Bulk-ingest model (one-time; best entity disambiguation — compounds on the
+# initial graph). FORGE-6's nightly delta pipeline swaps this to the cheap
+# delta model: gemini/gemini-3.1-flash-lite-preview (~$1.20/mo est).
+cognee_llm_provider: "gemini"
+cognee_llm_model: "gemini/gemini-3.1-pro-preview"
+# Rate limiters — BOTH REQUIRED at ingest scale (FORGE-5 pilot failure,
+# 2026-06-04): Cognee's embedding engine fires ONE concurrent HTTP request
+# PER text chunk (asyncio.gather, unbounded, 60s client timeout). The pilot's
+# flood wedged Ollama's single embed runner → client timeouts → pipeline
+# error. (Logged as "Status code: 422" — that's EmbeddingException's DEFAULT
+# status code, NOT an HTTP response; the wrapped error was TimeoutError.)
+# Cognee's built-in AsyncLimiter is a no-op unless explicitly enabled.
+# 60 req/min is well under forge-ai's embed capacity and Gemini Tier-1 RPM.
+cognee_rate_limit_requests: 60
+cognee_rate_limit_interval: 60
+
+# Embeddings stay LOCAL on forge-ai (Ollama). HUGGINGFACE_TOKENIZER is
+# MANDATORY with custom Ollama embeddings (backend crash-loops without it).
 cognee_embedding_model: "nomic-embed-text"
 # OllamaEmbeddingEngine POSTs DIRECTLY to this URL (it is not a base — the
 # engine's own default is ".../api/embed"). So it must be the FULL native
@@ -66,6 +78,14 @@ cognee_embedding_model: "nomic-embed-text"
 # which POSTed to Ollama's root → embedding connection test hung to 30s
 # (same invisible-until-first-ingest bug as the LLM line). Verified: POST
 # `…/api/embed` {model,input,dimensions} returns vectors. (FORGE-5, 2026-06-02)
-cognee_embedding_endpoint: "http://forge-ai:11434/api/embed"
+#
+# FQDN, not the bare "forge-ai" (2026-06-04, FORGE-5 pilot failure #2): a
+# single-label name from inside the container detours through systemd-resolved
+# LLMNR multicast = ~3.85s per lookup (vs 28ms for the FQDN via the AdGuard
+# rewrite) — and Cognee opens a fresh session PER embed request, so every call
+# paid it; concurrent lookups stacked past the 60s client timeout and killed
+# cognify. LLMNR is also disabled host-wide in roles/common (the root fix);
+# the FQDN keeps this role correct independent of host resolver config.
+cognee_embedding_endpoint: "http://forge-ai.bezaforge.dev:11434/api/embed"
 cognee_embedding_dimensions: 768
 cognee_hf_tokenizer: "nomic-ai/nomic-embed-text-v1.5"
