@@ -217,6 +217,16 @@
 # The symlink force-replaces /etc/resolv.conf. On Debian,
 # this file might be a static file from the installer —
 # the symlink switches to the systemd-managed version.
+#
+# LLMNR=no (added 2026-06-04, FORGE-5 root-cause): resolved
+# routes SINGLE-LABEL names (e.g. a bare "forge-ai" from a
+# Docker container, forwarded via dockerd's 127.0.0.11) to
+# LLMNR multicast, which waits ~4s for silence before the
+# search domain resolves the name instantly via AdGuard.
+# Measured: 3.85s per bare-name lookup with LLMNR vs 28ms
+# direct — every container paid this tax on every request,
+# and Cognee's per-request sessions turned it into pipeline
+# timeouts. Nothing on this network speaks LLMNR; disable it.
 
 - name: Configure systemd-resolved
   ansible.builtin.copy:
@@ -226,6 +236,7 @@
       DNS=10.10.20.20
       FallbackDNS=1.1.1.1
       Domains=bezaforge.dev
+      LLMNR=no
     mode: '0644'
   notify: restart systemd-resolved
 
