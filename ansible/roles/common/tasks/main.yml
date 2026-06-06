@@ -284,7 +284,9 @@
     src: "{{ item.src }}"
     path: "{{ item.path }}"
     fstype: nfs
-    opts: defaults,_netdev,nofail
+    # Per-item override (e.g. ro for the vault clone, ADR 0002);
+    # default unchanged for all existing mounts.
+    opts: "{{ item.opts | default('defaults,_netdev,nofail') }}"
     state: mounted
   loop: "{{ nfs_mounts }}"
   when: nfs_client | bool

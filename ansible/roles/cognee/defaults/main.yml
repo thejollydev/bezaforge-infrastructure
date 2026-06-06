@@ -36,7 +36,10 @@ cognee_network: bezaforge-net
 cognee_hostname: "memory.bezaforge.dev"
 
 # Master-Mind vault — bind-mounted read-only into the backend at /vault.
-cognee_vault_mount: "/mnt/bezapool/gdrive/Obsidian/Master-Mind"
+# ADR 0002 (2026-06-06): the vault left Google Drive; this is now the
+# bezapool/vault git clone (repo root — ingest tooling excludes dot-dirs,
+# so .git is invisible to it). RO at every layer: NFS export, fstab, bind.
+cognee_vault_mount: "/mnt/bezapool/vault"
 
 # LLM — cloud Gemini via API key (FORGE-33 gate passed 2026-06-04; decision
 # trail in project memory + the Cognee KB doc).

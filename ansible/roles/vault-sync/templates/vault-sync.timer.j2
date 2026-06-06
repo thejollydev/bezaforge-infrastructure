@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Fallback timer for vault-sync (webhook is the fast path — ADR 0002)
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+RandomizedDelaySec=5
+Persistent=false
+
+[Install]
+WantedBy=timers.target

@@ -60,6 +60,15 @@ sanoid_templates:
     daily: 4
     weekly: 2
     monthly: 2
+  # vault: the Master-Mind git clone (ADR 0002). Same posture as
+  # gdrive had — hottest dataset, hourly granularity genuinely useful.
+  # Git history overlaps this protection but snapshots also cover
+  # untracked/ignored files and a corrupted-clone scenario.
+  vault:
+    hourly: 24
+    daily: 14
+    weekly: 8
+    monthly: 12
 
 # ------------------------------------------------------------
 # Datasets covered by sanoid
@@ -90,4 +99,8 @@ sanoid_datasets:
 
   - dataset: "bezapool/vzdump"
     template: "vzdump"
+    recursive: "no"
+
+  - dataset: "bezapool/vault"
+    template: "vault"
     recursive: "no"

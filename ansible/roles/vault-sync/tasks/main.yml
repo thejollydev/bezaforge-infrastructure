@@ -1,0 +1,111 @@
+---
+# ============================================================
+# vault-sync — server-side Master-Mind vault clone (ADR 0002)
+# ============================================================
+
+- name: Install git
+  ansible.builtin.apt:
+    name: git
+    state: present
+
+- name: Create vault-sync service user (uid 1000 — matches dataset chown + NFS squash)
+  ansible.builtin.user:
+    name: "{{ vault_sync_user }}"
+    uid: "{{ vault_sync_user_uid }}"
+    shell: /bin/bash
+    create_home: true
+    system: false
+
+- name: Pin git.bezaforge.dev in /etc/hosts (no AdGuard dependency on the hypervisor)
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ vault_sync_etc_hosts_ip }} git.bezaforge.dev"
+    regexp: 'git\.bezaforge\.dev$'
+
+- name: Generate deploy key if missing
+  become: true
+  become_user: "{{ vault_sync_user }}"
+  ansible.builtin.command:
+    cmd: ssh-keygen -t ed25519 -N "" -C "vault-sync@forge-brizza" -f {{ vault_sync_ssh_key }}
+    creates: "{{ vault_sync_ssh_key }}"
+
+- name: Ensure Gitea host key is known
+  become: true
+  become_user: "{{ vault_sync_user }}"
+  ansible.builtin.shell: |
+    set -o pipefail
+    grep -q "\[git.bezaforge.dev\]:2222" ~/.ssh/known_hosts 2>/dev/null || \
+      ssh-keyscan -p 2222 -t ed25519 git.bezaforge.dev >> ~/.ssh/known_hosts
+  args:
+    executable: /bin/bash
+  register: vault_sync_known_hosts
+  changed_when: "'ssh-keyscan' not in (vault_sync_known_hosts.stderr | default(''))
+                 and vault_sync_known_hosts.rc == 0
+                 and vault_sync_known_hosts.stdout != ''"
+
+- name: Clone the vault repo (first run only)
+  become: true
+  become_user: "{{ vault_sync_user }}"
+  ansible.builtin.git:
+    repo: "{{ vault_sync_repo }}"
+    dest: "{{ vault_sync_clone_path }}"
+    version: "{{ vault_sync_branch }}"
+    key_file: "{{ vault_sync_ssh_key }}"
+    update: false   # the sync script owns updates; Ansible only bootstraps
+  # NFS root_squash maps root→1000, but run as the owning user anyway.
+
+- name: Set commit identity on the clone
+  become: true
+  become_user: "{{ vault_sync_user }}"
+  community.general.git_config:
+    repo: "{{ vault_sync_clone_path }}"
+    scope: local
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+  loop:
+    - { name: user.name, value: "{{ vault_sync_git_name }}" }
+    - { name: user.email, value: "{{ vault_sync_git_email }}" }
+    - { name: core.sshCommand, value: "ssh -i {{ vault_sync_ssh_key }} -o IdentitiesOnly=yes" }
+
+- name: Deploy sync script
+  ansible.builtin.template:
+    src: vault-sync.sh.j2
+    dest: /usr/local/bin/vault-sync.sh
+    mode: "0755"
+
+- name: Deploy webhook receiver
+  ansible.builtin.template:
+    src: vault-sync-webhook.py.j2
+    dest: /usr/local/bin/vault-sync-webhook.py
+    mode: "0755"
+  notify: Restart vault-sync webhook
+
+- name: Deploy systemd units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: "0644"
+  loop:
+    - vault-sync.service
+    - vault-sync.timer
+    - vault-sync-webhook.service
+  notify: Restart vault-sync webhook
+
+- name: Allow webhook port from Gitea host (UFW hosts only)
+  community.general.ufw:
+    rule: allow
+    src: "{{ item }}"
+    port: "{{ vault_sync_webhook_port }}"
+    proto: tcp
+  loop: "{{ vault_sync_webhook_allowed_sources }}"
+  when: vault_sync_manage_ufw | bool
+
+- name: Enable and start timer + webhook receiver
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop:
+    - vault-sync.timer
+    - vault-sync-webhook.service

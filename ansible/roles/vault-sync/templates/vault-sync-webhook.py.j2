@@ -1,0 +1,33 @@
+#!/usr/bin/env python3
+# {{ ansible_managed }}
+# vault-sync webhook receiver (ADR 0002).
+#
+# Gitea POSTs here on every push to the vault repo; we fire the sync
+# script and return immediately. The token is a trigger gate (the only
+# capability a valid request gains is starting the same idempotent sync
+# the 1-min timer runs anyway); UFW restricts sources to forge-ops.
+import subprocess
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+PORT = {{ vault_sync_webhook_port }}
+TOKEN = "{{ vault_sync_webhook_token }}"
+SCRIPT = "/usr/local/bin/vault-sync.sh"
+
+
+class Handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        if self.headers.get("Authorization") != f"Bearer {TOKEN}":
+            self.send_response(403)
+            self.end_headers()
+            return
+        # Fire-and-forget; flock in the script serializes overlaps.
+        subprocess.Popen([SCRIPT])
+        self.send_response(204)
+        self.end_headers()
+
+    def log_message(self, fmt, *args):  # quiet; journald gets script logs
+        pass
+
+
+if __name__ == "__main__":
+    HTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
