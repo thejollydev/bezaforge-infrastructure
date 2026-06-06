@@ -1,0 +1,71 @@
+---
+# ============================================================
+# vault-sync role defaults — Master-Mind vault git clone on
+# forge-brizza (ADR 0002, 2026-06-06)
+#
+# The vault left Google Drive (ADR 0002): Gitea is the single
+# hub; this role maintains the server-side clone on the
+# bezapool/vault ZFS dataset (NFS RW mount) and keeps it
+# current both ways:
+#   pull:  Gitea webhook (seconds) + 1-min fallback timer
+#   push:  local changes (Hermes/Brizza writes) are committed
+#          and pushed; true conflicts park on a
+#          brizza/conflict-<ts> branch — never force-pushed,
+#          never silently dropped.
+#
+# Consumers of the clone:
+#   - forge-ops (NFS RO) → Cognee /vault bind-mount
+#   - forge-brizza (this host) → Hermes/Brizza read-write
+#
+# Prereqs done out-of-band 2026-06-06 (one-time):
+#   - deploy key ~/.ssh/id_ed25519_vault_sync registered in
+#     Gitea (read_only=false)
+#   - Gitea webhook → http://10.10.50.20:{{ port }}/ created
+#     via API with the Authorization header token below
+# ============================================================
+
+# Where the clone lives — the bezapool/vault dataset, LOCAL on
+# forge-hypervisor (v1.2 restructure, 2026-06-06): git wedged twice in
+# D-state doing write IO over NFS from forge-brizza's 7.0.0 kernel
+# (folio_wait_bit_common / rpc_wait_bit_killable). Git now does only
+# local ZFS IO on the dataset owner; brizza writes PLAIN FILES via its
+# RW NFS mount and this role's timer commits them.
+vault_sync_clone_path: /bezapool/vault
+
+# Gitea origin. SSH on the Gitea container's mapped port 2222.
+vault_sync_repo: "ssh://git@git.bezaforge.dev:2222/joseph/Master-Mind-Obsidian-Vault.git"
+vault_sync_branch: main
+
+# Deploy key (generated on-host if missing; pubkey must be a
+# Gitea deploy key with write access — registered via API post-deploy).
+vault_sync_ssh_key: /home/vaultsync/.ssh/id_ed25519_vault_sync
+
+# Dedicated service user, uid 1000 BY DESIGN: matches the dataset
+# chown and the NFS anonuid squash for forge-brizza, so Hermes's
+# squashed writes and this user's git operations are the same owner.
+vault_sync_user: vaultsync
+vault_sync_user_uid: 1000
+
+# git.bezaforge.dev is split-horizon DNS served by AdGuard — which runs
+# in a VM this host supervises. Pointing the hypervisor's resolver at
+# AdGuard would be a boot-order circular dependency, so we pin the name
+# in /etc/hosts instead (forge-ops, where Gitea lives).
+vault_sync_etc_hosts_ip: 10.10.20.20
+
+# Identity for commits made by the sync (Hermes/Brizza writes).
+vault_sync_git_name: "Brizza (vault-sync)"
+vault_sync_git_email: "brizza@bezaforge.dev"
+
+# Webhook receiver — Gitea POSTs here on every push so pulls
+# happen within seconds. UFW restricts sources to forge-ops
+# (where Gitea runs). The token is a trigger gate, not a
+# secret guarding data: the only thing a valid request can do
+# is start the same idempotent sync the 1-min timer runs
+# anyway — hence plaintext here rather than ansible-vault.
+vault_sync_webhook_port: 9876
+# UFW management is gated: forge-hypervisor runs pve-firewall
+# (currently disabled), not UFW — flip on only for UFW hosts.
+vault_sync_manage_ufw: false
+vault_sync_webhook_allowed_sources:
+  - 10.10.20.20
+  - 10.10.10.20

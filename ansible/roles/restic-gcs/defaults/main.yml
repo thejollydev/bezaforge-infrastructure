@@ -21,6 +21,10 @@
 # point-in-time consistency. v1 trades that for simplicity.
 restic_backup_sources:
   - /bezapool/forge-ops-backup
+  # Master-Mind vault clone (ADR 0002, 2026-06-06). Replaces the Drive-era
+  # exemption (ADR 0001 Alt F — "already off-site via Google Drive"): the
+  # vault left Drive, so it joins the GCS off-site set. ~140 MB, negligible.
+  - /bezapool/vault
 
 # Daily fire at 04:00 — sanoid's 03:00 daily snapshot will already
 # include the latest rsync/dumps from 02:30+02:45, so restic backs

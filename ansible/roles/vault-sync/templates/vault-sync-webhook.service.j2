@@ -1,0 +1,14 @@
+# {{ ansible_managed }}
+[Unit]
+Description=vault-sync webhook receiver (Gitea push → pull in seconds — ADR 0002)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User={{ vault_sync_user }}
+ExecStart=/usr/bin/python3 /usr/local/bin/vault-sync-webhook.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

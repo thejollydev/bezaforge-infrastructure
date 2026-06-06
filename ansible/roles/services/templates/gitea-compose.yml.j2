@@ -39,6 +39,10 @@ services:
       - GITEA__repository__ENABLE_PUSH_CREATE_USER=true
       - GITEA__repository__ENABLE_PUSH_CREATE_ORG=true
       - GITEA__repository__DEFAULT_PUSH_CREATE_PRIVATE=true
+      # Webhooks to private IPs are denied by default (SSRF guard).
+      # Allowlist exactly the vault-sync receiver on forge-hypervisor
+      # (ADR 0002 v1.2 — Gitea push → dataset-owner pulls within seconds).
+      - GITEA__webhook__ALLOWED_HOST_LIST=10.10.10.10
     volumes:
       - /opt/bezaforge/gitea/data:/data
     ports:

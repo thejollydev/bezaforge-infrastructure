@@ -22,9 +22,18 @@ forge_brizza_install_docker: true
 
 # NFS mounts (used by forge-brizza role when nfs_client is true).
 # Source is forge-hypervisor's bezapool/gdrive ZFS dataset.
+# bezapool/vault added 2026-06-06 (ADR 0002) — the Master-Mind vault git
+# clone; RW here (export squashes to uid 1000) for vault-sync + Hermes.
 nfs_mounts:
   - src: 10.10.10.10:/bezapool/gdrive
     path: /mnt/bezapool/gdrive
+  - src: 10.10.10.10:/bezapool/vault
+    path: /mnt/bezapool/vault
+    # Plain opts, deliberately NOT the tuned default (fsc+nconnect=8):
+    # fscache wedged git's clone checkout in D-state (rpc_wait_bit_killable,
+    # 2026-06-06). Git's small-file fsync storm ≠ Insync's bulk pattern;
+    # the vault needs correctness over throughput.
+    opts: "defaults,_netdev,nofail,noatime"
 
 # Desktop package override. Role default is ubuntu-desktop-minimal as
 # the conservative pick for a generic assistant host; forge-brizza

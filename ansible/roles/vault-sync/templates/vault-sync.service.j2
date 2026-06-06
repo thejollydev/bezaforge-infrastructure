@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Master-Mind vault sync (pull/commit/push against Gitea — ADR 0002)
+Wants=network-online.target
+After=network-online.target remote-fs.target
+
+[Service]
+Type=oneshot
+User={{ vault_sync_user }}
+ExecStart=/usr/local/bin/vault-sync.sh

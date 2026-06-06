@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# vault-sync — keep the bezapool/vault clone current both ways (ADR 0002).
+#
+# Invoked by: vault-sync.timer (1-min fallback) + the webhook receiver
+# (seconds after every Gitea push). flock makes overlapping invocations
+# a no-op, so webhook+timer coexistence is safe.
+#
+# Conflict policy: local commits that can't rebase cleanly are parked on
+# brizza/conflict-<ts> (pushed to Gitea for visibility) and main is reset
+# to origin — nothing is force-pushed, nothing is silently dropped.
+set -euo pipefail
+
+exec 9>/tmp/vault-sync.lock
+flock -n 9 || exit 0
+
+cd "{{ vault_sync_clone_path }}"
+
+# 1. Commit any local writes (Hermes/Brizza) so they survive the rebase.
+if [ -n "$(git status --porcelain)" ]; then
+  git add -A
+  git commit -q -m "brizza: vault-sync auto-commit $(date -Iseconds)"
+fi
+
+# 2. Rebase onto the hub.
+if ! git pull --rebase -q origin "{{ vault_sync_branch }}"; then
+  # Distinguish a REAL rebase conflict (rebase state dir exists) from a
+  # transient pull failure (network/auth/Gitea down) — the latter must
+  # NOT park branches or reset anything (learned 2026-06-06: pre-auth
+  # timer ticks spammed conflict branches for plain auth failures).
+  if [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; then
+    ts=$(date +%Y%m%d-%H%M%S)
+    git rebase --abort 2>/dev/null || true
+    git branch "brizza/conflict-${ts}"
+    git push -q origin "brizza/conflict-${ts}" || true
+    git reset --hard -q "origin/{{ vault_sync_branch }}"
+    logger -t vault-sync "CONFLICT: local commits parked on brizza/conflict-${ts}; main reset to origin"
+  else
+    logger -t vault-sync "pull failed (network/auth?) — leaving state untouched, will retry"
+  fi
+  exit 1
+fi
+
+# 3. Push anything we committed in step 1 (no-op otherwise).
+git push -q origin "{{ vault_sync_branch }}"
+
+logger -t vault-sync "sync ok @ $(git rev-parse --short HEAD)"

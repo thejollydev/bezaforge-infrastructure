@@ -13,6 +13,10 @@
       tags: sanoid
     - role: restic-gcs
       tags: restic-gcs
+    # ADR 0002 v1.2: the vault git actor lives on the dataset owner —
+    # local ZFS IO only (git-over-NFS wedged on brizza's 7.0 kernel).
+    - role: vault-sync
+      tags: vault-sync
 
 - name: Configure BezaForge Docker hosts
   hosts: docker_hosts

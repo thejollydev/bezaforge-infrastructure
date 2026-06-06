@@ -29,3 +29,11 @@ zfs_pool: bezapool
 # ------------------------------------------------------------
 gcs_project_id: bezaforge-backups
 gcs_bucket: bezaforge-backups-95d56ebe
+
+# ------------------------------------------------------------
+# vault-sync webhook trigger token (ADR 0002 v1.2).
+# Deliberately NOT in ansible-vault: it gates nothing but "start
+# the idempotent sync the 1-min timer runs anyway"; Gitea's
+# webhook config holds the same value server-side.
+# ------------------------------------------------------------
+vault_sync_webhook_token: "6977269a41975bd0f7a547d8430fb50b8e8ea4ff90dcd102"
