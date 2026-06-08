@@ -1,7 +1,8 @@
 ---
 # ============================================================
 # vault-sync role defaults — Master-Mind vault git clone on
-# forge-brizza (ADR 0002, 2026-06-06)
+# forge-hypervisor (ADR 0002 v1.2, 2026-06-06; runs on the
+# bezapool/vault dataset owner — git-over-NFS wedged brizza's kernel)
 #
 # The vault left Google Drive (ADR 0002): Gitea is the single
 # hub; this role maintains the server-side clone on the
@@ -13,14 +14,14 @@
 #          brizza/conflict-<ts> branch — never force-pushed,
 #          never silently dropped.
 #
-# Consumers of the clone:
+# Consumers of the clone (both via NFS from this hypervisor):
 #   - forge-ops (NFS RO) → Cognee /vault bind-mount
-#   - forge-brizza (this host) → Hermes/Brizza read-write
+#   - forge-brizza (NFS RW) → Hermes/Brizza read-write
 #
 # Prereqs done out-of-band 2026-06-06 (one-time):
 #   - deploy key ~/.ssh/id_ed25519_vault_sync registered in
 #     Gitea (read_only=false)
-#   - Gitea webhook → http://10.10.50.20:{{ port }}/ created
+#   - Gitea webhook → http://10.10.10.10:{{ port }}/ created
 #     via API with the Authorization header token below
 # ============================================================
 
@@ -69,3 +70,28 @@ vault_sync_manage_ufw: false
 vault_sync_webhook_allowed_sources:
   - 10.10.20.20
   - 10.10.10.20
+
+# ------------------------------------------------------------
+# Offsite mirror fan-out over SSH (ADR 0002 / FORGE-39, 2026-06-07)
+#
+# Gitea has NO SSH push-mirror support — HTTPS-token only (confirmed in
+# Gitea docs). gitlab.com forces a <=1y expiry on those tokens, so the
+# Gitea→GitLab push-mirror kept silently dying on auth. Fix: this host
+# (the vault's authoritative downstream clone) fans out to GitHub +
+# GitLab ITSELF, over SSH, after every successful pull from Gitea —
+# reusing the SAME vault-sync deploy key (already set as core.sshCommand
+# on the clone). Deploy keys don't expire. This REPLACES the Gitea
+# push-mirrors (both deleted once verified). A mirror push failure is
+# logged, never fatal — a dead mirror must not break the primary sync.
+#
+# One-time setup (post-deploy): add the PUBLIC half of vault_sync_ssh_key
+# as a WRITE-enabled deploy key on each remote repo below.
+# ------------------------------------------------------------
+vault_sync_mirror_push: true
+vault_sync_mirror_remotes:
+  - name: github
+    host: github.com
+    url: "git@github.com:thejollydev/Master-Mind-Obsidian-Vault.git"
+  - name: gitlab
+    host: gitlab.com
+    url: "git@gitlab.com:thejollydev/Master-Mind-Obsidian-Vault.git"
