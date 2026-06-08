@@ -12,7 +12,15 @@
 set -euo pipefail
 
 exec 9>/tmp/vault-sync.lock
-flock -n 9 || exit 0
+if ! flock -n 9; then
+  # Another run holds the lock. Normal if it just started; ALARMING if it is
+  # wedged (the 2026-06-06 NFS-lease incident held this lock 26h while every
+  # later tick silently exited here, hiding the stall). Log it so a stuck run
+  # is visible in journald — and we deliberately DON'T heartbeat, so the
+  # freshness monitor alarms if the holder is truly stuck.
+  logger -t vault-sync "lock contended — prior sync still running (skipping tick)"
+  exit 0
+fi
 
 cd "{{ vault_sync_clone_path }}"
 
@@ -45,6 +53,16 @@ fi
 git push -q origin "{{ vault_sync_branch }}"
 
 logger -t vault-sync "sync ok @ $(git rev-parse --short HEAD)"
+{% if vault_sync_heartbeat_url | default('') %}
+
+# Freshness heartbeat (FORGE-40 detection): ping Uptime Kuma on every
+# successful PRIMARY sync. Kuma alerts on Discord if it misses its window —
+# catching ANY stall cause (NFS wedge, Gitea down, dead timer, parked
+# conflict), not just the one we just fixed. Tied to the clone being current
+# (step 3 succeeded), NOT to mirror success. Non-fatal.
+curl -fsS -m 10 "{{ vault_sync_heartbeat_url }}&msg=ok&ping=" >/dev/null 2>&1 || \
+  logger -t vault-sync "heartbeat ping failed (Kuma unreachable?)"
+{% endif %}
 {% if vault_sync_mirror_push | default(false) %}
 
 # 4. Fan out to offsite mirrors over SSH (ADR 0002 / FORGE-39).
