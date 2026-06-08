@@ -95,3 +95,17 @@ vault_sync_mirror_remotes:
   - name: gitlab
     host: gitlab.com
     url: "git@gitlab.com:thejollydev/Master-Mind-Obsidian-Vault.git"
+
+# ------------------------------------------------------------
+# Freshness heartbeat (FORGE-40 detection layer)
+#
+# Set to an Uptime Kuma PUSH monitor URL to enable a "is the sync still
+# happening?" alarm: the sync pings it after every successful primary run,
+# and Kuma alerts (Discord) if it misses the configured interval. Empty =
+# disabled (no-op). Put the real value in host_vars (vaulted) — the URL
+# carries a per-monitor token. Example:
+#   https://uptime.bezaforge.dev/api/push/<token>?status=up
+# The 2026-06-06 wedge ran 26h undetected; this is the alarm that would
+# have caught it in minutes.
+# ------------------------------------------------------------
+vault_sync_heartbeat_url: ""
