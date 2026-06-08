@@ -8,6 +8,24 @@
     name: git
     state: present
 
+- name: Disable NFS delegations (stop local git wedging on lease recall)
+  # /bezapool/vault is local ZFS here AND NFS-exported to forge-ops (RO)
+  # + forge-brizza (RW). When local git rewrites .git/index, the kernel
+  # must recall any NFS delegation a client holds on that file. If the
+  # client callback channel is unreachable (e.g. after a VLAN/DNS change),
+  # that recall hangs in __break_lease and wedges git indefinitely — it
+  # happened 2026-06-06: a sync stuck 26h, froze the clone + Cognee's
+  # /vault. Disabling kernel leases stops nfsd granting delegations, so
+  # local writes never block on a recall. Host-wide, but the only
+  # delegation consumer on this host is this exported dataset.
+  # (ADR 0002 v1.2 / FORGE-39 follow-up; verified to clear the wedge.)
+  ansible.posix.sysctl:
+    name: fs.leases-enable
+    value: "0"
+    sysctl_file: /etc/sysctl.d/99-vault-sync-nfs.conf
+    sysctl_set: true
+    reload: true
+
 - name: Create vault-sync service user (uid 1000 — matches dataset chown + NFS squash)
   ansible.builtin.user:
     name: "{{ vault_sync_user }}"
@@ -42,6 +60,21 @@
   changed_when: "'ssh-keyscan' not in (vault_sync_known_hosts.stderr | default(''))
                  and vault_sync_known_hosts.rc == 0
                  and vault_sync_known_hosts.stdout != ''"
+
+- name: Ensure mirror host keys are known (GitHub / GitLab SSH fan-out)
+  become: true
+  become_user: "{{ vault_sync_user }}"
+  ansible.builtin.shell: |
+    set -o pipefail
+    grep -q "{{ item.host }} " ~/.ssh/known_hosts 2>/dev/null || \
+      ssh-keyscan -t rsa,ed25519 {{ item.host }} >> ~/.ssh/known_hosts
+  args:
+    executable: /bin/bash
+  loop: "{{ vault_sync_mirror_remotes }}"
+  when: vault_sync_mirror_push | bool
+  register: vault_sync_mirror_known_hosts
+  changed_when: "vault_sync_mirror_known_hosts.rc == 0
+                 and (vault_sync_mirror_known_hosts.stdout | default('')) != ''"
 
 - name: Clone the vault repo (first run only)
   become: true

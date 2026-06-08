@@ -45,3 +45,18 @@ fi
 git push -q origin "{{ vault_sync_branch }}"
 
 logger -t vault-sync "sync ok @ $(git rev-parse --short HEAD)"
+{% if vault_sync_mirror_push | default(false) %}
+
+# 4. Fan out to offsite mirrors over SSH (ADR 0002 / FORGE-39).
+# Gitea can't do SSH push-mirrors and gitlab.com tokens expire, so the
+# hub fans out here using the same deploy key (core.sshCommand on the
+# clone). Non-fatal: a dead mirror is logged, never breaks the sync —
+# they're always fast-forward downstream of the just-completed origin push.
+{% for r in vault_sync_mirror_remotes %}
+if git push -q "{{ r.url }}" "{{ vault_sync_branch }}:{{ vault_sync_branch }}" 2>/tmp/vault-sync-mirror-{{ r.name }}.err; then
+  logger -t vault-sync "mirror push ok: {{ r.name }}"
+else
+  logger -t vault-sync "mirror push FAILED: {{ r.name }} — $(tr '\n' ' ' < /tmp/vault-sync-mirror-{{ r.name }}.err)"
+fi
+{% endfor %}
+{% endif %}
