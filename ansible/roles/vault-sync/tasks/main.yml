@@ -34,11 +34,12 @@
     create_home: true
     system: false
 
-- name: Pin git.bezaforge.dev in /etc/hosts (no AdGuard dependency on the hypervisor)
+- name: Pin internal bezaforge names in /etc/hosts (hypervisor has no AdGuard resolver)
   ansible.builtin.lineinfile:
     path: /etc/hosts
-    line: "{{ vault_sync_etc_hosts_ip }} git.bezaforge.dev"
-    regexp: 'git\.bezaforge\.dev$'
+    line: "{{ vault_sync_etc_hosts_ip }} {{ item }}"
+    regexp: '{{ item | regex_escape }}$'
+  loop: "{{ vault_sync_etc_hosts_pins }}"
 
 - name: Generate deploy key if missing
   become: true

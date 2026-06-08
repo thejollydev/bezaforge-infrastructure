@@ -47,11 +47,16 @@ vault_sync_ssh_key: /home/vaultsync/.ssh/id_ed25519_vault_sync
 vault_sync_user: vaultsync
 vault_sync_user_uid: 1000
 
-# git.bezaforge.dev is split-horizon DNS served by AdGuard — which runs
-# in a VM this host supervises. Pointing the hypervisor's resolver at
-# AdGuard would be a boot-order circular dependency, so we pin the name
-# in /etc/hosts instead (forge-ops, where Gitea lives).
+# Internal *.bezaforge.dev names the hypervisor must resolve WITHOUT
+# AdGuard: AdGuard runs in a VM this host supervises, so pointing the
+# hypervisor's resolver at it is a boot-order circular dependency. Pin the
+# names in /etc/hosts → forge-ops (Traefik) instead.
+#   git    — Gitea origin (always needed)
+#   uptime — Kuma heartbeat target (needed when vault_sync_heartbeat_url set)
 vault_sync_etc_hosts_ip: 10.10.20.20
+vault_sync_etc_hosts_pins:
+  - git.bezaforge.dev
+  - uptime.bezaforge.dev
 
 # Identity for commits made by the sync (Hermes/Brizza writes).
 vault_sync_git_name: "Brizza (vault-sync)"
