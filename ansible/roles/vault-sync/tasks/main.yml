@@ -25,6 +25,7 @@
     sysctl_file: /etc/sysctl.d/99-vault-sync-nfs.conf
     sysctl_set: true
     reload: true
+  when: vault_sync_manage_leases | bool
 
 - name: Create vault-sync service user (uid 1000 — matches dataset chown + NFS squash)
   ansible.builtin.user:
@@ -33,6 +34,7 @@
     shell: /bin/bash
     create_home: true
     system: false
+  when: vault_sync_create_user | bool
 
 - name: Pin internal bezaforge names in /etc/hosts (hypervisor has no AdGuard resolver)
   ansible.builtin.lineinfile:
@@ -40,12 +42,13 @@
     line: "{{ vault_sync_etc_hosts_ip }} {{ item }}"
     regexp: '{{ item | regex_escape }}$'
   loop: "{{ vault_sync_etc_hosts_pins }}"
+  when: vault_sync_manage_etc_hosts | bool
 
 - name: Generate deploy key if missing
   become: true
   become_user: "{{ vault_sync_user }}"
   ansible.builtin.command:
-    cmd: ssh-keygen -t ed25519 -N "" -C "vault-sync@forge-brizza" -f {{ vault_sync_ssh_key }}
+    cmd: ssh-keygen -t ed25519 -N "" -C "vault-sync@{{ inventory_hostname }}" -f {{ vault_sync_ssh_key }}
     creates: "{{ vault_sync_ssh_key }}"
 
 - name: Ensure Gitea host key is known
@@ -113,8 +116,9 @@
     dest: /usr/local/bin/vault-sync-webhook.py
     mode: "0755"
   notify: Restart vault-sync webhook
+  when: vault_sync_webhook_enabled | bool
 
-- name: Deploy systemd units
+- name: Deploy systemd units (sync service + timer)
   ansible.builtin.template:
     src: "{{ item }}.j2"
     dest: "/etc/systemd/system/{{ item }}"
@@ -122,8 +126,14 @@
   loop:
     - vault-sync.service
     - vault-sync.timer
-    - vault-sync-webhook.service
+
+- name: Deploy webhook systemd unit
+  ansible.builtin.template:
+    src: vault-sync-webhook.service.j2
+    dest: /etc/systemd/system/vault-sync-webhook.service
+    mode: "0644"
   notify: Restart vault-sync webhook
+  when: vault_sync_webhook_enabled | bool
 
 - name: Allow webhook port from Gitea host (UFW hosts only)
   community.general.ufw:
@@ -132,14 +142,19 @@
     port: "{{ vault_sync_webhook_port }}"
     proto: tcp
   loop: "{{ vault_sync_webhook_allowed_sources }}"
-  when: vault_sync_manage_ufw | bool
+  when: vault_sync_manage_ufw | bool and vault_sync_webhook_enabled | bool
 
-- name: Enable and start timer + webhook receiver
+- name: Enable and start the sync timer
   ansible.builtin.systemd:
-    name: "{{ item }}"
+    name: vault-sync.timer
     enabled: true
     state: started
     daemon_reload: true
-  loop:
-    - vault-sync.timer
-    - vault-sync-webhook.service
+
+- name: Enable and start the webhook receiver
+  ansible.builtin.systemd:
+    name: vault-sync-webhook.service
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: vault_sync_webhook_enabled | bool

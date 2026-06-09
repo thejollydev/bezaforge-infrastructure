@@ -27,13 +27,11 @@ forge_brizza_install_docker: true
 nfs_mounts:
   - src: 10.10.10.10:/bezapool/gdrive
     path: /mnt/bezapool/gdrive
-  - src: 10.10.10.10:/bezapool/vault
-    path: /mnt/bezapool/vault
-    # Plain opts, deliberately NOT the tuned default (fsc+nconnect=8):
-    # fscache wedged git's clone checkout in D-state (rpc_wait_bit_killable,
-    # 2026-06-06). Git's small-file fsync storm ≠ Insync's bulk pattern;
-    # the vault needs correctness over throughput.
-    opts: "defaults,_netdev,nofail,noatime"
+# bezapool/vault NFS mount REMOVED 2026-06-09 (FORGE-49): recursive
+# traversal over the mount intermittently EINVALed when a vaultsync
+# checkout on the hypervisor raced the NFS client — broke Hermes vault
+# grounding. Replaced by a LOCAL git clone (vault_sync_* block below);
+# the hypervisor export stanza was retired with it.
 
 # Desktop package override. Role default is ubuntu-desktop-minimal as
 # the conservative pick for a generic assistant host; forge-brizza
@@ -42,3 +40,28 @@ nfs_mounts:
 # Brizza Python + LangGraph runtime may want it too for any GUI
 # automation tasks.
 forge_brizza_desktop_package: ubuntu-desktop
+
+# --- vault-sync: local vault clone (FORGE-49, ADR 0002 v1.3) ---
+# Hermes vault grounding reads/writes a LOCAL clone — no NFS in the
+# path, so the vaultsync-checkout-vs-NFS-reader race can't occur. The
+# 1-min timer commits+pushes Hermes writes to Gitea and pulls laptop
+# edits. Timer-only deployment: no webhook receiver, no mirror fan-out
+# (the hypervisor deployment owns offsite mirrors), no NFS lease
+# sysctl (not an NFS server), no /etc/hosts pins (AdGuard resolves
+# git.bezaforge.dev here).
+# One-time post-deploy: register
+# /home/joseph/.ssh/id_ed25519_vault_sync.pub as a WRITE deploy key on
+# the Gitea vault repo — the first play run fails at the clone step
+# until then (expected).
+vault_sync_clone_path: /home/joseph/Vaults/Master-Mind
+vault_sync_user: joseph
+vault_sync_create_user: false
+vault_sync_ssh_key: /home/joseph/.ssh/id_ed25519_vault_sync
+vault_sync_manage_leases: false
+vault_sync_manage_etc_hosts: false
+vault_sync_webhook_enabled: false
+vault_sync_mirror_push: false
+# Uptime Kuma freshness heartbeat (FORGE-40 pattern) — create a push
+# monitor for THIS sync and set its URL in a vaulted host_vars file
+# when wiring monitoring; empty = disabled.
+vault_sync_heartbeat_url: ""
