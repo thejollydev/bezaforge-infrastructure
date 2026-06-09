@@ -26,6 +26,12 @@
     group: root
     mode: '0755'
 
+- name: Check for an existing pre-Ansible sanoid.conf backup
+  ansible.builtin.find:
+    paths: /etc/sanoid
+    patterns: "sanoid.conf.pre-ansible-*"
+  register: sanoid_preansible_backups
+
 - name: Back up any hand-managed sanoid.conf on first deploy
   ansible.builtin.copy:
     src: /etc/sanoid/sanoid.conf
@@ -33,9 +39,12 @@
     remote_src: true
     force: false
   failed_when: false
-  # ^ Don't fail if sanoid.conf doesn't exist yet, or if a backup
-  # has already been taken (force: false). Best-effort one-time
-  # safety net so we don't silently overwrite a hand edit.
+  # Only on the GENUINE first deploy — guarded by the find above. The
+  # timestamped dest is a different filename every run, so copy's own
+  # force:false can't make it idempotent (the new name never exists yet)
+  # → it re-backed-up + reported `changed` on every run. The guard makes
+  # it truly one-time. Best-effort safety net against clobbering a hand edit.
+  when: sanoid_preansible_backups.matched == 0
 
 - name: Deploy sanoid.conf from template
   ansible.builtin.template:
