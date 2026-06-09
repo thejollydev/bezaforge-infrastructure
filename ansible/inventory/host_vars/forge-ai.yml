@@ -29,10 +29,12 @@ nfs_client: false
 # Cognee was retired 2026-06-09 — every model previously seeded here
 # (gemma4, nomic-embed-text, deepseek-r1-16k, devstral-32k, the
 # Qwen3.6-35B GGUF + bge-m3) was pulled solely for the Cognee extraction
-# experiment and is no longer needed. List left empty; Brizza/Hermes adds
-# its own model (e.g. its Ollama fallback) here when that's wired. Existing
-# blobs on forge-ai can be reclaimed with `ollama rm <name>` (teardown).
-ollama_models: []
+# experiment and was reclaimed in the live teardown (verified 2026-06-09).
+# qwen3.6:27b is Brizza's Hermes-bridge Ollama fallback (BRIZZA-52:
+# Codex OAuth primary → this model as fallback). Pulled live for the
+# Hermes install, codified here 2026-06-09.
+ollama_models:
+  - qwen3.6:27b
 
 # No custom Modelfile builds. (qwen36-moe-16k was a Cognee-only 16k-context
 # build, removed with Cognee.) The role still supports ollama_modelfiles if
