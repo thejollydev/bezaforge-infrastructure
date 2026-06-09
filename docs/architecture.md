@@ -1,6 +1,6 @@
 # Architecture
 
-This file is intentionally minimal. The canonical, living architecture document for BezaForge lives in the Master-Mind Obsidian vault — that's where it's actively maintained and where the diagrams, IP allocation tables, sanoid retention rules, backup architecture, NFS chain, Cognee plan, and per-VM memory layout all live alongside each other.
+This file is intentionally minimal. The canonical, living architecture document for BezaForge lives in the Master-Mind Obsidian vault — that's where it's actively maintained and where the diagrams, IP allocation tables, sanoid retention rules, backup architecture, NFS chain, and per-VM memory layout all live alongside each other.
 
 ## Canonical source
 

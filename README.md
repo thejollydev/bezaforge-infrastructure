@@ -18,10 +18,10 @@ Production-grade private cloud managed entirely as code. VM provisioning via Ter
 |------|------|----------|----|
 | **forge-hypervisor** | Proxmox hypervisor | Ryzen 7 5800X, 48GB RAM, RX 7900 XT, ZFS mirror | Proxmox VE 9.1 |
 | **forge-ops** | Docker service host | i9-12900H, 32GB DDR5 | Debian 13.3 |
-| **forge-ai** | GPU LLM inference | RX 7900 XT passthrough, ROCm 7.2.0 | Ubuntu 24.04 |
+| **forge-ai** | GPU LLM inference | RX 7900 XT passthrough, ROCm | Ubuntu 26.04 |
 | **forge-dev** | Development environment | 4 vCPU, 8GB RAM | Arch Linux + KDE Plasma 6 |
-| **forge-erp** | ERP (ERPNext v16) | 2 vCPU, 4GB RAM | Ubuntu 24.04 |
-| **forge-brizza** | Brizza AI assistant (Python + LangGraph, Cognee MCP consumer) | 4 vCPU, 16GB RAM | Ubuntu 24.04 |
+| **forge-erp** | ERP (ERPNext v16) | 2 vCPU, 4GB RAM | Ubuntu 26.04 |
+| **forge-brizza** | Brizza AI assistant (Hermes Agent bridge; LangGraph graduation planned) | 4 vCPU, 16GB RAM | Ubuntu 26.04 |
 
 ---
 
@@ -39,7 +39,7 @@ module "forge_brizza" {
 
   vm_id        = 104
   name         = "forge-brizza"
-  description  = "Brizza AI assistant — Python + LangGraph, Cognee MCP consumer, Discord"
+  description  = "Brizza AI assistant — Hermes Agent bridge, Discord"
   node_name    = var.proxmox_node
   cores        = 4
   memory       = 16384
@@ -98,9 +98,12 @@ Ansible automates all post-provisioning configuration for forge-ops. A single co
 | `services` | Codified application services (gitea, netbox, langfuse, homepage, uptime-kuma) across 3 secret-management patterns |
 | `outline` | Outline wiki (`docs.bezaforge.dev`) — Outline + Postgres + Redis; Google OIDC; local-FS uploads |
 | `plane` | Plane PM (`plane.bezaforge.dev`) — upstream v1.3.1 compose with bind-mounts + Traefik integration; per-service Postgres/Redis/RabbitMQ/MinIO; Google OAuth; `IS_GOOGLE_ENABLED` seed task workaround (upstream issue #8679) |
-| `ollama` | GPU LLM inference on forge-ai (idempotent install, env-file, UFW rules to VLANs 50/20/30, model seed list) |
-| `forge-brizza` | forge-brizza host config — Insync GUI sync host, NFS tuning (`nconnect=8`, `actimeo=600`, `fsc`), cachefilesd |
-| `sanoid` | ZFS auto-snapshots on forge-hypervisor — per-dataset retention on `bezapool` (gdrive 24h/14d/8w/12m, forge-ops-backup 7d/4w/6m, etc.) |
+| `ollama` | GPU LLM inference on forge-ai (version-pinned install, env-file, UFW rules to VLANs 50/20/30, model seed list, custom Modelfile builds) |
+| `forge-brizza` | forge-brizza host config — GNOME desktop + autologin, Docker engine (Hermes Agent), NFS tuning (`nconnect=8`, `actimeo=600`, `fsc`), cachefilesd |
+| `fail2ban` | SSH brute-force protection (forge-ops, forge-ai, forge-brizza) |
+| `brizza-postgres` | Brizza's Postgres 18 on forge-ops — `brizza` DB, LangGraph-checkpointer + APScheduler schemas |
+| `vault-sync` | Master-Mind vault git sync (ADR 0002) — canonical clone on the hypervisor (webhook + timer, GitHub/GitLab mirror fan-out) and a parametrized local-clone deployment on forge-brizza for Hermes (FORGE-49) |
+| `sanoid` | ZFS auto-snapshots on forge-hypervisor — per-dataset retention on `bezapool` (gdrive 24h/14d/8w/12m, vault 24h/14d/8w/12m, forge-ops-backup 7d/4w/6m, etc.; backup datasets deliberately not snapshotted) |
 | `db-dumps` | Nightly 02:30 EDT `pg_dumpall` per Postgres container on forge-ops → NFS-mounted `bezapool/forge-ops-backup` |
 | `forge-ops-backup-rsync` | Nightly 02:45 EDT rsync of `/opt/bezaforge/<svc>/` → NFS-mounted `bezapool/forge-ops-backup` |
 | `restic-gcs` | Daily 04:00 EDT restic snapshot of `bezapool/forge-ops-backup` → GCS Nearline (`bezaforge-backups-95d56ebe`) |
@@ -209,7 +212,7 @@ AMD RX 7900 XT (Navi 31 / gfx1100) passed through to `forge-ai` VM:
 
 1. IOMMU enabled on forge-hypervisor (`amd_iommu=on iommu=pt` in GRUB)
 2. GPU bound to `vfio-pci` driver on hypervisor
-3. ROCm 7.2.0 installed on Ubuntu 24.04 guest
+3. ROCm on the Ubuntu 26.04 guest (in-kernel `amdgpu` + Ubuntu-native `rocm-smi` tooling)
 4. Ollama running with full GPU acceleration (verified via `ollama ps` Processor column)
 5. GPU passthrough declared in Terraform via `hostpci_devices` — no manual Proxmox UI configuration
 
@@ -221,7 +224,7 @@ Models served locally — no external API calls for LLM inference.
 
 **bezapool** — ZFS mirror pool on forge-hypervisor:
 - 2× 4TB HDDs in mirror configuration
-- Datasets: `media`, `downloads`, `gdrive` (Insync sync target from forge-brizza), `forge-ops-backup` (nightly app-state mirror), `vzdump` (Proxmox VM backups)
+- Datasets: `media`, `downloads`, `gdrive` (Google Drive docs/media replica — one-way rclone planned, FORGE-35), `vault` (Master-Mind vault git clone — ADR 0002, synced from Gitea by `roles/vault-sync`), `forge-ops-backup` (nightly app-state mirror), `vzdump` (Proxmox VM backups)
 - NFS exports: `bezapool/{media,downloads,gdrive,forge-ops-backup}` mounted on forge-ops/forge-brizza at `/mnt/bezapool/`
 - Media library structure: movies, tv, music, photos, books
 
@@ -232,14 +235,14 @@ Models served locally — no external API calls for LLM inference.
 
 ## Backups
 
-Four-layer backup architecture (deployed 2026-05-17 — see `docs/decisions/0001-backup-architecture.md` or the vault ADR for the full rationale):
+Four-layer backup architecture (deployed 2026-05-17 — see ADR 0001 in the vault, `05_Projects/bezaforge-infrastructure/design/decisions/0001-backup-architecture.md`, for the full rationale):
 
 | Layer | Mechanism | Cadence | Scope |
 |-------|-----------|---------|-------|
-| **1. Snapshots** | `sanoid` on `bezapool` | 15-min timer | All datasets (gdrive 24h/14d/8w/12m; forge-ops-backup 7d/4w/6m; downloads 7d; media 4d/4w/3m; vzdump 4d/2w/2m) |
+| **1. Snapshots** | `sanoid` on `bezapool` | 15-min timer | Source datasets (gdrive 24h/14d/8w/12m; vault 24h/14d/8w/12m; forge-ops-backup 7d/4w/6m; downloads 7d; media 4d/4w/3m). Backup datasets (`vzdump`) deliberately NOT snapshotted — snapshots pinned 1.44 TB of pruned backups (FORGE-44) |
 | **2. App state** | `pg_dumpall` + `rsync` on forge-ops | Nightly 02:30 / 02:45 EDT | Per-Postgres-container DB dumps + `/opt/bezaforge/<svc>/` → NFS-mounted `bezapool/forge-ops-backup` |
 | **3. VM images** | Proxmox `vzdump` | Nightly 02:00 EDT | All VMIDs + cloud-init templates → `bezapool/vzdump` |
-| **4. Off-site** | `restic` → Google Cloud Storage Nearline | Daily 04:00 EDT | `bezapool/forge-ops-backup` → `gs:bezaforge-backups-<id>` (us-central1) |
+| **4. Off-site** | `restic` → Google Cloud Storage Nearline | Daily 04:00 EDT | `bezapool/forge-ops-backup` + `bezapool/vault` → `gs:bezaforge-backups-<id>` (us-central1) |
 
 Roles: `roles/sanoid`, `roles/db-dumps`, `roles/forge-ops-backup-rsync`, `roles/restic-gcs`.
 
@@ -252,16 +255,19 @@ bezaforge-infrastructure/
 ├── ansible/
 │   ├── ansible.cfg              # Defaults (inventory path)
 │   ├── requirements.yml         # Galaxy collections (community.docker, etc.)
-│   ├── site.yml                 # Main playbook (docker_hosts + gpu_hosts)
+│   ├── site.yml                 # Main playbook — 4 plays (hypervisor, docker, gpu, assistant hosts)
 │   ├── inventory/
-│   │   ├── hosts.yml            # Host groups (docker_hosts, gpu_hosts)
+│   │   ├── hosts.yml            # Host groups (hypervisor_hosts, docker_hosts, gpu_hosts, assistant_hosts)
 │   │   └── host_vars/
 │   │       ├── forge-ops/
 │   │       │   ├── vars.yml     # Connection, network, service list
 │   │       │   └── vault.yml    # Encrypted secrets (ansible-vault)
-│   │       └── forge-ai.yml     # Minimal host vars
+│   │       ├── forge-hypervisor/        # Hypervisor vars + vaulted secrets
+│   │       ├── forge-ai.yml     # GPU host vars (ollama models)
+│   │       └── forge-brizza.yml # Assistant host vars (vault-sync overrides)
 │   └── roles/
-│       ├── common/                    # Base setup, SSH, UFW, NFS, sysctl
+│       ├── common/                    # Base setup, SSH, UFW, NFS, sysctl, LLMNR off
+│       ├── fail2ban/                  # SSH brute-force protection
 │       ├── docker/                    # Docker CE, directory tree, bezaforge-net
 │       ├── traefik/                   # Reverse proxy + TLS + middleware
 │       ├── adguard/                   # DNS server (codified log retention)
@@ -269,8 +275,10 @@ bezaforge-infrastructure/
 │       ├── services/                  # Codified app services (gitea, netbox, langfuse, homepage, uptime-kuma)
 │       ├── outline/                   # Outline wiki (docs.bezaforge.dev) — Google OIDC
 │       ├── plane/                     # Plane PM (plane.bezaforge.dev) — Google OAuth
-│       ├── ollama/                    # GPU inference on forge-ai (5 models seeded)
-│       ├── forge-brizza/              # forge-brizza host (Insync, NFS tuning, cachefilesd)
+│       ├── brizza-postgres/           # Brizza's Postgres 18 on forge-ops
+│       ├── ollama/                    # GPU inference on forge-ai (pinned version, model seeds, Modelfiles)
+│       ├── forge-brizza/              # forge-brizza host (GNOME, Docker, NFS tuning, cachefilesd)
+│       ├── vault-sync/                # Master-Mind vault git sync (hypervisor + forge-brizza deployments)
 │       ├── sanoid/                    # ZFS auto-snapshots on forge-hypervisor (bezapool)
 │       ├── db-dumps/                  # Nightly pg_dumpall per Postgres container → NFS
 │       ├── forge-ops-backup-rsync/    # Nightly rsync of /opt/bezaforge/<svc>/ → NFS
