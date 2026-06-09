@@ -1,6 +1,6 @@
 # ---------------------------------------------------------------------------
 # forge-ai — VMID 101
-# Ubuntu 24.04, RX 7900 XT GPU passthrough, ROCm + Ollama
+# Ubuntu 26.04, RX 7900 XT GPU passthrough, ROCm + Ollama
 # VLAN 50 (AI), 10.10.50.10
 # ---------------------------------------------------------------------------
 
@@ -81,7 +81,7 @@ module "forge_dev" {
 
 # ---------------------------------------------------------------------------
 # forge-erp — VMID 103
-# Ubuntu 24.04, ERPNext v16
+# Ubuntu 26.04, ERPNext v16
 # VLAN 20 (Production), 10.10.20.50
 # ---------------------------------------------------------------------------
 
@@ -116,7 +116,7 @@ module "forge_erp" {
 
 # ---------------------------------------------------------------------------
 # forge-brizza — VMID 104
-# Ubuntu 24.04, Brizza AI assistant (Python + LangGraph, Cognee MCP consumer)
+# Ubuntu 26.04, Brizza AI assistant (Hermes Agent bridge; LangGraph graduation planned)
 # VLAN 50 (AI), 10.10.50.20
 # ---------------------------------------------------------------------------
 
@@ -125,7 +125,7 @@ module "forge_brizza" {
 
   vm_id               = 104
   name                = "forge-brizza"
-  description         = "Brizza AI assistant — Python + LangGraph, Cognee MCP consumer, Discord"
+  description         = "Brizza AI assistant — Hermes Agent bridge, Discord"
   node_name           = var.proxmox_node
   cores               = 4
   memory              = 16384

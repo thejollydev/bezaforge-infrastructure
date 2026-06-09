@@ -20,7 +20,7 @@ For Traefik installation, configuration, or DNS challenge setup — see `docs/ar
 
 ### 1. Choose the hostname
 
-Pattern: `<service>.bezaforge.dev` (e.g. `memory.bezaforge.dev` for Cognee, `langfuse.bezaforge.dev` for LangFuse).
+Pattern: `<service>.bezaforge.dev` (e.g. `langfuse.bezaforge.dev` for LangFuse, `plane.bezaforge.dev` for Plane).
 
 Keep names short, lowercase, no underscores. The hostname will appear in router labels and certificate SANs (the wildcard cert covers them automatically).
 
@@ -96,7 +96,7 @@ labels:
 
 Note the `$$` escaping — Compose interprets a single `$` as a variable reference.
 
-For services with their own auth (Cognee MCP's `API_TOKEN`, Grafana's login), no middleware is needed.
+For services with their own auth (Grafana's login, Plane's own auth), no middleware is needed.
 
 ### 7. Bring up the service
 
@@ -156,7 +156,7 @@ Open `https://traefik.bezaforge.dev` (basic-auth required). The new router and s
 - **`certresolver=cloudflare` instead of `letsencrypt`.** `cloudflare` is the DNS challenge **provider** (set in static config); `letsencrypt` is the **resolver name** used by service labels. Mixing them produces `unknown certificate resolver` errors.
 - **Compose `version:` field.** Older guides include `version: "3.8"`. Modern Docker Compose ignores it and warns. Safe to omit on new services.
 - **Variable escaping in basic-auth.** Single `$` in label values gets eaten by Compose. Always double them: `$$apr1$$...`
-- **Labels on the wrong service.** In a multi-service compose file, labels go on the service that should be exposed — not on a sidecar. For Cognee (two services), the labels are only on `cognee-mcp`, never on the internal `cognee` backend.
+- **Labels on the wrong service.** In a multi-service compose file, labels go on the service that should be exposed — not on a sidecar. For Outline (three services), the labels are only on `outline`, never on the internal `outline-db`/`outline-redis` sidecars.
 
 ---
 
