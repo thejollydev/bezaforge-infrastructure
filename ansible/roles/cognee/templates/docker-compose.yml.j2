@@ -14,7 +14,9 @@ services:
       - TELEMETRY_DISABLED=true
       - LLM_PROVIDER={{ cognee_llm_provider }}
       - LLM_MODEL={{ cognee_llm_model }}
-      - LLM_API_KEY=${COGNEE_GEMINI_API_KEY}
+      - LLM_ENDPOINT={{ cognee_llm_endpoint }}
+      - LLM_API_KEY=ollama
+      - LLM_INSTRUCTOR_MODE={{ cognee_llm_instructor_mode }}
       - EMBEDDING_PROVIDER=ollama
       - EMBEDDING_MODEL={{ cognee_embedding_model }}
       - EMBEDDING_ENDPOINT={{ cognee_embedding_endpoint }}

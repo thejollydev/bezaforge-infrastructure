@@ -41,26 +41,28 @@ cognee_hostname: "memory.bezaforge.dev"
 # so .git is invisible to it). RO at every layer: NFS export, fstab, bind.
 cognee_vault_mount: "/mnt/bezapool/vault"
 
-# LLM — cloud Gemini via API key (FORGE-33 gate passed 2026-06-04; decision
-# trail in project memory + the Cognee KB doc).
+# LLM — LOCAL reasoning model on forge-ai (FORGE-5, 2026-06-09; replaced the
+# cloud Gemini plan after a full local bake-off — Cognee KB doc + journal).
+# Cognee recommends a reasoning model for cleaner graphs; qwen3.6-35B-A3B
+# (MoE, ~3B active) is the newest/biggest that fits the 20 GB card at Q3.
+# $0/run + private. ~6x slower than a non-reasoning model → overnight ingest.
 #
-# Gemini wiring rules (verified against the pinned image 2026-06-04):
-#   - LLM_MODEL REQUIRES the `gemini/` prefix — this path routes through
-#     litellm, UNLIKE the Ollama-era OllamaAPIAdapter which wanted the bare
-#     tag (that root-cause writeup: Cognee KB doc + reference_cognee_deploy_gotchas).
-#   - NO LLM_ENDPOINT — litellm routes to the public Gemini API itself.
-#   - LLM_INSTRUCTOR_MODE stays UNSET (Gemini's Cognee default `json_mode` is
-#     correct; the `json_schema_mode` advice was Ollama/OpenAI-era only).
-#   - Both model ids below are present in the pinned image's litellm 1.83.7
-#     registry (probed in-container) — no registry-lag `KeyError: max_tokens`.
-#   - Safety filters: defaults are Off for Gemini 3 models; Cognee sends no
-#     safety_settings, so server defaults apply (FORGE-33 verdict).
-#
-# Bulk-ingest model (one-time; best entity disambiguation — compounds on the
-# initial graph). FORGE-6's nightly delta pipeline swaps this to the cheap
-# delta model: gemini/gemini-3.1-flash-lite-preview (~$1.20/mo est).
-cognee_llm_provider: "gemini"
-cognee_llm_model: "gemini/gemini-3.1-pro-preview"
+# Ollama wiring rules (verified FORGE-5; Cognee's OllamaAPIAdapter wraps a raw
+# OpenAI client with instructor, NOT litellm routing):
+#   - LLM_MODEL = the BARE local tag (an `ollama/` prefix 404s). This is the
+#     16k-context custom build (roles/ollama ollama_modelfiles on forge-ai),
+#     NOT the bare GGUF — Cognee's ~5k-token prompt + the reasoning trace
+#     overflow a small default context → finish_reason=length → retry loop.
+#   - LLM_ENDPOINT keeps the `/v1` suffix (OpenAI SDK appends /chat/completions)
+#     and uses the FQDN (single-label names pay a ~3.85s LLMNR tax per call).
+#   - LLM_INSTRUCTOR_MODE = `tool_call` is REQUIRED for a reasoning model: the
+#     default `json_mode` lets it free-write past the context → retry loop.
+#     tool_call constrains it straight to the schema (reasoning intact, no
+#     loop). Model-specific: Devstral (non-reasoning) needs json_mode instead.
+cognee_llm_provider: "ollama"
+cognee_llm_model: "qwen36-moe-16k:latest"
+cognee_llm_endpoint: "http://forge-ai.bezaforge.dev:11434/v1"
+cognee_llm_instructor_mode: "tool_call"
 # Rate limiters — BOTH REQUIRED at ingest scale (FORGE-5 pilot failure,
 # 2026-06-04): Cognee's embedding engine fires ONE concurrent HTTP request
 # PER text chunk (asyncio.gather, unbounded, 60s client timeout). The pilot's
@@ -69,23 +71,25 @@ cognee_llm_model: "gemini/gemini-3.1-pro-preview"
 # status code, NOT an HTTP response; the wrapped error was TimeoutError.)
 # Cognee's built-in AsyncLimiter is a no-op unless explicitly enabled.
 #
-# SPLIT LIMITS (FORGE-43, 2026-06-08): a single shared 60/min was WRONG for the
-# LLM. gemini-3.1-pro's Tier-1 quota is 25 req/min, so 60 triggered a 429
-# RESOURCE_EXHAUSTED retry-storm that — combined with Cognee's per-chunk asyncio
-# embed flood — wedged the backend event loop mid-cognify (first full-vault
-# ingest, never completed). The LLM limit MUST stay under Gemini's 25 RPM;
-# embeddings (local forge-ai Ollama) handle 60/min fine.
-#   - LLM 20/min: headroom under gemini-3.1-pro's 25 RPM cap. The FORGE-6 delta
-#     model gemini-3.1-flash-lite-preview has a much higher RPM ceiling — raise
-#     this when that swap lands.
-#   - Embedding 60/min: well under forge-ai's local embed capacity.
+# LOCAL model (FORGE-5, 2026-06-09): no external quota anymore, so these are
+# now FLOW-CONTROL on Cognee's unbounded per-chunk asyncio.gather, not a
+# provider cap. The reasoning LLM is the bottleneck (minutes/call), so 20/min
+# never actually binds — it just keeps the request queue from ballooning.
+# Embedding 60/min keeps bge-m3 (co-resident, see OLLAMA_MAX_LOADED_MODELS=2)
+# from being flooded. Tunable once the full ingest gives real throughput data.
 cognee_llm_rate_limit_requests: 20
 cognee_embedding_rate_limit_requests: 60
 cognee_rate_limit_interval: 60
 
 # Embeddings stay LOCAL on forge-ai (Ollama). HUGGINGFACE_TOKENIZER is
 # MANDATORY with custom Ollama embeddings (backend crash-loops without it).
-cognee_embedding_model: "nomic-embed-text"
+# bge-m3 (FORGE-5, 2026-06-09): better retrieval than nomic + native 8192
+# context (so chunks up to ~8k embed cleanly — no more "input length exceeds"
+# overflow), and tiny (0.7 GB loaded) so it CO-RESIDES with the 17 GB reasoning
+# LLM on the 21.4 GB card (qwen3-embedding-4b at 4.4 GB would not — it'd evict
+# the LLM). NOTE: dims change 768→1024, so the LanceDB store must be fresh
+# (a clean full ingest — which FORGE-5 is — avoids the dimensional mismatch).
+cognee_embedding_model: "bge-m3"
 # OllamaEmbeddingEngine POSTs DIRECTLY to this URL (it is not a base — the
 # engine's own default is ".../api/embed"). So it must be the FULL native
 # embed path, not the bare host. The codified deploy had bare `…:11434`,
@@ -101,5 +105,5 @@ cognee_embedding_model: "nomic-embed-text"
 # cognify. LLMNR is also disabled host-wide in roles/common (the root fix);
 # the FQDN keeps this role correct independent of host resolver config.
 cognee_embedding_endpoint: "http://forge-ai.bezaforge.dev:11434/api/embed"
-cognee_embedding_dimensions: 768
-cognee_hf_tokenizer: "nomic-ai/nomic-embed-text-v1.5"
+cognee_embedding_dimensions: 1024
+cognee_hf_tokenizer: "BAAI/bge-m3"

@@ -21,7 +21,13 @@ ollama_install_method: script
 # the upstream script ships today. When set, the install task
 # only re-runs the script if the local binary's version differs.
 # Check current upstream releases at https://github.com/ollama/ollama/releases
-ollama_version: ""
+#
+# NOTE: an EMPTY value only (re)installs when the binary is MISSING — it
+# does NOT update a stale-but-present install. So an explicit pin is also
+# how we keep Ollama current: bump this when a newer stable lands and
+# re-run `--tags ollama`. Bumped 0.20.5 → 0.30.7 on 2026-06-08 (FORGE-5):
+# 0.20.5's llama.cpp was too old to load Unsloth UD Dynamic-2.0 GGUF quants.
+ollama_version: "0.30.7"
 
 # ------------------------------------------------------------
 # Runtime config (rendered into /etc/systemd/system/ollama.service.d/override.conf)
@@ -50,9 +56,24 @@ ollama_models_dir: "/usr/share/ollama/.ollama/models"
 # back-and-forth, so a long keep-alive is preferable.
 ollama_keep_alive: "24h"
 
-# How many models may be loaded concurrently. RX 7900 XT has
-# 20 GB VRAM — one large model at a time is the realistic ceiling.
-ollama_max_loaded_models: 1
+# How many models may be loaded concurrently. Cognee's ingest uses
+# an LLM (extraction) AND an embedder (vectorize) — with this at 1,
+# Ollama EVICTS the 17 GB LLM every time it switches to embedding and
+# reloads it on the next extraction = catastrophic thrash (diagnosed
+# FORGE-5, 2026-06-09). 2 lets a big LLM + a small embedder co-reside
+# (e.g. qwen36-moe-16k 17 GB + bge-m3 0.7 GB = 17.7 GB on the 21.4 GB
+# card). Keep the embedder small so both fit (a 4 GB embedder + the
+# 17 GB LLM = 21.4 GB ≈ card total → won't co-reside; see roles/cognee).
+ollama_max_loaded_models: 2
+
+# Custom models built from a Modelfile (e.g. to pin a context length
+# on a pulled GGUF). Each entry → `ollama create <name> -f <Modelfile>`.
+#   - name: the local model name Cognee/clients reference
+#   - from: the base model (a pulled tag or hf.co GGUF ref)
+#   - parameters: dict of Modelfile PARAMETER lines (e.g. num_ctx)
+# The `from` base must be in ollama_models (pulled) for create to work.
+# Re-created only when the rendered Modelfile changes (idempotent).
+ollama_modelfiles: []
 
 # ROCm GPU detection override. The 7900 XT (gfx1100) is supported
 # natively in ROCm 6+; older boards may need HSA_OVERRIDE_GFX_VERSION.
