@@ -32,7 +32,8 @@
 #           value in hourly. 7 dailies plus weeklies/monthlies.
 # - downloads: ephemeral (qBittorrent in-flight). Lightweight.
 # - media: large + slow-churn. Don't need lots of snapshots.
-# - vzdump: large compressed VM images, also slow-churn.
+# - vzdump: NOT snapshotted — it IS the VM backups (snapshotting backups
+#           pins pruned copies; see FORGE-44 note below).
 # ------------------------------------------------------------
 sanoid_templates:
   gdrive:
@@ -55,11 +56,10 @@ sanoid_templates:
     daily: 4
     weekly: 4
     monthly: 3
-  vzdump:
-    hourly: 0
-    daily: 4
-    weekly: 2
-    monthly: 2
+  # vzdump template REMOVED 2026-06-08 (FORGE-44): bezapool/vzdump is no longer
+  # snapshotted — it already holds point-in-time VM backups, and snapshotting a
+  # backup dataset pinned every pruned-out daily backup (1.44 TB dead weight;
+  # one stale weekly snapshot alone held 619 GB). See the datasets list below.
   # vault: the Master-Mind git clone (ADR 0002). Same posture as
   # gdrive had — hottest dataset, hourly granularity genuinely useful.
   # Git history overlaps this protection but snapshots also cover
@@ -97,9 +97,11 @@ sanoid_datasets:
     template: "media"
     recursive: "no"
 
-  - dataset: "bezapool/vzdump"
-    template: "vzdump"
-    recursive: "no"
+  # bezapool/vzdump intentionally NOT snapshotted (removed 2026-06-08, FORGE-44):
+  # it's a backup dataset (Proxmox VM images). Snapshotting backups pinned every
+  # daily backup the vzdump job pruned → 1.44 TB reclaimed when the old snapshots
+  # were destroyed. ADR 0001 correction: don't back up backups. Retention for
+  # vzdump = the backup job's own keep-daily=7.
 
   - dataset: "bezapool/vault"
     template: "vault"
