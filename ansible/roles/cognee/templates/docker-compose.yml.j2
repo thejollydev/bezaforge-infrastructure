@@ -22,10 +22,10 @@ services:
       - EMBEDDING_API_KEY=ollama
       - HUGGINGFACE_TOKENIZER={{ cognee_hf_tokenizer }}
       - EMBEDDING_RATE_LIMIT_ENABLED=true
-      - EMBEDDING_RATE_LIMIT_REQUESTS={{ cognee_rate_limit_requests }}
+      - EMBEDDING_RATE_LIMIT_REQUESTS={{ cognee_embedding_rate_limit_requests }}
       - EMBEDDING_RATE_LIMIT_INTERVAL={{ cognee_rate_limit_interval }}
       - LLM_RATE_LIMIT_ENABLED=true
-      - LLM_RATE_LIMIT_REQUESTS={{ cognee_rate_limit_requests }}
+      - LLM_RATE_LIMIT_REQUESTS={{ cognee_llm_rate_limit_requests }}
       - LLM_RATE_LIMIT_INTERVAL={{ cognee_rate_limit_interval }}
       - DB_PROVIDER=sqlite
       - VECTOR_DB_PROVIDER=lancedb
