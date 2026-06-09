@@ -68,8 +68,19 @@ cognee_llm_model: "gemini/gemini-3.1-pro-preview"
 # error. (Logged as "Status code: 422" — that's EmbeddingException's DEFAULT
 # status code, NOT an HTTP response; the wrapped error was TimeoutError.)
 # Cognee's built-in AsyncLimiter is a no-op unless explicitly enabled.
-# 60 req/min is well under forge-ai's embed capacity and Gemini Tier-1 RPM.
-cognee_rate_limit_requests: 60
+#
+# SPLIT LIMITS (FORGE-43, 2026-06-08): a single shared 60/min was WRONG for the
+# LLM. gemini-3.1-pro's Tier-1 quota is 25 req/min, so 60 triggered a 429
+# RESOURCE_EXHAUSTED retry-storm that — combined with Cognee's per-chunk asyncio
+# embed flood — wedged the backend event loop mid-cognify (first full-vault
+# ingest, never completed). The LLM limit MUST stay under Gemini's 25 RPM;
+# embeddings (local forge-ai Ollama) handle 60/min fine.
+#   - LLM 20/min: headroom under gemini-3.1-pro's 25 RPM cap. The FORGE-6 delta
+#     model gemini-3.1-flash-lite-preview has a much higher RPM ceiling — raise
+#     this when that swap lands.
+#   - Embedding 60/min: well under forge-ai's local embed capacity.
+cognee_llm_rate_limit_requests: 20
+cognee_embedding_rate_limit_requests: 60
 cognee_rate_limit_interval: 60
 
 # Embeddings stay LOCAL on forge-ai (Ollama). HUGGINGFACE_TOKENIZER is
