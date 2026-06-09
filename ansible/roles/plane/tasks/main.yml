@@ -121,3 +121,9 @@
   # psql -tA returns just the value with no header/padding. INSERT
   # RETURNING outputs the key on insert, empty on conflict (no-op).
   changed_when: "'IS_GOOGLE_ENABLED' in plane_oauth_seed.stdout"
+  # Run for real even under --check. The retry/until loop polls a live
+  # container exec, which check mode can't simulate → in a dry run it
+  # spins all 20 retries and hangs the whole `--check` (caught 2026-06-08).
+  # Safe to execute during --check: it's an idempotent INSERT ... ON
+  # CONFLICT DO NOTHING — a guaranteed no-op once the row is seeded.
+  check_mode: false
