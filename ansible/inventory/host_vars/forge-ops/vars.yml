@@ -26,11 +26,9 @@ nfs_mounts:
     path: "/mnt/bezapool/gdrive"
   - src: "10.10.10.10:/bezapool/forge-ops-backup"
     path: "/mnt/bezapool/forge-ops-backup"
-  # Master-Mind vault git clone (ADR 0002, 2026-06-06) — read-only here;
-  # Cognee bind-mounts it. The export is RO too (belt and suspenders).
-  - src: "10.10.10.10:/bezapool/vault"
-    path: "/mnt/bezapool/vault"
-    opts: "defaults,_netdev,nofail,ro"
+  # bezapool/vault RO mount REMOVED 2026-06-09 (FORGE-49): its only
+  # consumer was Cognee (retired 2026-06-09); the hypervisor export
+  # stanza was retired with it.
 
 # Media directories to create under /mnt/bezapool/media
 media_dirs:

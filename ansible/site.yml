@@ -69,3 +69,8 @@
       tags: fail2ban
     - role: forge-brizza
       tags: forge-brizza
+    # FORGE-49: local vault clone for Hermes grounding — replaces the
+    # NFS-RW mount (vaultsync-checkout-vs-NFS-reader race). Timer-only;
+    # all hypervisor-specific behavior is disabled in host_vars.
+    - role: vault-sync
+      tags: vault-sync

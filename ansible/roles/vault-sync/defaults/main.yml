@@ -14,9 +14,17 @@
 #          brizza/conflict-<ts> branch — never force-pushed,
 #          never silently dropped.
 #
-# Consumers of the clone (both via NFS from this hypervisor):
-#   - forge-ops (NFS RO) → Cognee /vault bind-mount
-#   - forge-brizza (NFS RW) → Hermes/Brizza read-write
+# Deployments (FORGE-49, 2026-06-09 — the role runs on two hosts):
+#   - forge-hypervisor: canonical server clone on the bezapool/vault
+#     ZFS dataset (sanoid + restic scope), GitHub/GitLab mirror
+#     fan-out, Gitea webhook receiver. Defaults below = this host.
+#   - forge-brizza: LOCAL clone for Hermes vault grounding
+#     (host_vars overrides; timer-only — no webhook/mirrors/leases).
+#     Replaces the retired NFS-RW mount: recursive traversal over NFS
+#     intermittently EINVALed when a checkout here raced the NFS
+#     client (FORGE-49); a local clone has no NFS in the read path.
+#     (The bezapool/vault NFS exports were retired with it — no
+#     consumers remain post-Cognee.)
 #
 # Prereqs done out-of-band 2026-06-06 (one-time):
 #   - deploy key ~/.ssh/id_ed25519_vault_sync registered in
@@ -28,10 +36,32 @@
 # Where the clone lives — the bezapool/vault dataset, LOCAL on
 # forge-hypervisor (v1.2 restructure, 2026-06-06): git wedged twice in
 # D-state doing write IO over NFS from forge-brizza's 7.0.0 kernel
-# (folio_wait_bit_common / rpc_wait_bit_killable). Git now does only
-# local ZFS IO on the dataset owner; brizza writes PLAIN FILES via its
-# RW NFS mount and this role's timer commits them.
+# (folio_wait_bit_common / rpc_wait_bit_killable). Git only ever does
+# local IO on its own clone. (FORGE-49 update 2026-06-09: brizza no
+# longer writes plain files over NFS — it has its own local clone and
+# pushes its own commits; this host's auto-commit step is now dormant
+# but harmless, kept for robustness.)
 vault_sync_clone_path: /bezapool/vault
+
+# ------------------------------------------------------------
+# Deployment-shape flags (FORGE-49 — defaults describe the
+# forge-hypervisor deployment; forge-brizza overrides ALL of
+# these in host_vars).
+# ------------------------------------------------------------
+# fs.leases-enable=0 is an NFS-SERVER concern (delegation recall vs
+# local git writes) — only the host that exports a dataset needs it.
+vault_sync_manage_leases: true
+# /etc/hosts pins exist because the hypervisor can't use AdGuard
+# (boot-order circular dep). Normal VMs resolve via AdGuard — skip.
+vault_sync_manage_etc_hosts: true
+# The hypervisor uses a dedicated service user; on forge-brizza the
+# actor is the existing `joseph` (Hermes writes files as uid 1000 —
+# the git actor must be the same owner), so creation is skipped.
+vault_sync_create_user: true
+# Webhook receiver (seconds-latency pulls). Timer-only deployments
+# (brizza) skip it: end-to-end staleness is dominated by the laptop's
+# <=5-min Obsidian Git commit interval, so the 1-min timer is enough.
+vault_sync_webhook_enabled: true
 
 # Gitea origin. SSH on the Gitea container's mapped port 2222.
 vault_sync_repo: "ssh://git@git.bezaforge.dev:2222/joseph/Master-Mind-Obsidian-Vault.git"
