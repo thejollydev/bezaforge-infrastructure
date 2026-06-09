@@ -44,12 +44,7 @@ backup_services:
     # Physical copy of the data dir alongside the logical pg_dumpall
     # (db-dumps). The dump is the authoritative restore path; this
     # mirrors the outline/plane pattern for parity.
-  - name: cognee
-    # Cognee is sqlite+lancedb+kuzu (no db-dumps entry). Its data/ +
-    # system/ bind-mounts under /opt/bezaforge/cognee are the only
-    # restore path, so the rsync physical copy is authoritative here.
-    # The /vault bind is read-only (gdrive, separately backed up) — not
-    # under this root, so nothing to exclude.
+  # cognee removed 2026-06-09 (Cognee retired — see Cognee KB doc + journal)
   - name: prometheus
     excludes:
       # The write-ahead-log is constantly mutating during scrape.

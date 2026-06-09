@@ -56,19 +56,15 @@ ollama_models_dir: "/usr/share/ollama/.ollama/models"
 # back-and-forth, so a long keep-alive is preferable.
 ollama_keep_alive: "24h"
 
-# How many models may be loaded concurrently. Cognee's ingest uses
-# an LLM (extraction) AND an embedder (vectorize) — with this at 1,
-# Ollama EVICTS the 17 GB LLM every time it switches to embedding and
-# reloads it on the next extraction = catastrophic thrash (diagnosed
-# FORGE-5, 2026-06-09). 2 lets a big LLM + a small embedder co-reside
-# (e.g. qwen36-moe-16k 17 GB + bge-m3 0.7 GB = 17.7 GB on the 21.4 GB
-# card). Keep the embedder small so both fit (a 4 GB embedder + the
-# 17 GB LLM = 21.4 GB ≈ card total → won't co-reside; see roles/cognee).
+# How many models may be loaded concurrently on the GPU. 2 lets a model
+# plus a small embedder co-reside without Ollama evicting/reloading on
+# every switch (the 24 GB card fits e.g. a ~17 GB LLM + a <1 GB embedder).
+# Tune to the actual consumer's working set.
 ollama_max_loaded_models: 2
 
 # Custom models built from a Modelfile (e.g. to pin a context length
 # on a pulled GGUF). Each entry → `ollama create <name> -f <Modelfile>`.
-#   - name: the local model name Cognee/clients reference
+#   - name: the local model name clients reference
 #   - from: the base model (a pulled tag or hf.co GGUF ref)
 #   - parameters: dict of Modelfile PARAMETER lines (e.g. num_ctx)
 # The `from` base must be in ollama_models (pulled) for create to work.
