@@ -43,8 +43,6 @@
       tags: plane
     - role: brizza-postgres
       tags: brizza-postgres
-    - role: cognee
-      tags: cognee
     - role: db-dumps
       tags: backups
     - role: forge-ops-backup-rsync

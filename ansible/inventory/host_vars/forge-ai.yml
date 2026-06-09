@@ -26,27 +26,18 @@ nfs_client: false
 # Ollama cloud at inference time, not pulled locally — leave them
 # out of this list. `gemma4:31b-cloud` is the current example;
 # include it only if/when `ollama pull` supports cloud refs.
-ollama_models:
-  - gemma4:26b
-  - gemma4:latest
-  - nomic-embed-text:latest
-  - deepseek-r1-16k:latest
-  - devstral-32k:latest
-  # Cognee memory stack (FORGE-5, 2026-06-09): reasoning LLM base GGUF
-  # + bge-m3 embedder. The LLM Cognee actually points at is the
-  # 16k-context build below (qwen36-moe-16k), not this bare GGUF.
-  - hf.co/unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q3_K_XL
-  - bge-m3:latest
+# Cognee was retired 2026-06-09 — every model previously seeded here
+# (gemma4, nomic-embed-text, deepseek-r1-16k, devstral-32k, the
+# Qwen3.6-35B GGUF + bge-m3) was pulled solely for the Cognee extraction
+# experiment and is no longer needed. List left empty; Brizza/Hermes adds
+# its own model (e.g. its Ollama fallback) here when that's wired. Existing
+# blobs on forge-ai can be reclaimed with `ollama rm <name>` (teardown).
+ollama_models: []
 
-# Custom Modelfile builds (see roles/ollama defaults). The bare
-# Qwen3.6-35B GGUF defaults to a small context; Cognee's extraction
-# prompt is ~5k tokens + the reasoning trace, so it needs 16k to not
-# overflow (overflow → instructor retry loop; FORGE-5). This pins it.
-ollama_modelfiles:
-  - name: qwen36-moe-16k
-    from: "hf.co/unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q3_K_XL"
-    parameters:
-      num_ctx: 16384
+# No custom Modelfile builds. (qwen36-moe-16k was a Cognee-only 16k-context
+# build, removed with Cognee.) The role still supports ollama_modelfiles if
+# a future consumer needs a custom build.
+ollama_modelfiles: []
 
 # Long keep-alive so interactive back-and-forth doesn't pay the
 # cold-load cost every prompt. Override here if a different
