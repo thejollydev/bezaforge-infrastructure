@@ -156,3 +156,43 @@
   when: ollama_models | length > 0
   environment:
     OLLAMA_HOST: "{{ ollama_host }}"
+
+# ------------------------------------------------------------
+# Custom models (Modelfile builds) — e.g. context-length pins
+# ------------------------------------------------------------
+# Runs AFTER seeding so each Modelfile's `from:` base is present.
+# `ollama create` only re-runs when the rendered Modelfile changed.
+
+- name: Create Modelfile directory
+  ansible.builtin.file:
+    path: /etc/ollama/modelfiles
+    state: directory
+    owner: ollama
+    group: ollama
+    mode: "0755"
+  when: ollama_modelfiles | length > 0
+
+- name: Render custom-model Modelfiles
+  ansible.builtin.template:
+    src: Modelfile.j2
+    dest: "/etc/ollama/modelfiles/Modelfile.{{ item.name }}"
+    owner: ollama
+    group: ollama
+    mode: "0644"
+  loop: "{{ ollama_modelfiles }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: ollama_modelfile_render
+  when: ollama_modelfiles | length > 0
+
+- name: Build/update custom models from Modelfiles
+  ansible.builtin.command: "ollama create {{ item.item.name }} -f {{ item.dest }}"
+  loop: "{{ ollama_modelfile_render.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when:
+    - ollama_modelfiles | length > 0
+    - item.changed | default(false)
+  changed_when: true
+  environment:
+    OLLAMA_HOST: "{{ ollama_host }}"

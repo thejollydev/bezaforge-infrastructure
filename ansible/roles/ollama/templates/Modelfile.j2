@@ -1,0 +1,7 @@
+{{ ansible_managed | comment }}
+# Modelfile for custom model "{{ item.name }}" — built by ansible/roles/ollama
+# from ollama_modelfiles (host_vars). Rebuilt via `ollama create` on change.
+FROM {{ item.from }}
+{% for key, value in (item.parameters | default({})).items() %}
+PARAMETER {{ key }} {{ value }}
+{% endfor %}
