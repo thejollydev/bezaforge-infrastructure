@@ -42,6 +42,41 @@
     update_cache: true
 
 # ------------------------------------------------------------
+# sudo: pin classic sudo over sudo-rs (Ansible become compat)
+# ------------------------------------------------------------
+# Ubuntu 26.04 (resolute) makes sudo-rs (the Rust rewrite) the
+# default sudo. sudo-rs doesn't reproduce classic sudo's
+# password-prompt rewrite, so Ansible's `sudo` become plugin
+# can't match the prompt and EVERY become task times out
+# (FORGE-36, hit fleet-wide after the 26.04 upgrade). The
+# Ansible-side fix (ansible/ansible#86175) was merged then
+# REVERTED over a localization bug — no released ansible-core
+# works with sudo-rs become yet (follow-up #86964).
+#
+# Canonical's sanctioned fallback: point the `sudo` alternative
+# at classic sudo (shipped alongside at /usr/bin/sudo.ws),
+# supported for the whole 26.04 LTS lifecycle. The module sets
+# manual mode, so apt upgrades won't revert it.
+#
+# Gated on sudo.ws existing → Debian hosts (forge-ops,
+# hypervisor — classic sudo, no sudo.ws) skip cleanly.
+# NOTE: a brand-new 26.04 host still needs ONE manual switch by
+# hand first (become is broken until classic sudo is selected,
+# so this task can't bootstrap it) — thereafter it enforces it.
+# REVISIT: flip back to sudo-rs once ansible-core ships the fix.
+
+- name: Detect classic sudo (sudo.ws) presence
+  ansible.builtin.stat:
+    path: /usr/bin/sudo.ws
+  register: sudo_ws_bin
+
+- name: Pin classic sudo over sudo-rs for Ansible become compatibility
+  community.general.alternatives:
+    name: sudo
+    path: /usr/bin/sudo.ws
+  when: sudo_ws_bin.stat.exists
+
+# ------------------------------------------------------------
 # Locale and timezone
 # ------------------------------------------------------------
 # community.general.timezone uses timedatectl under the hood,
@@ -125,6 +160,18 @@
     src: 10.10.10.0/24
     port: '22'
     proto: tcp
+
+# Joseph's admin laptop SSHes from outside the mgmt VLAN (Home WiFi +
+# WireGuard). Without these the common role would lock him out the moment
+# it enables UFW on a host that doesn't already have these rules hand-added
+# (forge-ai). Sources defined in group_vars/all (common_admin_ssh_sources).
+- name: Allow SSH from admin sources (laptop — WiFi + WireGuard)
+  community.general.ufw:
+    rule: allow
+    src: "{{ item }}"
+    port: '22'
+    proto: tcp
+  loop: "{{ common_admin_ssh_sources | default([]) }}"
 
 - name: Allow full access from management VLAN
   community.general.ufw:

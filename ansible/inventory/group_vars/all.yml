@@ -10,3 +10,24 @@
 # Documented at:
 # https://docs.ansible.com/ansible-core/devel/reference_appendices/interpreter_discovery.html
 ansible_python_interpreter: auto_silent
+
+# ------------------------------------------------------------
+# Admin SSH sources
+# ------------------------------------------------------------
+# IPs allowed to SSH to EVERY host, in addition to the management
+# VLAN (10.10.10.0/24, allowed separately in roles/common). This
+# codifies hand-added UFW rules that existed only on forge-ops
+# (drift discovered 2026-06-08, FORGE-36 session) — without them a
+# fresh-UFW host (e.g. forge-ai) would lock Joseph out the moment
+# the common role enables UFW.
+#
+# Joseph administers from his laptop:
+#   - 10.10.40.99 — laptop on Home WiFi (VLAN 40)
+#   - 10.10.99.99 — laptop over WireGuard (while away)
+# /32 single hosts (strictest — not the whole VLAN, so other Home
+# devices can't SSH). Keep both DHCP-reserved in Omada so they
+# don't drift. Omada inter-VLAN ACLs already permit laptop→any-VLAN
+# routing; this is the separate per-HOST (UFW) accept layer.
+common_admin_ssh_sources:
+  - 10.10.40.99
+  - 10.10.99.99
