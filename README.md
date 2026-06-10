@@ -263,8 +263,8 @@ bezaforge-infrastructure/
 │   │       │   ├── vars.yml     # Connection, network, service list
 │   │       │   └── vault.yml    # Encrypted secrets (ansible-vault)
 │   │       ├── forge-hypervisor/        # Hypervisor vars + vaulted secrets
-│   │       ├── forge-ai.yml     # GPU host vars (ollama models)
-│   │       └── forge-brizza.yml # Assistant host vars (vault-sync overrides)
+│   │       ├── forge-brizza/            # Assistant host vars + vaulted secrets (vault-sync overrides + Kuma push URL)
+│   │       └── forge-ai.yml     # GPU host vars (ollama models)
 │   └── roles/
 │       ├── common/                    # Base setup, SSH, UFW, NFS, sysctl, LLMNR off
 │       ├── fail2ban/                  # SSH brute-force protection
