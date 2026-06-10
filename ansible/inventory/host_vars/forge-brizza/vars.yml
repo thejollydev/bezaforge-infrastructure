@@ -61,7 +61,8 @@ vault_sync_manage_leases: false
 vault_sync_manage_etc_hosts: false
 vault_sync_webhook_enabled: false
 vault_sync_mirror_push: false
-# Uptime Kuma freshness heartbeat (FORGE-40 pattern) — create a push
-# monitor for THIS sync and set its URL in a vaulted host_vars file
-# when wiring monitoring; empty = disabled.
-vault_sync_heartbeat_url: ""
+# Uptime Kuma freshness heartbeat (FORGE-40 pattern): the push-monitor
+# URL carries a per-monitor token, so it lives in vault.yml beside this
+# file (ansible-vault encrypted) as vault_sync_heartbeat_url — same
+# pattern as host_vars/forge-hypervisor/. Role default "" = disabled
+# until vault.yml provides the real URL.
