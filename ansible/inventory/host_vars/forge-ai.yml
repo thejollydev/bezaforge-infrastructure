@@ -36,10 +36,26 @@ nfs_client: false
 ollama_models:
   - qwen3.6:27b
 
-# No custom Modelfile builds. (qwen36-moe-16k was a Cognee-only 16k-context
-# build, removed with Cognee.) The role still supports ollama_modelfiles if
-# a future consumer needs a custom build.
-ollama_modelfiles: []
+# Hermes Ollama-fallback tuning (BRIZZA-51, validated live 2026-06-09):
+# FLASH_ATTENTION + KV q8_0 halve the KV cache so qwen3.6:27b-64k fits
+# fully on-GPU at 64K context (18 GB, 100% GPU — vs 21 GB / 6% CPU spill
+# with the f16 KV default). KV q8_0 is a marginal quality tradeoff,
+# deliberately scoped to this host rather than the role defaults.
+ollama_extra_env:
+  OLLAMA_FLASH_ATTENTION: "1"
+  OLLAMA_KV_CACHE_TYPE: "q8_0"
+
+# qwen3.6:27b-64k — Hermes's Ollama fallback model (BRIZZA-51). A per-model
+# num_ctx variant because OpenAI-compat /v1 consumers can't set context
+# per-request (it must live server-side), and a global 64K default would
+# make every casual model load grab a huge KV cache. 64K is the 27B sweet
+# spot on the 20 GiB card — KV scales linearly with context, so 128K would
+# spill again. (Mechanism precedent: the Cognee-era qwen36-moe-16k build.)
+ollama_modelfiles:
+  - name: qwen3.6:27b-64k
+    from: qwen3.6:27b
+    parameters:
+      num_ctx: 64000
 
 # Long keep-alive so interactive back-and-forth doesn't pay the
 # cold-load cost every prompt. Override here if a different
