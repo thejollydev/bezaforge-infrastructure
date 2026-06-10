@@ -17,6 +17,12 @@
     # local ZFS IO only (git-over-NFS wedged on brizza's 7.0 kernel).
     - role: vault-sync
       tags: vault-sync
+    # FORGE-35 Phase 5: one-way Drive→bezapool/gdrive nightly rclone
+    # mirror, replacing retired Insync. Also on the dataset owner
+    # (local IO beats walking 177 GB over NFS) — ADR 0002 D4 as
+    # amended v1.4.
+    - role: gdrive-replica
+      tags: gdrive-replica
 
 - name: Configure BezaForge Docker hosts
   hosts: docker_hosts

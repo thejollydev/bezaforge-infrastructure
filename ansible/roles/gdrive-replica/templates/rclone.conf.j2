@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+# Google Drive remote for the one-way bezapool/gdrive replica
+# (ADR 0002 D4 / FORGE-35). scope=drive.readonly by design — the
+# replica only ever pulls; nothing on this host may write Drive.
+[{{ gdrive_replica_remote }}]
+type = drive
+client_id = {{ vault_gdrive_replica_client_id }}
+client_secret = {{ vault_gdrive_replica_client_secret }}
+scope = drive.readonly
+token = {{ vault_gdrive_replica_token }}

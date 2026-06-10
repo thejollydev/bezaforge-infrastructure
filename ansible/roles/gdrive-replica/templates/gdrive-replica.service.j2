@@ -1,0 +1,14 @@
+# {{ ansible_managed }}
+[Unit]
+Description=One-way Google Drive replica to bezapool/gdrive (ADR 0002 D4 / FORGE-35)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User={{ gdrive_replica_user }}
+ExecStart=/usr/local/bin/gdrive-replica.sh
+# Archive-tier job — stay out of the way of VM IO.
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
