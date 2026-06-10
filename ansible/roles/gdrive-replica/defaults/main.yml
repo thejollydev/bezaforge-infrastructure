@@ -1,0 +1,76 @@
+---
+# ============================================================
+# gdrive-replica role defaults — one-way Google Drive →
+# bezapool/gdrive mirror on forge-hypervisor
+# (ADR 0002 D4 / FORGE-35 Phase 5, 2026-06-09)
+#
+# Replaces Insync (retired — ADR 0002): nothing writes Drive
+# content server-side anymore, so a one-way nightly rclone pull
+# is sufficient. Runs on the DATASET OWNER (local ZFS IO) rather
+# than over NFS from forge-brizza — same lesson as the vault-sync
+# v1.2 restructure: walking a 177 GB tree pays per-file NFS
+# round-trips; locally it's cheap. (Deviates from ADR 0002 D4's
+# original "timer on forge-brizza" wording — amended v1.4.)
+#
+# Recovery tiers: sanoid snapshots on bezapool/gdrive (24h/14d/
+# 8w/12m) catch anything a sync deletes; Drive's own trash is
+# upstream of that.
+#
+# One-time prereqs (Joseph, interactive):
+#   1. Own Google OAuth client ID (Desktop app) on the
+#      joseph.soper.dev@gmail.com account — consent screen MUST
+#      be published to Production (Testing-mode refresh tokens
+#      expire after 7 days).
+#   2. Token minted on the laptop via `rclone config` with
+#      scope = drive.readonly (one-way pull never needs write).
+#   3. client_id / client_secret / token JSON →
+#      host_vars/forge-hypervisor/vault.yml (see template).
+# ============================================================
+
+# rclone version pin — installed from the upstream .deb because
+# Debian 13's apt rclone is 1.60 (2022, years stale). Pinned, not
+# "current", so upgrades are deliberate (the Ollama 0.20-stale
+# lesson: install-only-when-missing roles rot silently).
+gdrive_replica_rclone_version: "1.74.3"
+
+# Run as the uid-1000 dataset owner. The vaultsync user already
+# exists on this host (vault-sync role) and matches the
+# bezapool/gdrive 1000:1000 chown — reuse it rather than fight
+# uid collisions with a second service user.
+gdrive_replica_user: vaultsync
+
+# rclone remote name (inside the templated rclone.conf) + dest.
+gdrive_replica_remote: gdrive
+gdrive_replica_dest: /bezapool/gdrive
+
+# Excludes — rclone filter syntax, applied on every sync.
+# Obsidian/** = the dead Drive-side vault copy (the vault is
+# git-native per ADR 0002; the Drive copy sits in its 30-day
+# grace window and must NOT keep landing here).
+gdrive_replica_excludes:
+  - "Obsidian/**"
+
+# One-time prune of already-replicated dead subtrees (idempotent;
+# excluded paths are invisible to rclone sync, so it will never
+# delete them itself).
+gdrive_replica_prune_paths:
+  - /bezapool/gdrive/Obsidian
+
+# Nightly, between the backup jobs (vzdump 02:00, db-dumps 02:30,
+# rsync 02:45, restic 04:00). Persistent=true catches missed runs.
+gdrive_replica_schedule: "*-*-* 03:30:00"
+
+# Tuning: --fast-list trades memory for far fewer Drive API list
+# calls (right call for a wide tree); transfer/checker counts are
+# modest — this is an archive-tier replica, not a race.
+gdrive_replica_rclone_flags: "--fast-list --transfers 4 --checkers 8"
+
+# Uptime Kuma freshness heartbeat (FORGE-40 pattern) — set a push
+# monitor URL (vaulted) to alarm when the nightly sync stops
+# happening; empty = disabled. Monitor interval should be ~26h.
+gdrive_replica_heartbeat_url: ""
+
+# Secrets — define in host_vars/forge-hypervisor/vault.yml:
+#   vault_gdrive_replica_client_id:     "….apps.googleusercontent.com"
+#   vault_gdrive_replica_client_secret: "GOCSPX-…"
+#   vault_gdrive_replica_token:         '{"access_token":"…","token_type":"Bearer","refresh_token":"…","expiry":"…"}'

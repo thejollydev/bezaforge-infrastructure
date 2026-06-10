@@ -53,30 +53,13 @@ forge_brizza_node_exporter_enabled: true
 #                     this anyway; explicit is safer)
 forge_brizza_nfs_default_opts: "defaults,_netdev,nofail,noatime,nconnect=8,actimeo=600,fsc,rsize=1048576,wsize=1048576"
 
-# --- Insync (Phase 1b) ---
-# Official apt repo, sourced from Insync's own Ubuntu repo (the GUI desktop
-# client). The repo codename follows the host's Ubuntu release fact so it
-# tracks OS upgrades automatically (matching the Docker repo task below),
-# rather than being pinned to a single release.
-#
-# CAVEAT — Insync lags new Ubuntu/Debian codenames (cf. the headless-on-Trixie
-# saga that needed a pinned .deb). Before an OS upgrade, confirm Insync has
-# published the new codename (https://apt.insync.io/ubuntu/dists/<codename>/Release
-# returns a valid file). If it hasn't yet, temporarily override
-# forge_brizza_insync_apt_repo to the previous known-good codename until they
-# ship it (Insync's older-codename builds run fine on the newer OS).
-# Verified 2026-05-30: `resolute` (26.04) IS published.
-# Flip forge_brizza_install_insync to true once GNOME is up and you're
-# ready for Phase 1b.
-forge_brizza_install_insync: false
-# Upstream serves the key in ASCII-armored (PEM) form; we dearmor it into
-# /etc/apt/trusted.gpg.d/insync.gpg before referencing it from the apt source.
-forge_brizza_insync_apt_key_url: "https://apt.insync.io/insynchq.gpg"
-forge_brizza_insync_keyring_path: /etc/apt/trusted.gpg.d/insync.gpg
-forge_brizza_insync_apt_repo: "deb [signed-by=/etc/apt/trusted.gpg.d/insync.gpg] http://apt.insync.io/ubuntu {{ ansible_facts['distribution_release'] }} non-free contrib"
-forge_brizza_insync_packages:
-  - insync
-  - insync-nautilus
+# --- Insync: RETIRED ---
+# Insync (the Phase 1b Drive sync client) was retired by ADR 0002
+# (2026-06-06) and purged from this role 2026-06-09 (FORGE-35). The
+# Drive replica is now a one-way rclone pull on the hypervisor
+# (roles/gdrive-replica). GNOME + GDM autologin stay (Proxmox-console
+# GUI access + future automation). The NFS tuning above remains —
+# its rationale (metadata-heavy bulk workloads) outlives Insync.
 
 # --- Docker engine (Hermes bridge — FORGE-24) ---
 # Docker CE from Docker's official apt repo, so forge-brizza can run

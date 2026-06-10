@@ -9,13 +9,11 @@ timezone: America/Detroit
 locale: en_US.UTF-8
 
 # Feature flags
-# Phase 1b enabled 2026-05-10. NFS mount for the bezapool/gdrive vault chain
-# from forge-hypervisor, and Insync apt repo + package install in joseph's
-# autologin GNOME session (Insync OAuth still has to happen once via the
-# Proxmox web Console — see Master-Mind vault
-# 05_Projects/brizza/phases/Phase-1-Deploy.md step 5).
+# nfs_client: keeps the bezapool/gdrive NFS mount (LAN access to the
+# Drive replica). Insync retired 2026-06-06 (ADR 0002) + purged
+# 2026-06-09 (FORGE-35) — the replica is pulled by roles/gdrive-replica
+# on the hypervisor now.
 nfs_client: true
-forge_brizza_install_insync: true
 # Docker engine enabled 2026-05-30 (FORGE-24) — runs Brizza's Hermes Agent
 # container (nousresearch/hermes-agent) per Brizza ADR 0009. Unblocks BRIZZA-51.
 forge_brizza_install_docker: true

@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# gdrive-replica — one-way Google Drive → {{ gdrive_replica_dest }}
+# (ADR 0002 D4 / FORGE-35 Phase 5). Timer-driven nightly.
+#
+# `rclone sync` makes the local tree exactly match Drive (deletes
+# propagate) — sanoid snapshots on the dataset are the recovery
+# tier. Excluded paths are invisible to rclone: never synced,
+# never deleted by it.
+set -euo pipefail
+
+exec 9>/tmp/gdrive-replica.lock
+if ! flock -n 9; then
+  # A prior run still holds the lock. Log it — a wedged run must
+  # be visible in journald, and we deliberately DON'T heartbeat,
+  # so the freshness monitor alarms if the holder is truly stuck
+  # (same posture as vault-sync after the 2026-06-06 incident).
+  logger -t gdrive-replica "lock contended — prior sync still running (skipping)"
+  exit 0
+fi
+
+rclone sync "{{ gdrive_replica_remote }}:" "{{ gdrive_replica_dest }}" \
+{% for e in gdrive_replica_excludes %}
+  --exclude "{{ e }}" \
+{% endfor %}
+  {{ gdrive_replica_rclone_flags }} \
+  --syslog --log-level NOTICE
+
+logger -t gdrive-replica "sync ok"
+{% if gdrive_replica_heartbeat_url | default('') %}
+
+# Freshness heartbeat (FORGE-40 pattern): ping Uptime Kuma on every
+# successful sync; Kuma alarms if the nightly goes quiet. Non-fatal.
+curl -fsS -m 10 "{{ gdrive_replica_heartbeat_url }}&msg=ok&ping=" >/dev/null 2>&1 || \
+  logger -t gdrive-replica "heartbeat ping failed (Kuma unreachable?)"
+{% endif %}

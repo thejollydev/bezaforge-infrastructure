@@ -103,6 +103,7 @@ Ansible automates all post-provisioning configuration for forge-ops. A single co
 | `fail2ban` | SSH brute-force protection (forge-ops, forge-ai, forge-brizza) |
 | `brizza-postgres` | Brizza's Postgres 18 on forge-ops — `brizza` DB, LangGraph-checkpointer + APScheduler schemas |
 | `vault-sync` | Master-Mind vault git sync (ADR 0002) — canonical clone on the hypervisor (webhook + timer, GitHub/GitLab mirror fan-out) and a parametrized local-clone deployment on forge-brizza for Hermes (FORGE-49) |
+| `gdrive-replica` | One-way nightly rclone mirror of Google Drive → `bezapool/gdrive` on the hypervisor (drive.readonly scope; replaces retired Insync — FORGE-35) |
 | `sanoid` | ZFS auto-snapshots on forge-hypervisor — per-dataset retention on `bezapool` (gdrive 24h/14d/8w/12m, vault 24h/14d/8w/12m, forge-ops-backup 7d/4w/6m, etc.; backup datasets deliberately not snapshotted) |
 | `db-dumps` | Nightly 02:30 EDT `pg_dumpall` per Postgres container on forge-ops → NFS-mounted `bezapool/forge-ops-backup` |
 | `forge-ops-backup-rsync` | Nightly 02:45 EDT rsync of `/opt/bezaforge/<svc>/` → NFS-mounted `bezapool/forge-ops-backup` |
@@ -224,7 +225,7 @@ Models served locally — no external API calls for LLM inference.
 
 **bezapool** — ZFS mirror pool on forge-hypervisor:
 - 2× 4TB HDDs in mirror configuration
-- Datasets: `media`, `downloads`, `gdrive` (Google Drive docs/media replica — one-way rclone planned, FORGE-35), `vault` (Master-Mind vault git clone — ADR 0002, synced from Gitea by `roles/vault-sync`), `forge-ops-backup` (nightly app-state mirror), `vzdump` (Proxmox VM backups)
+- Datasets: `media`, `downloads`, `gdrive` (Google Drive docs/media replica — nightly one-way rclone via `roles/gdrive-replica`), `vault` (Master-Mind vault git clone — ADR 0002, synced from Gitea by `roles/vault-sync`), `forge-ops-backup` (nightly app-state mirror), `vzdump` (Proxmox VM backups)
 - NFS exports: `bezapool/{media,downloads,gdrive,forge-ops-backup}` mounted on forge-ops/forge-brizza at `/mnt/bezapool/`
 - Media library structure: movies, tv, music, photos, books
 
@@ -279,6 +280,7 @@ bezaforge-infrastructure/
 │       ├── ollama/                    # GPU inference on forge-ai (pinned version, model seeds, Modelfiles)
 │       ├── forge-brizza/              # forge-brizza host (GNOME, Docker, NFS tuning, cachefilesd)
 │       ├── vault-sync/                # Master-Mind vault git sync (hypervisor + forge-brizza deployments)
+│       ├── gdrive-replica/            # Nightly rclone Drive→bezapool mirror (hypervisor)
 │       ├── sanoid/                    # ZFS auto-snapshots on forge-hypervisor (bezapool)
 │       ├── db-dumps/                  # Nightly pg_dumpall per Postgres container → NFS
 │       ├── forge-ops-backup-rsync/    # Nightly rsync of /opt/bezaforge/<svc>/ → NFS

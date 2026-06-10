@@ -4,10 +4,12 @@
 #
 # Phase 1a: base packages, locale, timezone, systemd-timesyncd,
 #           GNOME, GDM auto-login, prometheus-node-exporter
-# Phase 1b: nfs-common + /mnt/bezapool/gdrive mount, Insync
-#           desktop client (apt repo). Gated on host vars
-#           (nfs_client + forge_brizza_install_insync) so this
-#           role can run incrementally as Phase 1 progresses.
+# Phase 1b: nfs-common + /mnt/bezapool/gdrive mount (gated on
+#           nfs_client). Insync was Phase 1b's other half —
+#           retired by ADR 0002 (2026-06-06) and purged from
+#           this role 2026-06-09 (FORGE-35); the Drive replica
+#           is now pulled by roles/gdrive-replica on the
+#           hypervisor.
 # Hermes bridge (FORGE-24): Docker CE engine for the Hermes Agent
 #           container (Brizza ADR 0009). Gated on
 #           forge_brizza_install_docker.
@@ -92,8 +94,8 @@
 # GNOME desktop
 # ------------------------------------------------------------
 # ubuntu-desktop-minimal is large (~1.5 GB) but the smallest
-# meta that gives a working GNOME session GDM can drive and
-# Insync/NoMachine can attach to. After install, default boot
+# meta that gives a working GNOME session GDM can drive for GUI
+# access (Proxmox console; future GUI automation). After install, default boot
 # target switches to graphical.target — no reboot required for
 # the play to continue, but a reboot is recommended after the
 # full role completes (NoMachine attaches cleaner with a fresh
@@ -118,9 +120,9 @@
 # ------------------------------------------------------------
 # GDM auto-login
 # ------------------------------------------------------------
-# Required so that the GNOME session running Insync auto-starts
-# on boot without anyone logging in via RDP first. gnome-remote-desktop's
-# user-mode service then forwards that running session to RDP clients.
+# Keeps a logged-in GNOME session available on boot without anyone
+# logging in first (originally for Insync — retired 2026-06-09,
+# FORGE-35; kept for Proxmox-console access + future GUI automation).
 # Threat model note: anyone with console access lands on a logged-in
 # joseph session. Acceptable for this private VLAN VM.
 - name: Configure GDM auto-login for {{ forge_brizza_gdm_autologin_user }}
@@ -150,11 +152,11 @@
 # Decision rationale: gnome-remote-desktop user-mode has a known upstream
 # bug (GDM #835) where GDM autologin skips PAM keyring unlock, breaking
 # `grdctl set-credentials`; GRD system-headless mode refuses concurrent
-# same-user sessions (incompatible with our autologin-for-Insync pattern);
+# same-user sessions (incompatible with our autologin pattern);
 # x11vnc/TigerVNC don't support Wayland. Proxmox web Console sidesteps all
 # of these because it operates on the QEMU framebuffer below the OS, and
-# Joseph only needs occasional GUI access (Insync OAuth, occasional
-# browser prompts) — not a daily-driver remote desktop.
+# Joseph only needs occasional GUI access (occasional browser
+# prompts) — not a daily-driver remote desktop.
 
 # ------------------------------------------------------------
 # NFS client (Phase 1b) — tuned for metadata-heavy workloads
@@ -199,50 +201,10 @@
   loop: "{{ nfs_mounts | default([]) }}"
   when: nfs_client | bool
 
-# ------------------------------------------------------------
-# Insync — desktop client via official apt repo (Phase 1b)
-# ------------------------------------------------------------
-# Gated on forge_brizza_install_insync. Sign-in + sync-folder
-# selection still happens manually through the GNOME GUI over
-# NoMachine — see Brizza Phase 1b checklist.
-- name: Remove legacy insynchq.gpg keyring file if present (pre-2026-05 path)
-  ansible.builtin.file:
-    path: /etc/apt/trusted.gpg.d/insynchq.gpg
-    state: absent
-  when: forge_brizza_install_insync | bool
-
-- name: Fetch Insync GPG key (ASCII-armored from upstream)
-  ansible.builtin.get_url:
-    url: "{{ forge_brizza_insync_apt_key_url }}"
-    dest: /tmp/insync-key.asc
-    mode: '0644'
-  when: forge_brizza_install_insync | bool
-
-- name: Dearmor Insync key into apt trusted keyring
-  ansible.builtin.command:
-    cmd: "gpg --yes --dearmor -o {{ forge_brizza_insync_keyring_path }} /tmp/insync-key.asc"
-    creates: "{{ forge_brizza_insync_keyring_path }}"
-  when: forge_brizza_install_insync | bool
-
-- name: Add Insync apt repository
-  ansible.builtin.copy:
-    dest: /etc/apt/sources.list.d/insync.list
-    content: "{{ forge_brizza_insync_apt_repo }}\n"
-    mode: '0644'
-  when: forge_brizza_install_insync | bool
-  register: forge_brizza_insync_repo
-
-- name: Refresh apt cache so Insync repo is visible
-  ansible.builtin.apt:
-    update_cache: true
-    cache_valid_time: 60
-  when: forge_brizza_install_insync | bool
-
-- name: Install Insync packages
-  ansible.builtin.apt:
-    name: "{{ forge_brizza_insync_packages }}"
-    state: present
-  when: forge_brizza_install_insync | bool
+# (Insync install tasks removed 2026-06-09 — FORGE-35 Phase 4/5.
+# Live packages + apt repo + keyring purged by hand the same day;
+# the Drive replica now runs as roles/gdrive-replica on the
+# hypervisor.)
 
 # ------------------------------------------------------------
 # Docker engine (Hermes bridge — FORGE-24)

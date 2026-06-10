@@ -1,0 +1,59 @@
+---
+# ============================================================
+# gdrive-replica — one-way Google Drive → bezapool/gdrive
+# (ADR 0002 D4 / FORGE-35 Phase 5)
+# ============================================================
+
+- name: Install rclone {{ gdrive_replica_rclone_version }} (pinned upstream .deb)
+  ansible.builtin.apt:
+    deb: "https://downloads.rclone.org/v{{ gdrive_replica_rclone_version }}/rclone-v{{ gdrive_replica_rclone_version }}-linux-amd64.deb"
+
+- name: Ensure rclone config dir for {{ gdrive_replica_user }}
+  ansible.builtin.file:
+    path: "/home/{{ gdrive_replica_user }}/.config/rclone"
+    state: directory
+    owner: "{{ gdrive_replica_user }}"
+    group: "{{ gdrive_replica_user }}"
+    mode: "0700"
+
+- name: Deploy rclone config (Drive remote, readonly scope — secrets from vault)
+  ansible.builtin.template:
+    src: rclone.conf.j2
+    dest: "/home/{{ gdrive_replica_user }}/.config/rclone/rclone.conf"
+    owner: "{{ gdrive_replica_user }}"
+    group: "{{ gdrive_replica_user }}"
+    mode: "0600"
+  no_log: true
+
+- name: Prune dead subtrees from the replica (one-time; excluded paths are invisible to sync)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ gdrive_replica_prune_paths }}"
+
+- name: Deploy sync script
+  ansible.builtin.template:
+    src: gdrive-replica.sh.j2
+    dest: /usr/local/bin/gdrive-replica.sh
+    mode: "0755"
+
+- name: Deploy systemd units (service + timer)
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: "0644"
+  loop:
+    - gdrive-replica.service
+    - gdrive-replica.timer
+
+# The service itself is timer-driven — deliberately not started
+# here. Run the FIRST sync manually and watch it
+# (journalctl -fu gdrive-replica.service): it re-lists the whole
+# Drive and replaces Insync's .gdsheet link stubs with real
+# exported files, which can take a while.
+- name: Enable and start the nightly timer
+  ansible.builtin.systemd:
+    name: gdrive-replica.timer
+    enabled: true
+    state: started
+    daemon_reload: true
