@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Nightly Brizza portability exports (BRIZZA-58)
+
+[Timer]
+OnCalendar={{ forge_brizza_hermes_insurance_schedule }}
+# Catch up after downtime — an export missed because the VM was off
+# should still happen at next boot.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

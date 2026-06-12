@@ -13,6 +13,9 @@
 # Hermes bridge (FORGE-24): Docker CE engine for the Hermes Agent
 #           container (Brizza ADR 0009). Gated on
 #           forge_brizza_install_docker.
+# Hermes insurance (BRIZZA-58): nightly sessions-JSONL + quick-state
+#           exports via systemd timer. Gated on the docker flag +
+#           forge_brizza_hermes_insurance_enabled.
 #
 # Companion docs (Master-Mind vault):
 #   - 05_Projects/brizza/ROADMAP.md
@@ -283,3 +286,34 @@
   # In --check the package isn't installed yet, so the unit file isn't on
   # disk and this lookup fails. Real runs install first. Ignore in check only.
   ignore_errors: "{{ ansible_check_mode }}"
+
+# ------------------------------------------------------------
+# Hermes insurance exports (BRIZZA-58) — see defaults for rationale
+# ------------------------------------------------------------
+- name: Deploy hermes-insurance export script
+  ansible.builtin.template:
+    src: hermes-insurance.sh.j2
+    dest: /usr/local/bin/hermes-insurance.sh
+    mode: "0755"
+  tags: hermes-insurance
+  when: forge_brizza_install_docker | bool and forge_brizza_hermes_insurance_enabled | bool
+
+- name: Deploy hermes-insurance systemd units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: "0644"
+  loop:
+    - hermes-insurance.service
+    - hermes-insurance.timer
+  tags: hermes-insurance
+  when: forge_brizza_install_docker | bool and forge_brizza_hermes_insurance_enabled | bool
+
+- name: Enable and start the hermes-insurance timer
+  ansible.builtin.systemd:
+    name: hermes-insurance.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags: hermes-insurance
+  when: forge_brizza_install_docker | bool and forge_brizza_hermes_insurance_enabled | bool
