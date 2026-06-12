@@ -54,6 +54,12 @@ forge_brizza_desktop_package: ubuntu-desktop
 vault_sync_clone_path: /home/joseph/Vaults/Master-Mind
 vault_sync_user: joseph
 vault_sync_create_user: false
+# Brizza drop zone (BRIZZA-62, 2026-06-11): the ONE vault dir the Hermes
+# container can write (nested RW bind over the RO vault mount). Hermes
+# creates new files 0600/uid-10000, which joseph's git can't read — this
+# makes the sync chmod g+rwX the dir (via a scoped sudoers rule) before
+# every git add. See roles/vault-sync/defaults for the full rationale.
+vault_sync_normalize_perms_path: /home/joseph/Vaults/Master-Mind/00-INBOX/Brizza
 vault_sync_ssh_key: /home/joseph/.ssh/id_ed25519_vault_sync
 vault_sync_manage_leases: false
 vault_sync_manage_etc_hosts: false
