@@ -46,6 +46,16 @@ sanoid_templates:
     daily: 7
     weekly: 4
     monthly: 6
+  # brizza_backup: same posture as forge_ops_backup — a derivative copy
+  # refreshed nightly (03:45 rsync of forge-brizza's ~/.hermes, FORGE-25).
+  # NOT the vzdump trap: the source prunes exports on a 14-day window, so
+  # snapshots here EXTEND history past the source retention (the point),
+  # pinning only small dailies — not multi-GB pruned backup archives.
+  brizza_backup:
+    hourly: 0
+    daily: 7
+    weekly: 4
+    monthly: 6
   downloads:
     hourly: 0
     daily: 7
@@ -87,6 +97,11 @@ sanoid_datasets:
 
   - dataset: "bezapool/forge-ops-backup"
     template: "forge_ops_backup"
+    recursive: "no"
+
+  # forge-brizza ~/.hermes nightly mirror (FORGE-25, 2026-06-12).
+  - dataset: "bezapool/brizza-backup"
+    template: "brizza_backup"
     recursive: "no"
 
   - dataset: "bezapool/downloads"

@@ -25,6 +25,10 @@ restic_backup_sources:
   # exemption (ADR 0001 Alt F — "already off-site via Google Drive"): the
   # vault left Drive, so it joins the GCS off-site set. ~140 MB, negligible.
   - /bezapool/vault
+  # forge-brizza ~/.hermes mirror (FORGE-25, 2026-06-12). Lands at 03:45
+  # via hermes-backup-rsync on forge-brizza — inside this 04:00 window,
+  # so GCS carries same-night session exports + state snapshots. ~600 MB.
+  - /bezapool/brizza-backup
 
 # Daily fire at 04:00 — sanoid's 03:00 daily snapshot will already
 # include the latest rsync/dumps from 02:30+02:45, so restic backs

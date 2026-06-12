@@ -93,3 +93,19 @@ forge_brizza_hermes_container: hermes
 # 04:00 restic window (relevant once FORGE-25 pulls these off-VM).
 forge_brizza_hermes_insurance_schedule: "*-*-* 03:30:00"
 forge_brizza_hermes_insurance_retention_days: 14
+
+# --- Hermes off-VM backup (FORGE-25 durability half) ---
+# Nightly root rsync of the FULL ~/.hermes tree → the NFS-mounted
+# bezapool/brizza-backup dataset on forge-hypervisor, where sanoid
+# snapshots it and restic ships it to GCS. The live state.db copy can
+# tear (SQLite-WAL) — restore uses the consistent state-snapshots/
+# dirs + sessions JSONLs the insurance timer writes into this tree.
+# Rides the docker flag (no container → no ~/.hermes) AND nfs_client
+# (dest is an NFS mount, see host_vars nfs_mounts).
+forge_brizza_hermes_backup_enabled: true
+forge_brizza_hermes_backup_src: /home/{{ forge_brizza_docker_user }}/.hermes
+forge_brizza_hermes_backup_mount: /mnt/bezapool/brizza-backup
+forge_brizza_hermes_backup_dest: "{{ forge_brizza_hermes_backup_mount }}/hermes"
+# 03:45 — after the 03:30 insurance exports, before the hypervisor's
+# 04:00 restic→GCS window, so GCS carries same-night artifacts.
+forge_brizza_hermes_backup_schedule: "*-*-* 03:45:00"
