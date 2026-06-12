@@ -1,0 +1,16 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Nightly rsync of ~/.hermes → bezapool/brizza-backup (FORGE-25)
+# Order after the insurance exports so a Persistent catch-up after
+# downtime runs export-then-backup in sequence, same as a normal night.
+After=hermes-insurance.service network-online.target
+RequiresMountsFor={{ forge_brizza_hermes_backup_mount }}
+
+[Service]
+Type=oneshot
+# Root: ~/.hermes contents are uid-10000; the NFS export is
+# no_root_squash so ownership is preserved raw.
+ExecStart=/usr/local/bin/hermes-backup-rsync.sh
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=30m

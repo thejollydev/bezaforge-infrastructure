@@ -317,3 +317,34 @@
     daemon_reload: true
   tags: hermes-insurance
   when: forge_brizza_install_docker | bool and forge_brizza_hermes_insurance_enabled | bool
+
+# ------------------------------------------------------------
+# Hermes off-VM backup (FORGE-25) — see defaults for rationale
+# ------------------------------------------------------------
+- name: Deploy hermes-backup-rsync script
+  ansible.builtin.template:
+    src: hermes-backup-rsync.sh.j2
+    dest: /usr/local/bin/hermes-backup-rsync.sh
+    mode: "0755"
+  tags: hermes-backup
+  when: forge_brizza_install_docker | bool and forge_brizza_hermes_backup_enabled | bool and nfs_client | bool
+
+- name: Deploy hermes-backup-rsync systemd units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: "0644"
+  loop:
+    - hermes-backup-rsync.service
+    - hermes-backup-rsync.timer
+  tags: hermes-backup
+  when: forge_brizza_install_docker | bool and forge_brizza_hermes_backup_enabled | bool and nfs_client | bool
+
+- name: Enable and start the hermes-backup-rsync timer
+  ansible.builtin.systemd:
+    name: hermes-backup-rsync.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags: hermes-backup
+  when: forge_brizza_install_docker | bool and forge_brizza_hermes_backup_enabled | bool and nfs_client | bool

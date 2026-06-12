@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Nightly Brizza ~/.hermes off-VM backup (FORGE-25)
+
+[Timer]
+OnCalendar={{ forge_brizza_hermes_backup_schedule }}
+# Catch up after downtime — a backup missed because the VM was off
+# should still happen at next boot.
+Persistent=true
+
+[Install]
+WantedBy=timers.target
