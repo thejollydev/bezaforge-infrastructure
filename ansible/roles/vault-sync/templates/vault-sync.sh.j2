@@ -23,6 +23,15 @@ if ! flock -n 9; then
 fi
 
 cd "{{ vault_sync_clone_path }}"
+{% if vault_sync_normalize_perms_path | default('') %}
+
+# 0. Normalize container-written modes (BRIZZA-62): Hermes creates NEW
+# files 0600/uid-10000 — unreadable to this git actor, and one such file
+# hard-fails `git add -A` below, wedging the whole sync. Sudoers grants
+# exactly this invocation. Deliberately fatal (set -e): if it breaks,
+# git add fails the same way anyway — better to die here, visibly.
+sudo /usr/bin/chmod -R g+rwX {{ vault_sync_normalize_perms_path }}
+{% endif %}
 
 # 1. Commit any local writes (Hermes/Brizza) so they survive the rebase.
 if [ -n "$(git status --porcelain)" ]; then

@@ -104,6 +104,25 @@
     - { name: user.email, value: "{{ vault_sync_git_email }}" }
     - { name: core.sshCommand, value: "ssh -i {{ vault_sync_ssh_key }} -o IdentitiesOnly=yes" }
 
+# Container-written files (Hermes drop zone) arrive 0600/uid-10000 —
+# only root or the owner can re-mode them, so the sync user gets a
+# sudoers grant scoped to EXACTLY this chmod invocation (BRIZZA-62).
+- name: Sudoers rule — sync user may normalize container-written modes
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/vault-sync-normalize
+    content: "{{ vault_sync_user }} ALL=(root) NOPASSWD: /usr/bin/chmod -R g+rwX {{ vault_sync_normalize_perms_path }}\n"
+    mode: "0440"
+    owner: root
+    group: root
+    validate: visudo -cf %s
+  when: vault_sync_normalize_perms_path | length > 0
+
+- name: Remove the normalize sudoers rule when the feature is off
+  ansible.builtin.file:
+    path: /etc/sudoers.d/vault-sync-normalize
+    state: absent
+  when: vault_sync_normalize_perms_path | length == 0
+
 - name: Deploy sync script
   ansible.builtin.template:
     src: vault-sync.sh.j2

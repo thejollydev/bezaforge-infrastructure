@@ -107,6 +107,22 @@ vault_sync_webhook_allowed_sources:
   - 10.10.10.20
 
 # ------------------------------------------------------------
+# Container-written mode normalization (BRIZZA-62, 2026-06-11)
+#
+# Hermes's file tool creates NEW files 0600 (mkstemp tempfile-then-
+# rename; it only copies the original mode when OVERWRITING). On
+# forge-brizza those files are owned by container uid 10000, so the
+# sync user (joseph/1000, group-only access) can't read them and
+# `git add -A` hard-fails — wedging the ENTIRE sync, pulls included.
+# When set to a directory path, the sync script runs
+#   sudo /usr/bin/chmod -R g+rwX <path>
+# before staging, and the role installs a sudoers rule scoped to
+# exactly that command. Empty = disabled (forge-hypervisor: no
+# foreign-uid writers, no sudoers rule, no script step).
+# ------------------------------------------------------------
+vault_sync_normalize_perms_path: ""
+
+# ------------------------------------------------------------
 # Offsite mirror fan-out over SSH (ADR 0002 / FORGE-39, 2026-06-07)
 #
 # Gitea has NO SSH push-mirror support — HTTPS-token only (confirmed in
