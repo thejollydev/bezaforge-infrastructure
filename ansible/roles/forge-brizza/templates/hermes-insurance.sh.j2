@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# hermes-insurance — Brizza portability guardrail (BRIZZA-58).
+#
+# Nightly, via hermes-insurance.timer:
+#   1. `hermes sessions export`  → dated JSONL (the ADR 0001 "insurance
+#      jsonl", native in Hermes 0.16 — full conversation transcripts,
+#      replayable into any future memory backend at graduation).
+#   2. `hermes backup -q`        → consistent state SNAPSHOT directory
+#      (config, state.db, auth, cron, gateway_state; ~7 MB). state.db is
+#      live SQLite-WAL; a raw rsync of it can capture a torn copy — these
+#      snapshots are the consistent artifact an off-VM backup should
+#      carry. ⚠ Quick mode IGNORES -o and always writes to
+#      /opt/data/state-snapshots/<ts>-<label>/ (verified 2026-06-11).
+#   3. Prune both stores past the retention window.
+#
+# JSONL → /opt/data/exports, snapshots → /opt/data/state-snapshots; both
+# are ~/.hermes on the host (bind mount → survive container recreates).
+# ⚠ Off-VM durability is FORGE-25 (rsync ~/.hermes → bezapool →
+# restic/GCS) — until that lands, these exports still die with the VM
+# disk.
+#
+# Runs as {{ forge_brizza_docker_user }} (docker group); files inside
+# /opt/data are uid-10000, so all file ops happen in-container as the
+# hermes user.
+set -euo pipefail
+
+HERMES="docker exec -u hermes {{ forge_brizza_hermes_container }}"
+BIN=/opt/data/.local/bin/hermes
+ts=$(date +%F)
+
+$HERMES mkdir -p /opt/data/exports
+
+$HERMES $BIN sessions export "/opt/data/exports/sessions-${ts}.jsonl"
+$HERMES $BIN backup -q -l nightly
+
+# Exports are flat files; state snapshots are per-run directories.
+$HERMES find /opt/data/exports -maxdepth 1 -type f \
+  -mtime +{{ forge_brizza_hermes_insurance_retention_days }} -delete
+$HERMES sh -c "find /opt/data/state-snapshots -mindepth 1 -maxdepth 1 -type d \
+  -mtime +{{ forge_brizza_hermes_insurance_retention_days }} -exec rm -rf {} +"
+
+logger -t hermes-insurance "ok: sessions-${ts}.jsonl + state snapshot 'nightly' (exports $($HERMES sh -c 'du -sh /opt/data/exports | cut -f1'), snapshots $($HERMES sh -c 'du -sh /opt/data/state-snapshots | cut -f1'))"

@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Brizza portability exports (sessions JSONL + quick state zip — BRIZZA-58)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User={{ forge_brizza_docker_user }}
+ExecStart=/usr/local/bin/hermes-insurance.sh

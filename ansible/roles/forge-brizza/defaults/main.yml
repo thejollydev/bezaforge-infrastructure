@@ -77,3 +77,19 @@ forge_brizza_docker_packages:
   - docker-buildx-plugin
   - docker-compose-plugin
 forge_brizza_docker_user: joseph
+
+# --- Hermes insurance exports (BRIZZA-58 portability guardrail) ---
+# Nightly systemd timer: `hermes sessions export` (conversation JSONL —
+# the ADR 0001 insurance format, replayable at graduation) + `hermes
+# backup -q` (CONSISTENT critical-state snapshot dir; state.db is live
+# SQLite-WAL, so raw copies can tear). JSONL → ~/.hermes/exports,
+# snapshots → ~/.hermes/state-snapshots (quick mode ignores -o).
+# ⚠ Off-VM durability of ~/.hermes is FORGE-25 — this produces the
+# consistent artifacts that backup should carry. Rides the docker flag:
+# no container, no exports.
+forge_brizza_hermes_insurance_enabled: true
+forge_brizza_hermes_container: hermes
+# 03:30 — clear of the 07:00 briefing cron and ahead of the hypervisor's
+# 04:00 restic window (relevant once FORGE-25 pulls these off-VM).
+forge_brizza_hermes_insurance_schedule: "*-*-* 03:30:00"
+forge_brizza_hermes_insurance_retention_days: 14
