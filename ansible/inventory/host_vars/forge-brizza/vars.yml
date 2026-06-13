@@ -25,13 +25,10 @@ forge_brizza_install_docker: true
 nfs_mounts:
   - src: 10.10.10.10:/bezapool/gdrive
     path: /mnt/bezapool/gdrive
-  # FORGE-25 (2026-06-12): nightly ~/.hermes off-VM backup target.
-  # Write-only rsync destination — no git actor touches this dataset,
-  # so the vaultsync-checkout-vs-NFS-reader race that killed the vault
-  # mount (FORGE-49) does not apply. Export is no_root_squash so the
-  # root rsync preserves uid-10000 container ownership raw.
-  - src: 10.10.10.10:/bezapool/brizza-backup
-    path: /mnt/bezapool/brizza-backup
+  # NB: the FORGE-25 ~/.hermes backup does NOT use NFS — forge-brizza's
+  # NFS client EINVALs on recursive dir traversal (FORGE-49), which broke
+  # rsync --delete against an NFS target. It rsyncs over SSH instead
+  # (roles/forge-brizza hermes-backup-rsync). See defaults/main.yml.
 # bezapool/vault NFS mount REMOVED 2026-06-09 (FORGE-49): recursive
 # traversal over the mount intermittently EINVALed when a vaultsync
 # checkout on the hypervisor raced the NFS client — broke Hermes vault
