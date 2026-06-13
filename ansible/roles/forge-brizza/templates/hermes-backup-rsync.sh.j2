@@ -49,11 +49,17 @@ fi
 mkdir -p "${DEST}"
 
 # Flags match the forge-ops backup rsync:
-# -a / -H / -X   : archive + hard links + xattrs
-# --delete       : mirror tracks source; sanoid snapshots keep history
-# --numeric-ids  : preserve raw uid/gid (uid-10000 container files)
+# -a / -H / -X       : archive + hard links + xattrs
+# --delete           : mirror tracks source; sanoid snapshots keep history
+# --delete-excluded  : ALSO purge excluded paths from the dest. Without
+#                      it, --exclude only protects matching dest files
+#                      from --delete, so a cache dir copied before it was
+#                      excluded would orphan in the mirror forever (and
+#                      keep shipping to GCS). With it, the dest is an
+#                      exact mirror of the included set.
+# --numeric-ids      : preserve raw uid/gid (uid-10000 container files)
 # Baseline excludes: runtime droppings only — never state.
-if rsync -aHX --delete --numeric-ids --info=stats1 \
+if rsync -aHX --delete --delete-excluded --numeric-ids --info=stats1 \
     --exclude='*.tmp' \
     --exclude='*.lock' \
     --exclude='*.pid' \
