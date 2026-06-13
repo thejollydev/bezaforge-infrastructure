@@ -34,7 +34,19 @@ postgres_dumps:
   - service: outline
     container: outline-db
   - service: plane
-    container: plane-db
+    # Plane CE's upstream compose sets no container_name, so the real
+    # container is <project>-<service>-1 = plane-plane-db-1 (NOT the
+    # 'plane-db' network alias the other containers connect through).
+    # The plane role's OAuth-seed task uses the same name. Was 'plane-db'
+    # → never matched → Plane's pg_dumpall failed silently + reddened the
+    # whole db-dumps unit nightly since 2026-05-23. Fixed FORGE-2 2026-06-13.
+    container: plane-plane-db-1
+    # Plane's compose injects PGHOST=plane-db into EVERY container's env
+    # (shared *db-env anchor), so an in-container pg_dumpall would connect
+    # over TCP to the plane-db alias and hit password auth (fe_sendauth: no
+    # password supplied). Force libpq back onto the local Unix socket. Only
+    # plane needs this — the other 5 containers don't set PGHOST. (FORGE-2)
+    pghost: /var/run/postgresql
   - service: brizza
     container: brizza-db
 # harbor removed 2026-05-17 (retired — see ROADMAP carryover #8)

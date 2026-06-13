@@ -50,7 +50,7 @@ fi
     if [[ -z "${superuser}" ]]; then
         echo "FAIL {{ entry.service }} ({{ entry.container }}) — could not read POSTGRES_USER from container" >&2
         failed=1
-    elif docker exec {{ entry.container }} pg_dumpall -U "${superuser}" 2>/tmp/bezaforge-db-dump-{{ entry.container }}.err \
+    elif docker exec {% if entry.pghost is defined %}-e PGHOST={{ entry.pghost }} {% endif %}{{ entry.container }} pg_dumpall -U "${superuser}" 2>/tmp/bezaforge-db-dump-{{ entry.container }}.err \
         | gzip -c > "${target}.partial"; then
         mv "${target}.partial" "${target}"
         echo "OK   {{ entry.service }} → ${target} ($(stat -c %s "${target}" | numfmt --to=iec)) [user=${superuser}]"
