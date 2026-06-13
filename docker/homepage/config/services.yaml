@@ -21,9 +21,6 @@
         description: Local LLM runtime · forge-ai
         icon: ollama.png
         ping: 10.10.50.10
-    - Cognee:
-        description: Memory MCP · planned at memory.bezaforge.dev/mcp · Phase B
-        icon: mdi-database-clock-#475569
 
 - Observability:
     - Grafana:

@@ -39,7 +39,7 @@ module "forge_brizza" {
 
   vm_id        = 104
   name         = "forge-brizza"
-  description  = "Brizza AI assistant — Hermes Agent bridge, Discord"
+  description  = "Brizza AI assistant — Hermes Agent bridge, Google Chat"
   node_name    = var.proxmox_node
   cores        = 4
   memory       = 16384
