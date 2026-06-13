@@ -113,8 +113,13 @@ forge_brizza_hermes_backup_schedule: "*-*-* 03:45:00"
 # caches rebuild on demand, add zero restore value, and — over the sync
 # NFS export — dominate both the cold copy and every nightly stat pass
 # (e.g. .cache alone is ~30 MB of thousands of tiny files). Paths are
-# anchored to ~/.hermes with a leading / (rsync --exclude semantics).
+# anchored to ~/.hermes with a leading / (rsync --exclude semantics);
+# __pycache__/ is left unanchored to catch nested copies under skills/ etc.
+# Paired with --delete-excluded in the script so already-copied caches are
+# purged from the dest, not just skipped going forward.
 forge_brizza_hermes_backup_excludes:
   - "/.cache/"
   - "/cache/"
   - "/audio_cache/"
+  - "/image_cache/"
+  - "__pycache__/"
