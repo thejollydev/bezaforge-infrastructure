@@ -109,3 +109,12 @@ forge_brizza_hermes_backup_dest: "{{ forge_brizza_hermes_backup_mount }}/hermes"
 # 03:45 — after the 03:30 insurance exports, before the hypervisor's
 # 04:00 restic→GCS window, so GCS carries same-night artifacts.
 forge_brizza_hermes_backup_schedule: "*-*-* 03:45:00"
+# Regenerable subtrees skipped from the backup. TTS/voice audio + XDG/app
+# caches rebuild on demand, add zero restore value, and — over the sync
+# NFS export — dominate both the cold copy and every nightly stat pass
+# (e.g. .cache alone is ~30 MB of thousands of tiny files). Paths are
+# anchored to ~/.hermes with a leading / (rsync --exclude semantics).
+forge_brizza_hermes_backup_excludes:
+  - "/.cache/"
+  - "/cache/"
+  - "/audio_cache/"
