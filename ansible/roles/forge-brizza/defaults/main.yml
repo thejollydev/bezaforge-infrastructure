@@ -95,28 +95,38 @@ forge_brizza_hermes_insurance_schedule: "*-*-* 03:30:00"
 forge_brizza_hermes_insurance_retention_days: 14
 
 # --- Hermes off-VM backup (FORGE-25 durability half) ---
-# Nightly root rsync of the FULL ~/.hermes tree → the NFS-mounted
-# bezapool/brizza-backup dataset on forge-hypervisor, where sanoid
-# snapshots it and restic ships it to GCS. The live state.db copy can
-# tear (SQLite-WAL) — restore uses the consistent state-snapshots/
-# dirs + sessions JSONLs the insurance timer writes into this tree.
-# Rides the docker flag (no container → no ~/.hermes) AND nfs_client
-# (dest is an NFS mount, see host_vars nfs_mounts).
+# Nightly root rsync of the ~/.hermes tree → the bezapool/brizza-backup
+# dataset on forge-hypervisor, OVER SSH, where sanoid snapshots it and
+# restic ships it to GCS. The live state.db copy can tear (SQLite-WAL)
+# — restore uses the consistent state-snapshots/ dirs + sessions JSONLs
+# the insurance timer writes into this tree.
+#
+# SSH, not NFS: forge-brizza's NFS client EINVALs on recursive directory
+# traversal (FORGE-49, re-confirmed FORGE-25 2026-06-12 on a write-only
+# target with NO git actor — which disproves FORGE-49's git-race theory),
+# which breaks rsync --delete (it scans the dest tree). Over SSH the
+# remote rsync runs ON the hypervisor against the LOCAL ZFS path — no NFS
+# in the path — so --delete + --delete-excluded work. Rides the docker
+# flag (no container → no ~/.hermes).
 forge_brizza_hermes_backup_enabled: true
 forge_brizza_hermes_backup_src: /home/{{ forge_brizza_docker_user }}/.hermes
-forge_brizza_hermes_backup_mount: /mnt/bezapool/brizza-backup
-forge_brizza_hermes_backup_dest: "{{ forge_brizza_hermes_backup_mount }}/hermes"
+forge_brizza_hermes_backup_dest_host: 10.10.10.10
+forge_brizza_hermes_backup_dest_user: root
+forge_brizza_hermes_backup_dest_path: /bezapool/brizza-backup/hermes
+# Dedicated key, generated on first run; pubkey registered once on the
+# hypervisor's root authorized_keys (from="10.10.50.20"-scoped). The play
+# prints the exact authorized_keys line to add.
+forge_brizza_hermes_backup_ssh_key: /root/.ssh/id_ed25519_hermes_backup
 # 03:45 — after the 03:30 insurance exports, before the hypervisor's
 # 04:00 restic→GCS window, so GCS carries same-night artifacts.
 forge_brizza_hermes_backup_schedule: "*-*-* 03:45:00"
 # Regenerable subtrees skipped from the backup. TTS/voice audio + XDG/app
-# caches rebuild on demand, add zero restore value, and — over the sync
-# NFS export — dominate both the cold copy and every nightly stat pass
-# (e.g. .cache alone is ~30 MB of thousands of tiny files). Paths are
+# caches rebuild on demand and add zero restore value (e.g. .cache is the
+# uv package store — deep, hardlinked, thousands of tiny files). Paths are
 # anchored to ~/.hermes with a leading / (rsync --exclude semantics);
 # __pycache__/ is left unanchored to catch nested copies under skills/ etc.
-# Paired with --delete-excluded in the script so already-copied caches are
-# purged from the dest, not just skipped going forward.
+# Paired with --delete-excluded so a cache copied before it was excluded is
+# purged from the dest, not just skipped.
 forge_brizza_hermes_backup_excludes:
   - "/.cache/"
   - "/cache/"
