@@ -89,14 +89,17 @@
 
 # Homepage is supposed to hot-reload services.yaml on disk change, but
 # the page is served as a pre-rendered Next.js SSG chunk — the rendered
-# HTML stays cached until the container restarts. Caught 2026-05-17
-# while removing the Wiki.js card: file synced, hot-reload didn't show
-# in the rendered HTML, manual `docker compose restart homepage` fixed it.
-# Same restart trigger now covers config/ changes (not just images/).
-- name: Restart homepage when config or brand images change
+# HTML stays cached until the container is replaced. Caught 2026-05-17
+# while removing the Wiki.js card. A soft `state: restarted` cleared it
+# then, but on 2026-06-13 (removing the retired Cognee card) restart was
+# NOT enough — /api/services updated but the served HTML kept the stale
+# Next.js full-route cache. A force-recreate (fresh container → fresh
+# .next cache) is the reliable clear, so recreate (not restart) on change.
+- name: Recreate homepage when config or brand images change
   community.docker.docker_compose_v2:
     project_src: "{{ bezaforge_root }}/homepage"
-    state: restarted
+    state: present
+    recreate: always
   when:
     - "'homepage' in compose_services"
     - homepage_config.changed or homepage_images.changed
