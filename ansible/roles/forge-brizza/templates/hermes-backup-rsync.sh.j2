@@ -58,6 +58,9 @@ if rsync -aHX --delete --numeric-ids --info=stats1 \
     --exclude='*.lock' \
     --exclude='*.pid' \
     --exclude='*.swp' \
+{% for ex in forge_brizza_hermes_backup_excludes %}
+    --exclude='{{ ex }}' \
+{% endfor %}
     "${SRC}/" "${DEST}/"; then
     logger -t hermes-backup-rsync "ok: ${SRC} → ${DEST} ($(du -sh "${DEST}" | cut -f1))"
     echo "Backup completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)."

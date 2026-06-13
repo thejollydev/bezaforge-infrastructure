@@ -13,4 +13,7 @@ Type=oneshot
 ExecStart=/usr/local/bin/hermes-backup-rsync.sh
 StandardOutput=journal
 StandardError=journal
-TimeoutStartSec=30m
+# Generous cold-run ceiling. With caches excluded the steady-state
+# payload is small and runs in seconds; the margin only matters for a
+# first cold copy over the sync NFS export.
+TimeoutStartSec=2h
