@@ -12,6 +12,21 @@
 # docker compose up -d for every service. If a compose file or .env changed,
 # Docker detects the diff and recreates affected containers automatically.
 
+# --- Ensure every service has its install dir ---
+# ansible.builtin.copy/template do NOT create missing parent directories,
+# so a brand-new service (e.g. open-webui, added 2026-06-14) fails its first
+# deploy with "Destination directory ... does not exist". Existing services
+# are no-ops. (brizza-postgres creates its own install dir in its role; this
+# covers everything driven by the services role.)
+- name: Ensure service install dirs exist
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/{{ item }}"
+    state: directory
+    owner: joseph
+    group: joseph
+    mode: "0755"
+  loop: "{{ compose_services }}"
+
 # --- Template services (secrets in compose file) ---
 
 - name: Deploy templated compose files (secrets in compose)
@@ -35,7 +50,7 @@
     owner: joseph
     group: joseph
     mode: "0644"
-  loop: "{{ compose_services | intersect(['netbox', 'langfuse', 'homepage']) }}"
+  loop: "{{ compose_services | intersect(['netbox', 'langfuse', 'homepage', 'open-webui']) }}"
 
 - name: Deploy env-var service .env files
   ansible.builtin.template:
@@ -44,7 +59,7 @@
     owner: joseph
     group: joseph
     mode: "0600"
-  loop: "{{ compose_services | intersect(['netbox', 'langfuse', 'homepage']) }}"
+  loop: "{{ compose_services | intersect(['netbox', 'langfuse', 'homepage', 'open-webui']) }}"
 
 # --- Homepage config + brand assets ---
 # Homepage's YAML config and image assets are version-controlled in

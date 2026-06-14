@@ -33,6 +33,9 @@ backup_services:
   - name: langfuse
   - name: loki
   - name: netbox
+  - name: open-webui
+    # Open WebUI sqlite DB (users/chats/settings/connections) + uploads +
+    # RAG vector store live under data/. FORGE-53.
   - name: outline
   - name: plane
     excludes:

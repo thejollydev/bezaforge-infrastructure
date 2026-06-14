@@ -21,6 +21,17 @@
         description: Local LLM runtime · forge-ai
         icon: ollama.png
         ping: 10.10.50.10
+    - Open WebUI:
+        href: https://chat.bezaforge.dev
+        description: Unified chat UI · Ollama + Brizza
+        icon: open-webui.png
+        siteMonitor: https://chat.bezaforge.dev
+    - Brizza:
+        # mdi fallback until the real Beza-family logo lands (BRIZZA-64).
+        href: https://brizza-dash.bezaforge.dev
+        description: Hermes assistant dashboard · forge-brizza
+        icon: mdi-robot-#1D4ED8
+        siteMonitor: https://brizza-dash.bezaforge.dev
 
 - Observability:
     - Grafana:

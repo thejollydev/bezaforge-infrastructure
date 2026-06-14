@@ -54,6 +54,21 @@
   # No restart needed — Traefik's file provider watches this
   # directory and picks up changes automatically
 
+# Off-box backend routes (file provider). The Docker provider only
+# discovers containers local to forge-ops, so services on OTHER hosts
+# (e.g. the Brizza Hermes dashboard on forge-brizza, VLAN 50) are declared
+# as explicit router+service files here. FORGE-54. Hot-reloaded like
+# middleware — no restart.
+- name: Deploy Traefik dynamic off-box routes
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ bezaforge_root }}/traefik/config/dynamic/{{ item }}"
+    owner: joseph
+    group: joseph
+    mode: '0644'
+  loop:
+    - brizza-dash.yml
+
 # ------------------------------------------------------------
 # SSL certificate storage
 # ------------------------------------------------------------
