@@ -1,0 +1,54 @@
+networks:
+  bezaforge-net:
+    external: true
+
+services:
+  open-webui:
+    # Standalone image (NOT the :ollama bundle — Ollama runs on forge-ai).
+    # Pinned to a verified stable tag; bump deliberately (Open WebUI ships
+    # frequent releases). Registry: GitHub Container Registry.
+    image: ghcr.io/open-webui/open-webui:v0.9.6
+    container_name: open-webui
+    restart: unless-stopped
+    environment:
+      # --- Backends ---
+      # Ollama on forge-ai (VLAN 50) — reachable from forge-ops (verified).
+      # The Brizza/Hermes OpenAI-compatible backend (forge-brizza
+      # 10.10.50.20:8642/v1) is added LATER via Admin Settings → Connections,
+      # once its API server is enabled (BRIZZA-65).
+      # NOTE: connection URLs are PersistentConfig — read from env only on
+      # FIRST boot, then stored in the DB and managed via the Admin UI.
+      OLLAMA_BASE_URL: http://10.10.50.10:11434
+      # --- Identity / reverse proxy ---
+      WEBUI_URL: https://chat.bezaforge.dev
+      # --- Auth ---
+      # Multi-user auth ON. The first account created becomes admin; new
+      # signups land as 'pending' (inert until an admin approves them), so
+      # even before signup is disabled nobody gets in unapproved. After
+      # creating your admin account, disable signups in Admin Settings →
+      # General (ENABLE_SIGNUP is PersistentConfig — set it there, not env).
+      WEBUI_AUTH: "True"
+      DEFAULT_USER_ROLE: pending
+      # Signs session/JWT tokens — a FIXED value keeps logins valid across
+      # restarts (a random one logs everyone out on every redeploy). Secret
+      # injected from .env (ansible-vault: open_webui_secret_key).
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY}
+    volumes:
+      # Bind mount (NOT a named docker volume) so the existing
+      # forge-ops-backup-rsync role — which rsyncs /opt/bezaforge/<svc>/ —
+      # captures it. Holds the sqlite DB (users/chats/settings/connections),
+      # uploads, and the RAG vector store. Docker creates this dir on first
+      # run; deliberately NOT Ansible-managed (mirrors the outline/plane
+      # data-dir ownership trap).
+      - /opt/bezaforge/open-webui/data:/app/backend/data
+    networks:
+      - bezaforge-net
+    labels:
+      # Standard docker-provider route — Open WebUI runs locally on
+      # forge-ops, so labels are all that's needed (no file-provider).
+      # Traefik v3 proxies the Socket.IO websocket on the same router.
+      - "traefik.enable=true"
+      - "traefik.http.routers.open-webui.rule=Host(`chat.bezaforge.dev`)"
+      - "traefik.http.routers.open-webui.entrypoints=websecure"
+      - "traefik.http.routers.open-webui.tls.certresolver=letsencrypt"
+      - "traefik.http.services.open-webui.loadbalancer.server.port=8080"

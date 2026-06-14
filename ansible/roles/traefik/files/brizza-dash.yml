@@ -1,0 +1,29 @@
+# Traefik dynamic (file-provider) config — off-box backend.
+#
+# Routes brizza-dash.bezaforge.dev → the Brizza Hermes web dashboard
+# running on forge-brizza (10.10.50.20:9119, VLAN 50).
+#
+# This is the FIRST off-box backend in BezaForge. The Docker provider only
+# discovers containers local to forge-ops, so a service on another host must
+# be declared here explicitly as a router + service. Traefik's file provider
+# watches this directory and hot-reloads — no restart needed.
+#
+# forge-ops (VLAN 20) → forge-brizza:9119 reachability is confirmed (no
+# Omada ACL block). TLS via the same Let's Encrypt DNS-01 resolver as every
+# other service; the *.bezaforge.dev AdGuard wildcard already resolves this
+# name to forge-ops. The dashboard has its own basic-auth, so no Traefik
+# auth middleware is attached here.
+http:
+  routers:
+    brizza-dash:
+      rule: "Host(`brizza-dash.bezaforge.dev`)"
+      entrypoints:
+        - websecure
+      service: brizza-dash
+      tls:
+        certresolver: letsencrypt
+  services:
+    brizza-dash:
+      loadbalancer:
+        servers:
+          - url: "http://10.10.50.20:9119"

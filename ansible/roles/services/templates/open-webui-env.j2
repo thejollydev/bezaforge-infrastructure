@@ -1,0 +1,8 @@
+# Open WebUI .env — rendered from roles/services/templates/open-webui-env.j2
+# Secret sourced from ansible-vault (host_vars/forge-ops/vault.yml).
+#
+# docker-compose interpolates ${WEBUI_SECRET_KEY} into the open-webui
+# container. It signs session/JWT tokens, so it MUST be stable across
+# redeploys — generate once with `openssl rand -hex 32` and store it as
+# `open_webui_secret_key` in the vault.
+WEBUI_SECRET_KEY={{ open_webui_secret_key }}
