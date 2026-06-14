@@ -1,0 +1,28 @@
+# Traefik dynamic (file-provider) config — off-box backend.
+#
+# Routes studio.bezaforge.dev → Hermes Studio (Brizza's primary chat/control
+# interface) running on forge-brizza (10.10.50.20:3000, VLAN 50).
+#
+# Off-box backend like brizza-dash: the Docker provider only discovers
+# containers local to forge-ops, so a service on another host is declared
+# here as an explicit router + service. The file provider hot-reloads — no
+# restart. TLS via the same Let's Encrypt DNS-01 resolver; the
+# *.bezaforge.dev AdGuard wildcard already resolves this name to forge-ops.
+#
+# NOTE: Studio must be secured on the forge-brizza side (auth + WireGuard/VLAN
+# per BRIZZA-68); no Traefik auth middleware is attached here. This route only
+# goes green once Studio is listening on :3000 (Brizza session deploys it).
+http:
+  routers:
+    studio:
+      rule: "Host(`studio.bezaforge.dev`)"
+      entrypoints:
+        - websecure
+      service: studio
+      tls:
+        certresolver: letsencrypt
+  services:
+    studio:
+      loadbalancer:
+        servers:
+          - url: "http://10.10.50.20:3000"

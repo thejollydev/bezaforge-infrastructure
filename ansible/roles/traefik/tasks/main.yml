@@ -68,6 +68,7 @@
     mode: '0644'
   loop:
     - brizza-dash.yml
+    - studio.yml
 
 # ------------------------------------------------------------
 # SSL certificate storage
