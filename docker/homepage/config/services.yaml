@@ -32,13 +32,6 @@
         description: Hermes assistant dashboard · forge-brizza
         icon: mdi-robot-#1D4ED8
         siteMonitor: https://brizza-dash.bezaforge.dev
-    - Hermes Studio:
-        # BezaForge mark for now; swap to the Brizza logo once it lands
-        # (BRIZZA-64). Studio is Brizza's primary chat/control interface.
-        href: https://studio.bezaforge.dev
-        description: Brizza primary chat interface · forge-brizza
-        icon: /images/bezaforge-mark.png
-        siteMonitor: https://studio.bezaforge.dev
 
 - Observability:
     - Grafana:
