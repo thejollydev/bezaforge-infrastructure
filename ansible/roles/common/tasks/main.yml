@@ -173,6 +173,18 @@
     proto: tcp
   loop: "{{ common_admin_ssh_sources | default([]) }}"
 
+# Prometheus (forge-ops) scrapes node_exporter on tcp/9100 from its
+# VLAN-20 NIC (10.10.20.20). The mgmt-VLAN full-access rule below does
+# NOT cover that source, so the default-deny silently blocks the scrape
+# and Grafana fires a false "host down" alert. Sources in group_vars/all.
+- name: Allow Prometheus node_exporter scrape from monitoring host
+  community.general.ufw:
+    rule: allow
+    src: "{{ item }}"
+    port: '9100'
+    proto: tcp
+  loop: "{{ common_monitoring_sources | default([]) }}"
+
 - name: Allow full access from management VLAN
   community.general.ufw:
     rule: allow

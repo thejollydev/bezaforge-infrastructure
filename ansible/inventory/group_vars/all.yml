@@ -31,3 +31,17 @@ ansible_python_interpreter: auto_silent
 common_admin_ssh_sources:
   - 10.10.40.99
   - 10.10.99.99
+
+# ------------------------------------------------------------
+# Monitoring scrape sources
+# ------------------------------------------------------------
+# Hosts allowed to reach node_exporter (tcp/9100) on every
+# common-managed host. Prometheus runs on forge-ops and scrapes from
+# its VLAN-20 NIC (10.10.20.20) — NOT the mgmt VLAN — so the
+# "full access from management VLAN" rule in roles/common does not
+# cover it. This codifies a manual `ufw allow` that lived only on
+# forge-ai and was lost 2026-06-14, which blocked the scrape and
+# fired a false Grafana "forge-ai / ollama down" alert. Same drift
+# class as common_admin_ssh_sources (FORGE-36).
+common_monitoring_sources:
+  - 10.10.20.20   # forge-ops (Prometheus) VLAN-20 scrape source
