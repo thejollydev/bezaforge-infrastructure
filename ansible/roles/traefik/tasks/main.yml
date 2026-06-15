@@ -68,6 +68,16 @@
     mode: '0644'
   loop:
     - brizza-dash.yml
+
+# FORGE-56: Hermes Studio was abandoned (unmaintained April-2026 fork
+# targeting Hermes v0.9, incompatible with the live v2026.6.5 gateway).
+# The copy task above does NOT prune files dropped from its loop, so
+# remove the retired route explicitly — Traefik hot-reloads it away.
+- name: Remove retired off-box routes
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/traefik/config/dynamic/{{ item }}"
+    state: absent
+  loop:
     - studio.yml
 
 # ------------------------------------------------------------
