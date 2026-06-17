@@ -1,0 +1,41 @@
+---
+# ============================================================
+# minio-exports role defaults
+#
+# Nightly LOGICAL export of MinIO buckets on forge-ops, so blob
+# storage that lives in a named Docker volume still reaches the
+# offsite backup chain. This is the S3 analog of the db-dumps
+# role's pg_dump: instead of bind-mounting the live data volume
+# (which would reintroduce the chainguard-MinIO nonroot ownership
+# trap), we `mc mirror` the bucket into a staging dir that the
+# forge-ops-backup-rsync role already ships to bezapool → restic →
+# GCS.
+#
+# Flow:   mc mirror (this role, 02:35)
+#       → /opt/bezaforge/<svc>/minio   (bind-mounted /export)
+#       → forge-ops-backup-rsync        (02:45 → bezapool NFS)
+#       → restic-gcs                    (04:00 → GCS Nearline)
+# ============================================================
+
+# When to fire. systemd OnCalendar syntax. 02:35 sits between the
+# db-dumps timer (02:30) and the rsync timer (02:45) so the freshly
+# mirrored blobs are on disk before rsync sweeps /opt/bezaforge.
+minio_export_schedule: "*-*-* 02:35:00"
+
+# Buckets to export. For each entry the script runs, inside the
+# named container:
+#   mc alias set <alias> <endpoint> $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD
+#   mc mirror --overwrite --remove <alias>/<bucket> <export_path>
+#
+# Credentials are read from the container's OWN environment at
+# runtime (MINIO_ROOT_USER / MINIO_ROOT_PASSWORD) — never stored in
+# this repo — exactly like db-dumps auto-discovers POSTGRES_USER.
+# <export_path> is the in-container mount that maps to the host
+# staging dir the services role creates owned by the MinIO uid.
+minio_exports:
+  - service: langfuse
+    container: langfuse-minio
+    bucket: langfuse
+    endpoint: http://localhost:9000
+    # Bind-mount inside langfuse-minio → host /opt/bezaforge/langfuse/minio.
+    export_path: /export

@@ -51,6 +51,8 @@
       tags: brizza-postgres
     - role: db-dumps
       tags: backups
+    - role: minio-exports
+      tags: backups
     - role: forge-ops-backup-rsync
       tags: backups
 

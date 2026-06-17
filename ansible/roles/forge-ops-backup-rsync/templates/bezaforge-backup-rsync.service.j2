@@ -2,10 +2,12 @@
 Description=BezaForge nightly rsync of /opt/bezaforge → bezapool/forge-ops-backup
 Documentation=https://github.com/thejollydev/bezaforge-infrastructure
 RequiresMountsFor={{ backup_dest_root }}
-# Run AFTER the dumps timer so DB dumps land in /<svc>/dumps before
-# we rsync /<svc>/data — keeps both halves of a single nightly run
-# in the same sanoid snapshot window.
-After=bezaforge-db-dumps.service network-online.target docker.service
+# Run AFTER the dumps + minio-export timers so DB dumps land in
+# /<svc>/dumps and MinIO mirrors land in /<svc>/minio before we rsync
+# /<svc> — keeps all parts of a single nightly run in the same sanoid
+# snapshot window. (Best-effort ordering; the real guarantee is the
+# 02:30/02:35/02:45 schedule stagger, since the timers fire independently.)
+After=bezaforge-db-dumps.service bezaforge-minio-exports.service network-online.target docker.service
 
 [Service]
 Type=oneshot
