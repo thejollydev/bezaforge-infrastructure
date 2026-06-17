@@ -1,0 +1,209 @@
+name: erpnext-one
+services:
+  backend:
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+        required: true
+    image: frappe/erpnext:v16.8.2
+    networks:
+      default: null
+      mariadb-network: null
+    platform: linux/amd64
+    pull_policy: always
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: sites
+        target: /home/frappe/frappe-bench/sites
+        volume: {}
+  configurator:
+    command:
+      - |
+        ls -1 apps > sites/apps.txt; bench set-config -g db_host mariadb-database; bench set-config -gp db_port 3306; bench set-config -g redis_cache "redis://redis-cache:6379"; bench set-config -g redis_queue "redis://redis-queue:6379"; bench set-config -g redis_socketio "redis://redis-queue:6379"; bench set-config -gp socketio_port 9000; bench set-config -g chromium_path /usr/bin/chromium-headless-shell;
+    depends_on:
+      redis-cache:
+        condition: service_started
+        required: true
+      redis-queue:
+        condition: service_started
+        required: true
+    entrypoint:
+      - bash
+      - -c
+    environment:
+      DB_HOST: mariadb-database
+      DB_PORT: "3306"
+      REDIS_CACHE: redis-cache:6379
+      REDIS_QUEUE: redis-queue:6379
+      SOCKETIO_PORT: "9000"
+    image: frappe/erpnext:v16.8.2
+    networks:
+      default: null
+      mariadb-network: null
+    platform: linux/amd64
+    pull_policy: always
+    restart: on-failure
+    volumes:
+      - type: volume
+        source: sites
+        target: /home/frappe/frappe-bench/sites
+        volume: {}
+  frontend:
+    command:
+      - nginx-entrypoint.sh
+    depends_on:
+      backend:
+        condition: service_started
+        required: true
+      websocket:
+        condition: service_started
+        required: true
+    environment:
+      BACKEND: backend:8000
+      CLIENT_MAX_BODY_SIZE: 50m
+      FRAPPE_SITE_NAME_HEADER: erp.bezaforge.dev
+      PROXY_READ_TIMEOUT: "120"
+      SOCKETIO: websocket:9000
+      UPSTREAM_REAL_IP_ADDRESS: 10.10.20.20
+      UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
+      UPSTREAM_REAL_IP_RECURSIVE: "off"
+    image: frappe/erpnext:v16.8.2
+    networks:
+      default: null
+    platform: linux/amd64
+    ports:
+      - "10.10.20.50:8080:8080"
+    pull_policy: always
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: sites
+        target: /home/frappe/frappe-bench/sites
+        volume: {}
+  queue-long:
+    command:
+      - bench
+      - worker
+      - --queue
+      - long,default,short
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+        required: true
+    image: frappe/erpnext:v16.8.2
+    networks:
+      default: null
+      mariadb-network: null
+    platform: linux/amd64
+    pull_policy: always
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: sites
+        target: /home/frappe/frappe-bench/sites
+        volume: {}
+  queue-short:
+    command:
+      - bench
+      - worker
+      - --queue
+      - short,default
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+        required: true
+    image: frappe/erpnext:v16.8.2
+    networks:
+      default: null
+      mariadb-network: null
+    platform: linux/amd64
+    pull_policy: always
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: sites
+        target: /home/frappe/frappe-bench/sites
+        volume: {}
+  redis-cache:
+    image: redis:6.2-alpine
+    networks:
+      default: null
+    restart: unless-stopped
+  redis-queue:
+    image: redis:6.2-alpine
+    networks:
+      default: null
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: redis-queue-data
+        target: /data
+        volume: {}
+  scheduler:
+    command:
+      - bench
+      - schedule
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+        required: true
+    image: frappe/erpnext:v16.8.2
+    networks:
+      default: null
+      mariadb-network: null
+    platform: linux/amd64
+    pull_policy: always
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: sites
+        target: /home/frappe/frappe-bench/sites
+        volume: {}
+  websocket:
+    command:
+      - node
+      - /home/frappe/frappe-bench/apps/frappe/socketio.js
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+        required: true
+    image: frappe/erpnext:v16.8.2
+    networks:
+      default: null
+    platform: linux/amd64
+    pull_policy: always
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: sites
+        target: /home/frappe/frappe-bench/sites
+        volume: {}
+networks:
+  default:
+    name: erpnext-one_default
+  mariadb-network:
+    external: true
+    name: mariadb-network
+volumes:
+  redis-queue-data:
+    name: erpnext-one_redis-queue-data
+  sites:
+    name: erpnext-one_sites
+x-backend-defaults:
+  depends_on:
+    configurator:
+      condition: service_completed_successfully
+  image: frappe/erpnext:v16.8.2
+  pull_policy: always
+  restart: unless-stopped
+  volumes:
+    - sites:/home/frappe/frappe-bench/sites
+x-customizable-image:
+  image: frappe/erpnext:v16.8.2
+  pull_policy: always
+  restart: unless-stopped
+x-depends-on-configurator:
+  depends_on:
+    configurator:
+      condition: service_completed_successfully

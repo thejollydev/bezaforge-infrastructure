@@ -1,0 +1,26 @@
+---
+# ============================================================
+# erpnext role defaults — ERPNext / frappe_docker deploy on forge-erp
+# (FORGE-30). Captured as-built 2026-06-17 from the live frappe_docker
+# "gitops" deployment (~/gitops + the shared-mariadb override).
+#
+# Self-contained: the two compose files are vendored under files/, so no
+# frappe_docker checkout is needed at runtime. The erpnext-one.yaml is a
+# RESOLVED compose (`docker compose config` output) — no ${} refs, so it
+# needs no env file. To regenerate it after a version bump, re-run the
+# frappe_docker `docker compose ... config` and re-vendor the output.
+# ============================================================
+
+erpnext_version: v16.8.2            # frappe/erpnext tag (baked into the vendored compose; doc only)
+erpnext_site: erp.bezaforge.dev
+erpnext_deploy_dir: /opt/bezaforge/erpnext
+
+# Two compose projects. The shared MariaDB must come up FIRST — it owns the
+# external `mariadb-network` and the `mariadb_db-data` volume the app needs.
+erpnext_mariadb_project: mariadb
+erpnext_app_project: erpnext-one
+
+# Docker engine (already present on forge-erp; ensured idempotently so the
+# host is rebuildable from scratch). docker-ce apt repo, Ubuntu.
+erpnext_install_docker: true
+erpnext_docker_user: joseph

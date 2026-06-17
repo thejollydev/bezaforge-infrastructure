@@ -87,9 +87,12 @@
   hosts: erp_hosts
   become: true
 
-  # Minimal management (FORGE-46): the backup layer only (FORGE-60/61/62).
-  # No `common` role — forge-erp is otherwise unmanaged and a first-touch
-  # UFW enable could lock admin out. Codifying the ERPNext deploy is FORGE-30.
+  # forge-erp management (no `common` role — a first-touch UFW enable could
+  # lock admin out of this otherwise-unmanaged host). erpnext (FORGE-30, the
+  # frappe_docker app) deploys first so the stack is up before the forge-erp
+  # backup layer (FORGE-60/61/62) runs.
   roles:
+    - role: erpnext
+      tags: erpnext
     - role: forge-erp
       tags: forge-erp
