@@ -1,0 +1,32 @@
+---
+# yamllint config for BezaForge IaC — tuned for Ansible + Docker-compose
+# conventions. CI runs `yamllint .` (see .github/workflows/ci.yml).
+# Relaxations below are standard for Ansible repos; they don't suppress
+# real bugs — line-length is a warning (doesn't fail CI), and the rest
+# match how Ansible/compose YAML is conventionally written.
+extends: default
+
+rules:
+  # Long inline comments + URLs are fine — warn, don't block the build.
+  line-length:
+    max: 160
+    level: warning
+  # Allow `{ src: x, dest: y }` inline maps and `{{ jinja }}` (1 space inside).
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+  # Ansible inline comments commonly sit one space from content.
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: disable
+  # Ansible booleans are true/false; don't police var KEY names.
+  truthy:
+    allowed-values: ['true', 'false']
+    check-keys: false
+  # Compose + config files conventionally omit the `---` document marker.
+  document-start: disable
+
+ignore: |
+  ansible/inventory/host_vars/*/vault.yml
+  terraform/
+  .git/

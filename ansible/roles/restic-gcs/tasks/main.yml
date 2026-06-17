@@ -95,9 +95,9 @@
     mode: '0644'
   loop:
     - { src: 'bezaforge-restic-backup.service.j2', dest: 'bezaforge-restic-backup.service' }
-    - { src: 'bezaforge-restic-backup.timer.j2',   dest: 'bezaforge-restic-backup.timer' }
-    - { src: 'bezaforge-restic-check.service.j2',  dest: 'bezaforge-restic-check.service' }
-    - { src: 'bezaforge-restic-check.timer.j2',    dest: 'bezaforge-restic-check.timer' }
+    - { src: 'bezaforge-restic-backup.timer.j2', dest: 'bezaforge-restic-backup.timer' }
+    - { src: 'bezaforge-restic-check.service.j2', dest: 'bezaforge-restic-check.service' }
+    - { src: 'bezaforge-restic-check.timer.j2', dest: 'bezaforge-restic-check.timer' }
   notify: reload systemd
 
 - name: Flush handlers (reload systemd)

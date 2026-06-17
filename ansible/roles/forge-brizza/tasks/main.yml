@@ -226,9 +226,15 @@
     mode: '0755'
   when: forge_brizza_install_docker | bool
 
-- name: Add Docker GPG key
+- name: Add Docker GPG key  # noqa: command-instead-of-module
+  # curl | gpg --dearmor is Docker's documented key-install method; get_url
+  # can't dearmor inline. pipefail makes a failed curl fail the task too.
   ansible.builtin.shell:
-    cmd: "curl -fsSL https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg"
+    cmd: >-
+      set -o pipefail;
+      curl -fsSL https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}/gpg
+      | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    executable: /bin/bash
     creates: /etc/apt/keyrings/docker.gpg
   when: forge_brizza_install_docker | bool
 
@@ -269,7 +275,7 @@
 # (sudo, etc.) — dropping append is a classic footgun.
 # Check-mode: the docker group doesn't exist until the package is installed,
 # so the user module would fail in a dry run — ignore in check only.
-- name: Add {{ forge_brizza_docker_user }} to docker group
+- name: Add docker-group membership for {{ forge_brizza_docker_user }}
   ansible.builtin.user:
     name: "{{ forge_brizza_docker_user }}"
     groups: docker

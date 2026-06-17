@@ -4,7 +4,7 @@
 # (ADR 0002 D4 / FORGE-35 Phase 5)
 # ============================================================
 
-- name: Install rclone {{ gdrive_replica_rclone_version }} (pinned upstream .deb)
+- name: Install pinned upstream rclone .deb {{ gdrive_replica_rclone_version }}
   ansible.builtin.apt:
     deb: "https://downloads.rclone.org/v{{ gdrive_replica_rclone_version }}/rclone-v{{ gdrive_replica_rclone_version }}-linux-amd64.deb"
 

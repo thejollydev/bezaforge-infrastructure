@@ -41,9 +41,12 @@
 # get_url alone won't work here because Docker serves the key
 # in ASCII-armored format but we need the binary .gpg format
 # that the existing repo entry expects.
-- name: Add Docker GPG key
+- name: Add Docker GPG key  # noqa: command-instead-of-module
+  # curl | gpg --dearmor is Docker's documented key-install method; get_url
+  # can't dearmor inline. pipefail makes a failed curl fail the task too.
   ansible.builtin.shell:
-    cmd: curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    cmd: set -o pipefail; curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    executable: /bin/bash
     creates: /etc/apt/keyrings/docker.gpg
 
 - name: Set Docker GPG key permissions

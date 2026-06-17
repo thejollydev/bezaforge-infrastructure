@@ -93,7 +93,7 @@
 #
 # Seeding value '0' (disabled). The user then flips the toggle in
 # god-mode to enable; PATCH succeeds because the row now exists.
-- name: Seed IS_GOOGLE_ENABLED row (workaround for upstream #8679)
+- name: "Seed IS_GOOGLE_ENABLED row (workaround for upstream #8679)"
   community.docker.docker_container_exec:
     container: plane-plane-db-1
     argv:

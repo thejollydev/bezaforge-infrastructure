@@ -115,27 +115,27 @@ variable "create_from_template" {
   default     = true
 }
 
-variable "scsi_hardware" {                                                                          
+variable "scsi_hardware" {
   description = "SCSI controller type (virtio-scsi-single or virtio-scsi-pci)"
   type        = string
   default     = "virtio-scsi-pci"
-}                                                                                                   
+}
 
-variable "disk_iothread" {                                                                          
+variable "disk_iothread" {
   description = "Enable iothread for disk I/O performance (recommended with virtio-scsi-single)"
-  type        = bool                                                                                
+  type        = bool
   default     = false
-}                                                                                                   
-                                                          
+}
+
 variable "disk_cache" {
   description = "Disk cache mode (none, writeback, writethrough)"
-  type        = string                                                                              
+  type        = string
   default     = "none"
-}                                                                                                   
-                                                          
-variable "has_efi_disk" {                                                                           
+}
+
+variable "has_efi_disk" {
   description = "Whether the VM has an EFI disk (UEFI boot). Required for bios_type = ovmf."
-  type        = bool                                                                                
+  type        = bool
   default     = false
 }
 
