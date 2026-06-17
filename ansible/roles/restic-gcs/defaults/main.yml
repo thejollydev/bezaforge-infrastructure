@@ -29,6 +29,10 @@ restic_backup_sources:
   # via hermes-backup-rsync on forge-brizza — inside this 04:00 window,
   # so GCS carries same-night session exports + state snapshots. ~600 MB.
   - /bezapool/brizza-backup
+  # forge-erp ERPNext app-consistent bench backups (FORGE-60/61/62,
+  # 2026-06-17). Pushed nightly at 03:30 by forge-erp-backup.sh on forge-erp —
+  # inside this 04:00 window, so GCS carries same-night financial dumps. ~1 MB.
+  - /bezapool/forge-erp-backup
 
 # Daily fire at 04:00 — sanoid's 03:00 daily snapshot will already
 # include the latest rsync/dumps from 02:30+02:45, so restic backs
@@ -45,7 +49,12 @@ restic_check_schedule: "Sun *-*-* 05:00:00"
 # All values ≥ 30 days so Nearline minimum-storage doesn't bite.
 restic_keep_daily: 7
 restic_keep_weekly: 4
-restic_keep_monthly: 6
+# Bumped 6→12 + added yearly for financial-grade offsite retention of the
+# forge-erp ERPNext dumps (FORGE-62). restic forget is repo-global, so all
+# sources gain it; the others are small + dedup'd, so the extra Nearline
+# cost is minor.
+restic_keep_monthly: 12
+restic_keep_yearly: 3
 
 # ------------------------------------------------------------
 # Local config locations

@@ -1,0 +1,14 @@
+[Unit]
+Description=Schedule for forge-erp app-consistent ERPNext backup
+Documentation=https://github.com/thejollydev/bezaforge-infrastructure
+
+[Timer]
+OnCalendar={{ forge_erp_backup_schedule }}
+# If we missed a run (host was off), fire immediately on boot.
+Persistent=true
+# Small jitter prevents lockstep firing if many timers share the schedule.
+RandomizedDelaySec=2min
+Unit=forge-erp-backup.service
+
+[Install]
+WantedBy=timers.target

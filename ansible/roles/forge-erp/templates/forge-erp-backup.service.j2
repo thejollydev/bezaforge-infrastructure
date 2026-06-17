@@ -1,0 +1,16 @@
+[Unit]
+Description=forge-erp app-consistent ERPNext backup + off-VM push to bezapool (FORGE-60/61/62)
+Documentation=https://github.com/thejollydev/bezaforge-infrastructure
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/forge-erp-backup.sh
+StandardOutput=journal
+StandardError=journal
+# bench backup (MariaDB dump + tar) on a small site is seconds, but allow
+# generous slack so a slow dump never false-fails the unit.
+TimeoutStartSec=30min
+
+[Install]
+WantedBy=multi-user.target
