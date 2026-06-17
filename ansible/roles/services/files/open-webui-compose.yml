@@ -13,9 +13,11 @@ services:
     environment:
       # --- Backends ---
       # Ollama on forge-ai (VLAN 50) — reachable from forge-ops (verified).
-      # The Brizza/Hermes OpenAI-compatible backend (forge-brizza
-      # 10.10.50.20:8642/v1) is added LATER via Admin Settings → Connections,
-      # once its API server is enabled (BRIZZA-65).
+      # No Brizza/Hermes backend here: Brizza's OpenAI-compatible /v1 server
+      # (forge-brizza 10.10.50.20:8642) was disabled when Brizza migrated
+      # Docker→bare-metal (BRIZZA-66), and the OWUI→Brizza connection was
+      # removed (FORGE-63, 2026-06-16). Brizza's interface is now its own
+      # Hermes dashboard + Discord, not Open WebUI.
       # NOTE: connection URLs are PersistentConfig — read from env only on
       # FIRST boot, then stored in the DB and managed via the Admin UI.
       OLLAMA_BASE_URL: http://10.10.50.10:11434
