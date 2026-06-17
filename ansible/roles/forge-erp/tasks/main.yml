@@ -1,0 +1,72 @@
+---
+# ============================================================
+# forge-erp role — app-consistent ERPNext backup + off-VM push
+# (FORGE-60/61/62). Deliberately minimal: it does NOT take over
+# the ERPNext deploy (that's FORGE-30) and does NOT apply the
+# `common` role — forge-erp is otherwise unmanaged, so we keep
+# the blast radius to the backup layer (no first-touch UFW
+# enable that could lock admin out).
+# ============================================================
+
+# --- FORGE-61 (VM-image half): qemu-guest-agent lets the nightly
+#     Proxmox vzdump fs-freeze the filesystem for a clean image. ---
+- name: Ensure qemu-guest-agent is installed
+  ansible.builtin.apt:
+    name: qemu-guest-agent
+    state: present
+    update_cache: true
+
+- name: Ensure qemu-guest-agent is enabled and running
+  ansible.builtin.systemd:
+    name: qemu-guest-agent
+    enabled: true
+    state: started
+
+# --- Off-VM push: dedicated SSH key (root → hypervisor), mirrors the
+#     forge-brizza FORGE-25 pattern. The pubkey is registered ONCE on
+#     the hypervisor (the next task prints the exact line). ---
+- name: Generate the forge-erp-backup SSH keypair (root → hypervisor push)
+  ansible.builtin.command:
+    cmd: ssh-keygen -t ed25519 -N "" -C "forge-erp-backup@forge-erp" -f {{ forge_erp_backup_ssh_key }}
+    creates: "{{ forge_erp_backup_ssh_key }}"
+
+- name: Read the forge-erp-backup public key
+  ansible.builtin.slurp:
+    src: "{{ forge_erp_backup_ssh_key }}.pub"
+  register: _forge_erp_backup_pubkey
+
+- name: Show the authorized_keys line to register on forge-hypervisor (ONE-TIME)
+  ansible.builtin.debug:
+    msg: >-
+      ONE-TIME on forge-hypervisor /root/.ssh/authorized_keys:
+      from="10.10.20.50",no-pty,no-agent-forwarding,no-port-forwarding,no-X11-forwarding
+      {{ _forge_erp_backup_pubkey.content | b64decode | trim }}
+
+- name: Deploy forge-erp-backup script
+  ansible.builtin.template:
+    src: forge-erp-backup.sh.j2
+    dest: /usr/local/bin/forge-erp-backup.sh
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy forge-erp-backup systemd units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - forge-erp-backup.service
+    - forge-erp-backup.timer
+  notify: reload systemd
+
+- name: Flush handlers (reload systemd)
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start the forge-erp-backup timer
+  ansible.builtin.systemd:
+    name: forge-erp-backup.timer
+    enabled: true
+    state: started

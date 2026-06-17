@@ -56,6 +56,15 @@ sanoid_templates:
     daily: 7
     weekly: 4
     monthly: 6
+  # forge-erp ERPNext bench backups (FORGE-60/61/62). Financial-grade: extends
+  # history well past the 14-day local prune on forge-erp. `yearly` is honoured
+  # by the conditional in sanoid.conf.j2 (the other templates simply omit it).
+  forge_erp_backup:
+    hourly: 0
+    daily: 14
+    weekly: 8
+    monthly: 12
+    yearly: 3
   downloads:
     hourly: 0
     daily: 7
@@ -102,6 +111,13 @@ sanoid_datasets:
   # forge-brizza ~/.hermes nightly mirror (FORGE-25, 2026-06-12).
   - dataset: "bezapool/brizza-backup"
     template: "brizza_backup"
+    recursive: "no"
+
+  # forge-erp ERPNext bench backups (FORGE-60/61/62, 2026-06-17). Small logical
+  # dumps pushed nightly from forge-erp — safe to snapshot (NOT the vzdump trap;
+  # snapshots here EXTEND financial history past forge-erp's 14-day local prune).
+  - dataset: "bezapool/forge-erp-backup"
+    template: "forge_erp_backup"
     recursive: "no"
 
   - dataset: "bezapool/downloads"

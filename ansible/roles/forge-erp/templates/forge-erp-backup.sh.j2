@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# forge-erp-backup — app-consistent ERPNext backup + off-VM durability
+# (FORGE-60/61/62). Runs nightly via systemd timer.
+#
+#   1. `bench backup --with-files` inside the ERPNext backend container —
+#      a logical, app-consistent dump (MariaDB + public/private files +
+#      site config), landing in the erpnext-one_sites volume.
+#   2. Prune local backup artefacts older than the retention window. The
+#      hypervisor's sanoid snapshots extend history to financial-grade,
+#      so local retention can stay short.
+#   3. rsync --delete the backups dir OVER SSH to bezapool/forge-erp-backup
+#      on forge-hypervisor, where sanoid snapshots it + restic ships it to
+#      GCS. (SSH, not NFS: the remote rsync runs ON the hypervisor against
+#      the local ZFS path, mirroring the forge-brizza FORGE-25 pattern.)
+#
+# Runs as root (systemd oneshot). DO NOT EDIT BY HAND.
+# Source of truth: ansible/roles/forge-erp/templates/forge-erp-backup.sh.j2
+
+set -uo pipefail
+
+CONTAINER="{{ forge_erp_backend_container }}"
+SITE="{{ forge_erp_site }}"
+BACKUPS_DIR="{{ forge_erp_backups_host_dir }}"
+FILE_GLOB="{{ forge_erp_backup_file_glob }}"
+RETENTION_DAYS="{{ forge_erp_backup_retention_days }}"
+DEST_HOST="{{ forge_erp_backup_dest_host }}"
+DEST_USER="{{ forge_erp_backup_dest_user }}"
+DEST_PATH="{{ forge_erp_backup_dest_path }}"
+SSH_KEY="{{ forge_erp_backup_ssh_key }}"
+DATASET_MOUNT="$(dirname "${DEST_PATH}")"
+SSH_OPTS="-i ${SSH_KEY} -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10"
+
+# 1. App-consistent backup via bench, inside the container.
+if ! docker exec "${CONTAINER}" bench --site "${SITE}" backup --with-files; then
+    echo "FATAL: bench backup failed for ${SITE}." >&2
+    logger -t forge-erp-backup "FATAL: bench backup failed for ${SITE}"
+    exit 2
+fi
+
+# 2. Prune local artefacts older than the retention window (site-scoped
+#    glob so nothing else is ever touched). Sanoid on the dest keeps the
+#    long financial history.
+if [[ -d "${BACKUPS_DIR}" ]]; then
+    find "${BACKUPS_DIR}" -maxdepth 1 -type f -name "${FILE_GLOB}" \
+        -mtime "+${RETENTION_DAYS}" -delete
+fi
+
+# 3. Preflight: SSH reachable AND the backup dataset is mounted on the
+#    hypervisor (guards against rsyncing into a bare mountpoint if the
+#    pool is offline). Also ensures the dest dir exists.
+if ! ssh ${SSH_OPTS} "${DEST_USER}@${DEST_HOST}" \
+        "mountpoint -q '${DATASET_MOUNT}' && mkdir -p '${DEST_PATH}'"; then
+    echo "FATAL: ssh to ${DEST_USER}@${DEST_HOST} failed or ${DATASET_MOUNT} not mounted." >&2
+    logger -t forge-erp-backup "FATAL: preflight failed (ssh/${DEST_HOST} or ${DATASET_MOUNT})"
+    exit 2
+fi
+
+# Flags match the other BezaForge backup rsyncs:
+# -a/-H/-X archive+hardlinks+xattrs; --delete mirrors (sanoid keeps history);
+# --numeric-ids preserves the container uid on the dumped files.
+if rsync -aHX --delete --numeric-ids --info=stats1 \
+    -e "ssh ${SSH_OPTS}" \
+    "${BACKUPS_DIR}/" "${DEST_USER}@${DEST_HOST}:${DEST_PATH}/"; then
+    logger -t forge-erp-backup "ok: ${SITE} → ${DEST_HOST}:${DEST_PATH}"
+    echo "ERP backup completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)."
+else
+    rc=$?
+    logger -t forge-erp-backup "FAIL: rsync exit ${rc}"
+    echo "FAIL: rsync exit ${rc}" >&2
+    exit 1
+fi

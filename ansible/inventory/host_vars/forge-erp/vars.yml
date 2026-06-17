@@ -1,0 +1,4 @@
+---
+# Connection
+ansible_host: 10.10.20.50
+ansible_user: joseph

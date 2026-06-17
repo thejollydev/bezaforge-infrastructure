@@ -1,0 +1,43 @@
+---
+# ============================================================
+# forge-erp role defaults — app-consistent ERPNext backup +
+# off-VM durability (FORGE-60/61/62).
+#
+# forge-erp (VMID 103) runs ERPNext via frappe_docker (compose
+# project erpnext-one). This role does NOT manage the ERPNext
+# deploy itself (that's FORGE-30) — it adds the backup layer the
+# BCL-3 audit found missing: a scheduled, app-consistent
+# `bench backup` whose output is pushed off-VM to bezapool
+# (sanoid history + restic→GCS), plus the qemu-guest-agent that
+# lets the nightly Proxmox vzdump take an fs-frozen VM image.
+# ============================================================
+
+# --- ERPNext identifiers (frappe_docker project erpnext-one) ---
+forge_erp_backend_container: erpnext-one-backend-1
+forge_erp_site: erp.bezaforge.dev
+# Host path into the named docker volume erpnext-one_sites where
+# `bench backup` writes <site>/private/backups/. Read directly by
+# the backup script (root) for prune + rsync.
+forge_erp_backups_host_dir: "/var/lib/docker/volumes/erpnext-one_sites/_data/{{ forge_erp_site }}/private/backups"
+# Filename glob bench uses (site dots → underscores) — anchors the prune
+# so it only ever touches this site's backup artefacts.
+forge_erp_backup_file_glob: "*-erp_bezaforge_dev-*"
+
+# --- Schedule + local retention ---
+# 03:30 — after the 02:00 vzdump, before the hypervisor's 04:00
+# restic→GCS window (so GCS carries the same-night dump). Local files
+# older than retention_days are pruned; the hypervisor's sanoid
+# snapshots extend history to financial-grade (FORGE-62).
+forge_erp_backup_schedule: "*-*-* 03:30:00"
+forge_erp_backup_retention_days: 14
+
+# --- Off-VM push (rsync over SSH → bezapool; mirrors brizza FORGE-25) ---
+# SSH not NFS: the remote rsync runs ON the hypervisor against the local
+# ZFS path, and forge-erp isn't an NFS client anyway.
+forge_erp_backup_dest_host: 10.10.10.10
+forge_erp_backup_dest_user: root
+forge_erp_backup_dest_path: /bezapool/forge-erp-backup/backups
+# Dedicated key, generated on first run; pubkey registered once on the
+# hypervisor root authorized_keys (from="10.10.20.50"-scoped). The play
+# prints the exact line to add.
+forge_erp_backup_ssh_key: /root/.ssh/id_ed25519_forge_erp_backup

@@ -22,6 +22,9 @@
     daily = {{ policy.daily }}
     weekly = {{ policy.weekly }}
     monthly = {{ policy.monthly }}
+{% if policy.yearly is defined %}
+    yearly = {{ policy.yearly }}
+{% endif %}
     autosnap = yes
     autoprune = yes
 

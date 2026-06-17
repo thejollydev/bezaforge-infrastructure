@@ -38,13 +38,14 @@ fi
 # ------------------------------------------------------------
 # 2. Prune by policy
 # ------------------------------------------------------------
-echo "==> restic forget --keep-daily {{ restic_keep_daily }} --keep-weekly {{ restic_keep_weekly }} --keep-monthly {{ restic_keep_monthly }}"
+echo "==> restic forget --keep-daily {{ restic_keep_daily }} --keep-weekly {{ restic_keep_weekly }} --keep-monthly {{ restic_keep_monthly }} --keep-yearly {{ restic_keep_yearly }}"
 if ! restic forget \
     --host "{{ restic_hostname }}" \
     --tag forge-ops-backup \
     --keep-daily {{ restic_keep_daily }} \
     --keep-weekly {{ restic_keep_weekly }} \
     --keep-monthly {{ restic_keep_monthly }} \
+    --keep-yearly {{ restic_keep_yearly }} \
     --prune; then
     echo "restic forget FAILED" >&2
     exit 1

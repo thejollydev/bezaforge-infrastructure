@@ -82,3 +82,14 @@
     # all hypervisor-specific behavior is disabled in host_vars.
     - role: vault-sync
       tags: vault-sync
+
+- name: Configure BezaForge ERP host
+  hosts: erp_hosts
+  become: true
+
+  # Minimal management (FORGE-46): the backup layer only (FORGE-60/61/62).
+  # No `common` role — forge-erp is otherwise unmanaged and a first-touch
+  # UFW enable could lock admin out. Codifying the ERPNext deploy is FORGE-30.
+  roles:
+    - role: forge-erp
+      tags: forge-erp
