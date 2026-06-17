@@ -1,0 +1,51 @@
+---
+# ============================================================
+# minio-exports role — nightly MinIO logical exports on forge-ops
+#
+# Deploys: the export script, a oneshot systemd service that runs
+# it, and a daily timer. Idempotent — re-running just updates the
+# script + reloads the timer if needed. Mirrors the db-dumps role
+# structure exactly.
+#
+# The host staging dir each export writes into (bind-mounted into
+# the MinIO container at <export_path>) is created with the correct
+# nonroot ownership by the SERVICES role, before the container is
+# brought up — see roles/services/tasks/main.yml.
+# ============================================================
+
+- name: Deploy bezaforge-minio-export.sh
+  ansible.builtin.template:
+    src: bezaforge-minio-export.sh.j2
+    dest: /usr/local/bin/bezaforge-minio-export.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Deploy bezaforge-minio-exports.service
+  ansible.builtin.template:
+    src: bezaforge-minio-exports.service.j2
+    dest: /etc/systemd/system/bezaforge-minio-exports.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: reload systemd
+
+- name: Deploy bezaforge-minio-exports.timer
+  ansible.builtin.template:
+    src: bezaforge-minio-exports.timer.j2
+    dest: /etc/systemd/system/bezaforge-minio-exports.timer
+    owner: root
+    group: root
+    mode: '0644'
+  notify: reload systemd
+
+# Flush handlers before enabling — the timer needs the new unit
+# files visible to systemd to enable cleanly.
+- name: Flush handlers (reload systemd)
+  ansible.builtin.meta: flush_handlers
+
+- name: Ensure bezaforge-minio-exports.timer is enabled and running
+  ansible.builtin.systemd:
+    name: bezaforge-minio-exports.timer
+    enabled: true
+    state: started

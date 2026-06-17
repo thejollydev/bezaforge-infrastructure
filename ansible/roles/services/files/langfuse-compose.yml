@@ -17,8 +17,14 @@
 # VOLUMES: named volumes (upstream-faithful, no bind-mount ownership traps).
 #   Postgres durable state is still backed up by the db-dumps role
 #   (docker exec langfuse-db pg_dump → bezapool NFS), which is volume-type
-#   agnostic. MinIO media blobs persist in their named volume across
-#   redeploys; offsite backup of media is a follow-up, not day-one.
+#   agnostic. MinIO media blobs live in their named volume (langfuse_minio_data)
+#   across redeploys — the live store stays a named volume on purpose.
+#   For OFFSITE backup (FORGE-64) the minio-exports role does a logical export:
+#   it execs `mc mirror` of the bucket into the /export staging bind-mount
+#   below (host: /opt/bezaforge/langfuse/minio), which the nightly
+#   forge-ops-backup-rsync 'langfuse' entry then carries to bezapool → restic →
+#   GCS. This is the S3 analog of db-dumps' pg_dump — the named volume is never
+#   bind-mounted, so the nonroot-MinIO ownership trap is avoided.
 #
 # SECRETS: interpolated from .env (rendered by langfuse-env.j2 from
 #   ansible-vault). Non-secret config is inline below for git-diff clarity.
@@ -195,6 +201,12 @@ services:
       MINIO_ROOT_PASSWORD: ${LANGFUSE_MINIO_ROOT_PASSWORD}
     volumes:
       - langfuse_minio_data:/data
+      # Backup staging (FORGE-64). The minio-exports role execs
+      # `mc mirror lf/langfuse /export` into this bind-mount; the host dir
+      # /opt/bezaforge/langfuse/minio is pre-created owned by the MinIO
+      # nonroot uid (65532) by the services role so mc can write to it.
+      # forge-ops-backup-rsync's 'langfuse' entry then ships it offsite.
+      - /opt/bezaforge/langfuse/minio:/export
     networks:
       - bezaforge-net
     healthcheck:

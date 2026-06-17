@@ -1,0 +1,16 @@
+[Unit]
+Description=BezaForge nightly MinIO bucket exports (mc mirror → /opt/bezaforge staging)
+Documentation=https://github.com/thejollydev/bezaforge-infrastructure
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/bezaforge-minio-export.sh
+StandardOutput=journal
+StandardError=journal
+# Generous slack: mirroring is seconds for small media sets, but a
+# large multimodal-trace bucket could take a while. Don't false-fail.
+TimeoutStartSec=30min
+
+[Install]
+WantedBy=multi-user.target

@@ -27,6 +27,22 @@
     mode: "0755"
   loop: "{{ compose_services }}"
 
+# --- LangFuse MinIO backup-export staging dir (FORGE-64) ---
+# The langfuse-minio container bind-mounts /opt/bezaforge/langfuse/minio at
+# /export and the minio-exports role execs `mc mirror` into it. Chainguard's
+# distroless MinIO runs as nonroot uid 65532, so the dir must be pre-created
+# with that ownership — otherwise Docker auto-creates the bind-mount source as
+# root:root and mc (nonroot) can't write the mirror. Numeric id is used because
+# the user/group name doesn't exist on the forge-ops host (it's a container uid).
+- name: Ensure langfuse minio export staging dir exists (owned by minio nonroot uid)
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/langfuse/minio"
+    state: directory
+    owner: "65532"
+    group: "65532"
+    mode: "0755"
+  when: "'langfuse' in compose_services"
+
 # --- Template services (secrets in compose file) ---
 
 - name: Deploy templated compose files (secrets in compose)
