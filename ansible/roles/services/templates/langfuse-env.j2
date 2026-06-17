@@ -1,3 +1,18 @@
+# LangFuse v3 .env — rendered from roles/services/templates/langfuse-env.j2
+# Secrets sourced from ansible-vault (host_vars/forge-ops/vault.yml).
+# docker-compose interpolates these ${VARS} into langfuse-compose.yml.
+#
+# Generate each secret ONCE and store in the vault (see the FORGE-8 deploy
+# notes). ENCRYPTION_KEY + SALT are effectively immutable — changing them
+# after data exists breaks secret decryption / invalidates all API keys.
+
+# --- carried over from v2 ---
 LANGFUSE_DB_PASSWORD={{ langfuse_db_password }}
 LANGFUSE_NEXTAUTH_SECRET={{ langfuse_nextauth_secret }}
 LANGFUSE_SALT={{ langfuse_salt }}
+
+# --- new in v3 ---
+LANGFUSE_ENCRYPTION_KEY={{ langfuse_encryption_key }}
+LANGFUSE_CLICKHOUSE_PASSWORD={{ langfuse_clickhouse_password }}
+LANGFUSE_REDIS_AUTH={{ langfuse_redis_auth }}
+LANGFUSE_MINIO_ROOT_PASSWORD={{ langfuse_minio_root_password }}

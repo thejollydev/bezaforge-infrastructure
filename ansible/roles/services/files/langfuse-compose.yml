@@ -1,40 +1,101 @@
+# LangFuse v3 — forge-ops (FORGE-8, clean v3 deploy 2026-06-16)
+#
+# Replaces the old v2 single-app+Postgres stack. v3 splits into 6 containers:
+#   langfuse-web      → UI + API (Traefik: langfuse.bezaforge.dev)
+#   langfuse-worker   → async event processing
+#   langfuse-db       → Postgres 17  (transactional: orgs/projects/users/API keys)
+#   langfuse-clickhouse → OLAP store for traces/observations/scores
+#   langfuse-redis    → BullMQ queue + cache
+#   langfuse-minio    → S3-compatible blob store (raw events + multimodal media)
+#                       (Traefik: langfuse-s3.bezaforge.dev — needed so the
+#                        browser can reach presigned MEDIA urls)
+#
+# Architecture + env reference: https://langfuse.com/self-hosting
+# Built clean (no v2 data migrated — there was none). The old
+# /opt/bezaforge/langfuse/postgres v2 bind-mount dir is now abandoned.
+#
+# VOLUMES: named volumes (upstream-faithful, no bind-mount ownership traps).
+#   Postgres durable state is still backed up by the db-dumps role
+#   (docker exec langfuse-db pg_dump → bezapool NFS), which is volume-type
+#   agnostic. MinIO media blobs persist in their named volume across
+#   redeploys; offsite backup of media is a follow-up, not day-one.
+#
+# SECRETS: interpolated from .env (rendered by langfuse-env.j2 from
+#   ansible-vault). Non-secret config is inline below for git-diff clarity.
+
 networks:
   bezaforge-net:
     external: true
 
-services:
-  langfuse-db:
-    image: postgres:15-alpine
-    container_name: langfuse-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: langfuse
-      POSTGRES_USER: langfuse
-      POSTGRES_PASSWORD: ${LANGFUSE_DB_PASSWORD}
-    volumes:
-      - /opt/bezaforge/langfuse/postgres:/var/lib/postgresql/data
-    networks:
-      - bezaforge-net
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U langfuse"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+x-langfuse-common-env: &langfuse-common-env
+  # --- Postgres ---
+  DATABASE_URL: postgresql://langfuse:${LANGFUSE_DB_PASSWORD}@langfuse-db:5432/langfuse
+  # --- Core secrets ---
+  SALT: ${LANGFUSE_SALT}
+  # ENCRYPTION_KEY is IMMUTABLE — it encrypts stored secrets (LLM keys,
+  # integration creds) at rest. Generated once (openssl rand -hex 32) and
+  # never rotated, or those secrets become undecryptable.
+  ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY}
+  TELEMETRY_ENABLED: "false"
+  LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
+  # --- ClickHouse ---
+  # Two endpoints: HTTP (8123) for queries, native TCP (9000) for migrations.
+  CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+  CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+  CLICKHOUSE_USER: langfuse
+  CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD}
+  # MUST be false for single-node docker. Upstream config docs default this
+  # to TRUE (would issue ON CLUSTER DDL against a non-existent cluster and
+  # fail migrations) — the canonical compose sets false. Keep false.
+  CLICKHOUSE_CLUSTER_ENABLED: "false"
+  # --- Redis ---
+  REDIS_HOST: langfuse-redis
+  REDIS_PORT: "6379"
+  REDIS_AUTH: ${LANGFUSE_REDIS_AUTH}
+  REDIS_TLS_ENABLED: "false"
+  # --- S3 / blob storage (MinIO) ---
+  # EVENT upload = raw ingestion events. Server-side only → internal endpoint.
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_ROOT_PASSWORD}
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+  # MEDIA upload = multimodal attachments. Langfuse mints PRESIGNED urls the
+  # USER'S BROWSER fetches, so the endpoint must be externally reachable
+  # (Traefik-fronted), NOT the internal minio hostname. Signature is computed
+  # over this host → browser must use the same host → must be the public one.
+  LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: https://langfuse-s3.bezaforge.dev
+  LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+  LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: langfuse
+  LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_ROOT_PASSWORD}
+  LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
 
-  langfuse:
-    image: langfuse/langfuse:2
-    container_name: langfuse
+services:
+  langfuse-web:
+    image: langfuse/langfuse:3.187.0
+    container_name: langfuse-web
     restart: unless-stopped
-    depends_on:
+    depends_on: &langfuse-backends
       langfuse-db:
         condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+      langfuse-minio:
+        condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://langfuse:${LANGFUSE_DB_PASSWORD}@langfuse-db:5432/langfuse
+      <<: *langfuse-common-env
       NEXTAUTH_URL: https://langfuse.bezaforge.dev
       NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET}
-      SALT: ${LANGFUSE_SALT}
-      TELEMETRY_ENABLED: "false"
-      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
+      # Owner account exists → signups locked. To add users, the owner INVITES
+      # them (Settings → Members). LangFuse blocks ALL signups when true, incl.
+      # the first — so a fresh clean deploy needs a one-time flip to "false" to
+      # bootstrap the owner, then back to "true" (done 2026-06-17, FORGE-8).
       AUTH_DISABLE_SIGNUP: "true"
     networks:
       - bezaforge-net
@@ -44,3 +105,116 @@ services:
       - "traefik.http.routers.langfuse.entrypoints=websecure"
       - "traefik.http.routers.langfuse.tls.certresolver=letsencrypt"
       - "traefik.http.services.langfuse.loadbalancer.server.port=3000"
+
+  langfuse-worker:
+    image: langfuse/langfuse-worker:3.187.0
+    container_name: langfuse-worker
+    restart: unless-stopped
+    depends_on: *langfuse-backends
+    environment:
+      <<: *langfuse-common-env
+    networks:
+      - bezaforge-net
+
+  langfuse-db:
+    # Postgres 17 = Langfuse v3's tested default. Isolated DB — intentionally
+    # not pinned to the fleet's PG15 (no cross-DB dependency). Container name
+    # kept as 'langfuse-db' so the db-dumps role needs no change.
+    image: postgres:17-alpine
+    container_name: langfuse-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: langfuse
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: ${LANGFUSE_DB_PASSWORD}
+      # ClickHouse + Postgres MUST run UTC or queries return wrong/empty rows.
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - langfuse_postgres_data:/var/lib/postgresql/data
+    networks:
+      - bezaforge-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  langfuse-clickhouse:
+    image: clickhouse/clickhouse-server:25.8
+    container_name: langfuse-clickhouse
+    restart: unless-stopped
+    user: "101:101"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: langfuse
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD}
+    volumes:
+      - langfuse_clickhouse_data:/var/lib/clickhouse
+      - langfuse_clickhouse_logs:/var/log/clickhouse-server
+    networks:
+      - bezaforge-net
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 1s
+
+  langfuse-redis:
+    image: redis:7
+    container_name: langfuse-redis
+    restart: unless-stopped
+    # noeviction: Redis is a durable-ish queue here, not just a cache —
+    # eviction would silently drop queued ingestion events.
+    command: >
+      --requirepass ${LANGFUSE_REDIS_AUTH}
+      --maxmemory-policy noeviction
+    volumes:
+      - langfuse_redis_data:/data
+    networks:
+      - bezaforge-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 10s
+      retries: 10
+
+  langfuse-minio:
+    # Chainguard distroless MinIO (upstream-faithful). No semver tags
+    # published → :latest (digest-pin later if strict reproducibility needed).
+    # The entrypoint mkdir creates the 'langfuse' bucket before the server
+    # starts (MinIO stores buckets as top-level dirs under the data root).
+    image: cgr.dev/chainguard/minio:latest
+    container_name: langfuse-minio
+    restart: unless-stopped
+    entrypoint: sh
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: langfuse
+      MINIO_ROOT_PASSWORD: ${LANGFUSE_MINIO_ROOT_PASSWORD}
+    volumes:
+      - langfuse_minio_data:/data
+    networks:
+      - bezaforge-net
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    labels:
+      # Public S3 API route — ONLY for browser-facing presigned MEDIA urls.
+      # Points at MinIO's S3 API port 9000 (NOT the 9001 console). Traefik
+      # forwards the Host header so MinIO's presign signature validates.
+      - "traefik.enable=true"
+      - "traefik.http.routers.langfuse-s3.rule=Host(`langfuse-s3.bezaforge.dev`)"
+      - "traefik.http.routers.langfuse-s3.entrypoints=websecure"
+      - "traefik.http.routers.langfuse-s3.tls.certresolver=letsencrypt"
+      - "traefik.http.services.langfuse-s3.loadbalancer.server.port=9000"
+
+volumes:
+  langfuse_postgres_data:
+  langfuse_clickhouse_data:
+  langfuse_clickhouse_logs:
+  langfuse_redis_data:
+  langfuse_minio_data:
