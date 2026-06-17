@@ -55,6 +55,7 @@
   args:
     executable: /bin/bash
   when: ollama_install_needed | bool
+  changed_when: true
   notify:
     - reload systemd
     - restart ollama

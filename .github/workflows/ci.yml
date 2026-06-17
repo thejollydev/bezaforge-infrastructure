@@ -1,0 +1,73 @@
+---
+# BezaForge IaC — CI (static validation only). FORGE-10 / guide 03.
+#
+# Lints + validates on every PR and push to main. Read-only: no secrets,
+# no host access, no deploy. Deployment stays manual (ansible-playbook +
+# vzdump rollback) — see phases/2-automation/03-cicd-pipeline.md Part 2
+# for why CD is deliberately not adopted on this single-operator topology.
+#
+# Tool versions are pinned (D5) so CI is reproducible. They match what was
+# validated locally on 2026-06-17.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  yamllint:
+    name: yamllint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: pip install yamllint==1.38.0
+      - run: yamllint -c .yamllint .
+
+  ansible-lint:
+    # ansible-lint also runs `ansible-playbook --syntax-check` internally
+    # (the syntax-check rule is core + unskippable), so a separate syntax
+    # job would be redundant. Collections are installed first so module
+    # resolution succeeds.
+    name: ansible-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: pip install ansible-lint==26.4.0 ansible-core==2.21.0
+      - run: ansible-galaxy collection install -r ansible/requirements.yml
+      - run: ansible-lint
+        working-directory: ansible
+
+  terraform:
+    name: terraform fmt + validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.15.6
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive
+        working-directory: terraform
+      # -backend=false: validate config without configuring/accessing remote
+      # state. Downloads providers but needs no Proxmox credentials.
+      - name: terraform init (no backend)
+        run: terraform init -backend=false
+        working-directory: terraform
+      - name: terraform validate
+        run: terraform validate
+        working-directory: terraform

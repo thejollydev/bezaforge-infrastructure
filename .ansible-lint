@@ -1,0 +1,23 @@
+---
+# ansible-lint config for BezaForge IaC.
+# We run the full default rule set. Genuine findings are FIXED, not
+# suppressed — the only two skips below are deliberate repo conventions
+# that conflict with cosmetic rules. CI installs the collections from
+# ansible/requirements.yml first, so syntax-check resolves every module.
+
+exclude_paths:
+  - .github/
+  - terraform/
+
+skip_list:
+  # Role dirs use hyphens (db-dumps, forge-brizza, minio-exports,
+  # gdrive-replica, ...) — a deliberate, repo-wide convention. Renaming
+  # to underscores would break every `- role:` reference + meta dep for
+  # zero functional gain.
+  - role-name
+  # Handler names are lowercase by convention (e.g. `reload systemd`).
+  # Capitalizing them would require rewriting every matching `notify:`
+  # string in lockstep, risking a silent handler-never-fires mismatch —
+  # not worth it for a cosmetic rule. Task names ARE properly capitalized
+  # (name[casing] only ever fires on handlers here).
+  - name[casing]

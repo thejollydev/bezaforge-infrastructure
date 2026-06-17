@@ -1,11 +1,11 @@
-terraform {                                                                                         
-    required_providers {                                    
-      proxmox = {                                                                                     
-        source = "bpg/proxmox"                              
-      }                                                                                               
-    }                                                       
+terraform {
+  required_providers {
+    proxmox = {
+      source = "bpg/proxmox"
+    }
   }
-  
+}
+
 resource "proxmox_virtual_environment_vm" "vm" {
   vm_id               = var.vm_id
   name                = var.name
@@ -15,21 +15,21 @@ resource "proxmox_virtual_environment_vm" "vm" {
   scsi_hardware       = var.scsi_hardware
   reboot_after_update = false
 
-  dynamic "clone" {                                                                                   
+  dynamic "clone" {
     for_each = var.create_from_template ? [1] : []
-    content {                                                                                         
-      vm_id = var.template_id                               
-      full  = true           
-    }                                                                                                 
+    content {
+      vm_id = var.template_id
+      full  = true
+    }
   }
 
-  dynamic "efi_disk" {                                                                                
-    for_each = var.has_efi_disk ? [1] : []                  
-    content {                                                                                         
-      datastore_id      = var.storage_pool                                                            
-      type              = "4m"                                                                        
-      pre_enrolled_keys = false                                                                       
-    }                                                                                                 
+  dynamic "efi_disk" {
+    for_each = var.has_efi_disk ? [1] : []
+    content {
+      datastore_id      = var.storage_pool
+      type              = "4m"
+      pre_enrolled_keys = false
+    }
   }
 
   agent {
@@ -49,13 +49,13 @@ resource "proxmox_virtual_environment_vm" "vm" {
   }
 
   disk {
-    datastore_id  = var.storage_pool
-    interface     = var.disk_interface
-    size          = var.disk_size
-    discard       = "on"
-    file_format   = var.disk_format
-    iothread      = var.disk_iothread
-    cache         = var.disk_cache
+    datastore_id = var.storage_pool
+    interface    = var.disk_interface
+    size         = var.disk_size
+    discard      = "on"
+    file_format  = var.disk_format
+    iothread     = var.disk_iothread
+    cache        = var.disk_cache
   }
 
   network_device {

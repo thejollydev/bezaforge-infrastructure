@@ -105,7 +105,7 @@
     mode: "0644"
     directory_mode: "0755"
   when: "'homepage' in compose_services"
-  register: homepage_config
+  register: services_homepage_config
 
 - name: Deploy homepage brand images
   ansible.builtin.copy:
@@ -116,7 +116,7 @@
     mode: "0644"
     directory_mode: "0755"
   when: "'homepage' in compose_services"
-  register: homepage_images
+  register: services_homepage_images
 
 # Homepage is supposed to hot-reload services.yaml on disk change, but
 # the page is served as a pre-rendered Next.js SSG chunk — the rendered
@@ -133,7 +133,7 @@
     recreate: always
   when:
     - "'homepage' in compose_services"
-    - homepage_config.changed or homepage_images.changed
+    - services_homepage_config.changed or services_homepage_images.changed
 
 # --- Simple services (no secrets) ---
 

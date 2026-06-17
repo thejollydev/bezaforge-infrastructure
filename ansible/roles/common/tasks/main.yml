@@ -68,13 +68,13 @@
 - name: Detect classic sudo (sudo.ws) presence
   ansible.builtin.stat:
     path: /usr/bin/sudo.ws
-  register: sudo_ws_bin
+  register: common_sudo_ws_bin
 
 - name: Pin classic sudo over sudo-rs for Ansible become compatibility
   community.general.alternatives:
     name: sudo
     path: /usr/bin/sudo.ws
-  when: sudo_ws_bin.stat.exists
+  when: common_sudo_ws_bin.stat.exists
 
 # ------------------------------------------------------------
 # Locale and timezone

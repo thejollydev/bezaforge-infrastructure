@@ -38,6 +38,7 @@
     dest: "/etc/sanoid/sanoid.conf.pre-ansible-{{ ansible_facts['date_time']['iso8601_basic_short'] }}"
     remote_src: true
     force: false
+    mode: preserve
   failed_when: false
   # Only on the GENUINE first deploy — guarded by the find above. The
   # timestamped dest is a different filename every run, so copy's own

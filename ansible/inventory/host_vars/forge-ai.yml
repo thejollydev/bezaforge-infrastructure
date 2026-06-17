@@ -61,4 +61,3 @@ ollama_modelfiles:
 # cold-load cost every prompt. Override here if a different
 # pattern emerges.
 ollama_keep_alive: "24h"
-
