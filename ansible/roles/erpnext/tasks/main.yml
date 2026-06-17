@@ -1,0 +1,127 @@
+---
+# ============================================================
+# erpnext role — codifies the live frappe_docker ERPNext deploy on
+# forge-erp (FORGE-30). Two compose projects: the shared MariaDB
+# (owns the external mariadb-network + mariadb_db-data volume) is
+# brought up FIRST, then the erpnext-one app project.
+#
+# Named volumes (mariadb_db-data, erpnext-one_sites,
+# erpnext-one_redis-queue-data) are global, so they PERSIST across the
+# one-time container recreate that happens when the compose moves under
+# {{ erpnext_deploy_dir }} (the config_files label changes). Data is kept.
+#
+# NOT codified (deliberate scope):
+#   - The one-time site bootstrap (`bench new-site erp.bezaforge.dev
+#     --install-app erpnext`). The site lives in erpnext-one_sites; for a
+#     from-zero rebuild, run it once by hand after the stack is up.
+#   - Traefik routing for erp.bezaforge.dev (lives on forge-ops).
+# ============================================================
+
+# --- Docker engine (idempotent — already present on forge-erp) ---
+- name: Ensure the Docker apt keyring dir exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+  when: erpnext_install_docker | bool
+
+- name: Add Docker GPG key  # noqa: command-instead-of-module
+  # curl | gpg --dearmor is Docker's documented key-install method; get_url
+  # can't dearmor inline. pipefail makes a failed curl fail the task too.
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      curl -fsSL https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}/gpg
+      | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    executable: /bin/bash
+    creates: /etc/apt/keyrings/docker.gpg
+  when: erpnext_install_docker | bool
+
+- name: Set Docker GPG key permissions
+  ansible.builtin.file:
+    path: /etc/apt/keyrings/docker.gpg
+    mode: "0644"
+  when: erpnext_install_docker | bool
+
+- name: Add the Docker apt repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg]
+      https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}
+      {{ ansible_facts['distribution_release'] }} stable
+    filename: docker
+    state: present
+  when: erpnext_install_docker | bool
+
+- name: Install Docker engine + compose plugin
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+  when: erpnext_install_docker | bool
+
+- name: Ensure the docker service is enabled and running
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+    state: started
+  when: erpnext_install_docker | bool
+
+- name: Add docker-group membership for {{ erpnext_docker_user }}
+  ansible.builtin.user:
+    name: "{{ erpnext_docker_user }}"
+    groups: docker
+    append: true
+  when: erpnext_install_docker | bool
+
+# --- ERPNext deploy ---
+- name: Ensure the ERPNext deploy dir exists
+  ansible.builtin.file:
+    path: "{{ erpnext_deploy_dir }}"
+    state: directory
+    owner: "{{ erpnext_docker_user }}"
+    group: "{{ erpnext_docker_user }}"
+    mode: "0755"
+
+- name: Deploy the compose files (mariadb override + resolved erpnext-one)
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ erpnext_deploy_dir }}/{{ item }}"
+    owner: "{{ erpnext_docker_user }}"
+    group: "{{ erpnext_docker_user }}"
+    mode: "0644"
+  loop:
+    - compose.mariadb-shared.yaml
+    - erpnext-one.yaml
+
+- name: Deploy the mariadb env (DB_PASSWORD from vault)
+  ansible.builtin.template:
+    src: mariadb.env.j2
+    dest: "{{ erpnext_deploy_dir }}/mariadb.env"
+    owner: "{{ erpnext_docker_user }}"
+    group: "{{ erpnext_docker_user }}"
+    mode: "0600"
+
+# Shared MariaDB FIRST — creates the external mariadb-network + the
+# mariadb_db-data volume the app project attaches to.
+- name: Bring up the shared MariaDB project
+  community.docker.docker_compose_v2:
+    project_src: "{{ erpnext_deploy_dir }}"
+    project_name: "{{ erpnext_mariadb_project }}"
+    files:
+      - compose.mariadb-shared.yaml
+    env_files:
+      - mariadb.env
+    state: present
+
+- name: Bring up the ERPNext app project
+  community.docker.docker_compose_v2:
+    project_src: "{{ erpnext_deploy_dir }}"
+    project_name: "{{ erpnext_app_project }}"
+    files:
+      - erpnext-one.yaml
+    state: present

@@ -8,6 +8,11 @@
 exclude_paths:
   - .github/
   - terraform/
+  # Vendored, generated frappe_docker compose (resolved `docker compose
+  # config` output). Verbatim by design — its 409-char configurator line
+  # must not be reformatted, and it isn't hand-authored Ansible YAML.
+  # Path is relative to the run dir (CI does `cd ansible && ansible-lint`).
+  - roles/erpnext/files/erpnext-one.yaml
 
 skip_list:
   # Role dirs use hyphens (db-dumps, forge-brizza, minio-exports,
