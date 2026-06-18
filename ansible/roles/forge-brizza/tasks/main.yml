@@ -36,6 +36,90 @@
     cache_valid_time: 3600
 
 # ------------------------------------------------------------
+# sudo: pin classic sudo over sudo-rs (Ansible become compat)
+# ------------------------------------------------------------
+# Ubuntu 26.04 (resolute) makes sudo-rs (the Rust rewrite) the
+# default sudo. sudo-rs doesn't reproduce classic sudo's
+# password-prompt rewrite, so Ansible's `sudo` become plugin
+# can't match the prompt and EVERY become task times out
+# (FORGE-36, fleet-wide after the 26.04 upgrade). forge-brizza
+# uses its own role (not `common`), so it needs its own copy of
+# common's pin (FORGE-45). Canonical's sanctioned fallback:
+# point the `sudo` alternative at classic sudo (shipped alongside
+# at /usr/bin/sudo.ws), supported for the whole 26.04 LTS
+# lifecycle; the module sets manual mode so apt upgrades won't
+# revert it. Gated on sudo.ws existing so a non-26.04 rebuild
+# skips cleanly. NOTE: a brand-new 26.04 host still needs ONE
+# manual `update-alternatives --set sudo /usr/bin/sudo.ws` by
+# hand first — become is broken until classic sudo is selected,
+# so this task can't bootstrap it; thereafter it enforces it.
+# REVISIT: flip back to sudo-rs once ansible-core ships the fix
+# (ansible/ansible#86964).
+- name: Detect classic sudo (sudo.ws) presence
+  ansible.builtin.stat:
+    path: /usr/bin/sudo.ws
+  register: forge_brizza_sudo_ws_bin
+
+- name: Pin classic sudo over sudo-rs for Ansible become compatibility
+  community.general.alternatives:
+    name: sudo
+    path: /usr/bin/sudo.ws
+  when: forge_brizza_sudo_ws_bin.stat.exists
+
+# ------------------------------------------------------------
+# DNS nameservers via netplan drop-in (FORGE-38)
+# ------------------------------------------------------------
+# forge-brizza is an IMPORTED VM, so Terraform doesn't manage its
+# cloud-init and cloud-init network config only applies at first boot
+# — DNS was previously hand-set in /etc/netplan/50-cloud-init.yaml.
+# We codify it as a separate drop-in netplan merges into the interface:
+# it adds nameservers without owning the address/routes/MAC in the
+# cloud-init file, and survives a cloud-init regeneration on rebuild
+# (which would otherwise leave the host with no DNS). See the template
+# header for the merge rationale.
+- name: Configure DNS nameservers via netplan drop-in
+  ansible.builtin.template:
+    src: netplan-dns.yaml.j2
+    dest: /etc/netplan/90-bezaforge-dns.yaml
+    owner: root
+    group: root
+    mode: '0600'
+  notify: netplan apply
+
+# ------------------------------------------------------------
+# systemd-resolved: disable LLMNR (container DNS latency)
+# ------------------------------------------------------------
+# resolved routes SINGLE-LABEL names (e.g. a bare "forge-ai"
+# from a Docker container via dockerd's 127.0.0.11) to LLMNR
+# multicast, which waits ~4s for silence before the search
+# domain resolves instantly via the configured resolver
+# (3.85s vs 28ms measured — FORGE-5 root-cause). Nothing on
+# this network speaks LLMNR. forge-brizza uses its own role
+# (not `common`), so it needs its own LLMNR=no (FORGE-45 — was
+# live-fixed by hand; this codifies it).
+#
+# Drop-in, NOT a full resolved.conf rewrite: forge-brizza's DNS
+# servers are owned by netplan/cloud-init (FORGE-38), so we
+# override ONLY LLMNR here and leave DNS= alone — writing the
+# whole file (as `common` does for forge-ops) would hardcode
+# forge-ops' AdGuard address and fight netplan.
+- name: Ensure systemd-resolved drop-in dir exists
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    mode: '0755'
+
+- name: Disable LLMNR via systemd-resolved drop-in
+  ansible.builtin.copy:
+    dest: /etc/systemd/resolved.conf.d/10-disable-llmnr.conf
+    content: |
+      # Managed by Ansible (forge-brizza role, FORGE-45)
+      [Resolve]
+      LLMNR=no
+    mode: '0644'
+  notify: restart systemd-resolved
+
+# ------------------------------------------------------------
 # Locale + timezone
 # ------------------------------------------------------------
 - name: Generate locale
@@ -341,12 +425,29 @@
   tags: hermes-backup
   when: forge_brizza_install_docker | bool and forge_brizza_hermes_backup_enabled | bool
 
-- name: Show the authorized_keys line to register on forge-hypervisor (ONE-TIME)
-  ansible.builtin.debug:
-    msg: >-
-      ONE-TIME on forge-hypervisor /root/.ssh/authorized_keys:
+# Write the exact authorized_keys line to a file rather than printing it via
+# debug: ansible's debug callback JSON-escapes the inner quotes (from="..."
+# → from=\"...\"), and pasting that escaped form yields a malformed from=
+# option that sshd silently rejects. `cat` of this file is escaping-clean.
+# (FORGE-45 — converted from the old debug form; mirrors roles/forge-erp.)
+- name: Write the hermes-backup authorized_keys line to a copy-paste-safe file
+  ansible.builtin.copy:
+    dest: /root/hermes-backup.authorized_keys
+    owner: root
+    group: root
+    mode: "0600"
+    content: >-
       from="10.10.50.20",no-pty,no-agent-forwarding,no-port-forwarding,no-X11-forwarding
       {{ _hermes_backup_pubkey.content | b64decode | trim }}
+  tags: hermes-backup
+  when: forge_brizza_install_docker | bool and forge_brizza_hermes_backup_enabled | bool
+
+- name: Show how to register the hermes-backup key on forge-hypervisor (ONE-TIME)
+  ansible.builtin.debug:
+    msg: >-
+      ONE-TIME: append the line from `sudo cat /root/hermes-backup.authorized_keys`
+      (on forge-brizza) to /root/.ssh/authorized_keys on forge-hypervisor — copy it
+      from cat (NOT from this debug output, which escapes the quotes).
   tags: hermes-backup
   when: forge_brizza_install_docker | bool and forge_brizza_hermes_backup_enabled | bool
 

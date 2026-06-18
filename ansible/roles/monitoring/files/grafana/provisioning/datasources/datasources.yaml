@@ -1,0 +1,23 @@
+---
+# Managed by Ansible (roles/monitoring, FORGE-58 follow-up).
+# Provisions the Prometheus + Loki datasources with their CURRENT live
+# UIDs so a from-scratch Grafana rebuild reproduces the same UIDs — which
+# the provisioned dashboards AND alert rules reference by UID. Without
+# this, a rebuild assigns random UIDs and silently breaks both.
+# editable: true keeps UI tweaks possible (provisioning wins on restart).
+apiVersion: 1
+datasources:
+  - name: prometheus
+    uid: dfdseqn41ybk0e
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+  - name: loki
+    uid: dfdxeounu8jr4c
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: false
+    editable: true

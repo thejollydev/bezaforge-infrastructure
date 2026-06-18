@@ -13,6 +13,11 @@ exclude_paths:
   # must not be reformatted, and it isn't hand-authored Ansible YAML.
   # Path is relative to the run dir (CI does `cd ansible && ansible-lint`).
   - roles/erpnext/files/erpnext-one.yaml
+  # Vendored, generated Grafana alerting export (provisioning-API export
+  # output, FORGE-58). Grafana's exporter emits its own indentation style;
+  # kept verbatim so re-exports drop in cleanly and aren't hand-reformatted.
+  # The webhook-bearing contact point is a separate templated file, not this.
+  - roles/monitoring/files/grafana/provisioning/alerting/alert-rules.yaml
 
 skip_list:
   # Role dirs use hyphens (db-dumps, forge-brizza, minio-exports,

@@ -1,4 +1,16 @@
 ---
-# No handlers required yet. The role's services start themselves
-# via systemd module calls. Add restart handlers here if future
-# tasks edit config files (e.g., chrony.conf).
+# Handlers only run when notified by a task that made a change.
+
+# Notified by the LLMNR drop-in task (FORGE-45) when the drop-in
+# changes, so resolved picks up LLMNR=no without a reboot.
+- name: restart systemd-resolved
+  ansible.builtin.systemd:
+    name: systemd-resolved
+    state: restarted
+
+# Notified by the netplan DNS drop-in (FORGE-38). Re-applies netplan so
+# the new nameservers reach systemd-resolved. Safe for a DNS-only change:
+# the address/routes are unchanged, so the link (and SSH) stay up.
+- name: netplan apply
+  ansible.builtin.command: netplan apply
+  changed_when: false

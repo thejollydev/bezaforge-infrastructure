@@ -1,0 +1,19 @@
+# Managed by Ansible (forge-brizza role, FORGE-38)
+# DNS-only netplan drop-in. netplan deep-merges this into the interface
+# defined in 50-cloud-init.yaml — it adds nameservers WITHOUT owning the
+# address/routes/MAC there, and supplies DNS even if a cloud-init rebuild
+# regenerates 50-cloud-init.yaml without it (Proxmox cloud-init does not
+# set DNS). eth0 feeds systemd-resolved, whose LLMNR is tuned separately.
+network:
+  version: 2
+  ethernets:
+    {{ forge_brizza_netplan_iface }}:
+      nameservers:
+        addresses:
+{% for server in forge_brizza_dns_servers %}
+          - {{ server }}
+{% endfor %}
+        search:
+{% for domain in forge_brizza_dns_search %}
+          - {{ domain }}
+{% endfor %}

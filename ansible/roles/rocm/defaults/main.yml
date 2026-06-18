@@ -1,0 +1,21 @@
+---
+# roles/rocm — AMD GPU compute prerequisites for forge-ai (FORGE-29)
+
+# Ubuntu-native packages (NOT the AMD repo — see tasks/main.yml header).
+# rocm-smi: GPU monitoring/management CLI. libdrm-dev: DRM userspace
+# headers/libs the GPU stack links against (the runtime libdrm-amdgpu1
+# is pulled in as a dependency).
+rocm_packages:
+  - rocm-smi
+  - libdrm-dev
+
+# Groups that gate access to the GPU device nodes (/dev/kfd, /dev/dri/renderD*).
+rocm_gpu_groups:
+  - render
+  - video
+
+# Human/admin users to add to the GPU groups. The `ollama` SERVICE user is
+# handled in roles/ollama (it's created by Ollama's installer, which runs
+# after this role).
+rocm_gpu_users:
+  - joseph
