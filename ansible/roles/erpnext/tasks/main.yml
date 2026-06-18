@@ -43,14 +43,29 @@
     mode: "0644"
   when: erpnext_install_docker | bool
 
+# deb822_repository writes /etc/apt/sources.list.d/docker.sources in the
+# modern format. ansible.builtin.apt_repository is deprecated as of
+# ansible-core 2.21 and removed in 2.25 — migrated 2026-06-17 (FORGE-65).
+# Behaviour-preserving (same uris/suites/components); mirrors roles/docker
+# but uses the host distro/release facts so it resolves on this Ubuntu host.
 - name: Add the Docker apt repository
-  ansible.builtin.apt_repository:
-    repo: >-
-      deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg]
-      https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}
-      {{ ansible_facts['distribution_release'] }} stable
-    filename: docker
+  ansible.builtin.deb822_repository:
+    name: docker
+    uris: "https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}"
+    suites: "{{ ansible_facts['distribution_release'] }}"
+    components: stable
+    architectures: amd64
+    signed_by: /etc/apt/keyrings/docker.gpg
     state: present
+    enabled: true
+  when: erpnext_install_docker | bool
+
+# Remove the legacy .list the old apt_repository task created, so apt
+# doesn't see the Docker repo configured twice. No-op if already gone.
+- name: Remove legacy docker.list (replaced by docker.sources above)
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/docker.list
+    state: absent
   when: erpnext_install_docker | bool
 
 - name: Install Docker engine + compose plugin
