@@ -1,0 +1,17 @@
+# Managed by Ansible (roles/monitoring, FORGE-58)
+# Discord contact point. The webhook URL is templated from ansible-vault
+# (grafana_discord_webhook_url) so the secret never lands in VCS. The 5
+# BezaForge-Alerts rules route here via each rule's notification_settings.
+# The unused Grafana default "email receiver" placeholder is intentionally
+# not provisioned; the root notification policy is left UI/default-managed.
+apiVersion: 1
+contactPoints:
+    - orgId: 1
+      name: Discord
+      receivers:
+        - uid: ffg8poothtzwgb
+          type: discord
+          settings:
+            url: "{{ grafana_discord_webhook_url }}"
+            use_discord_username: false
+          disableResolveMessage: false

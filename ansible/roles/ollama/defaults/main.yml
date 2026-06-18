@@ -29,6 +29,14 @@ ollama_install_method: script
 # 0.20.5's llama.cpp was too old to load Unsloth UD Dynamic-2.0 GGUF quants.
 ollama_version: "0.30.7"
 
+# GPU device-node access groups for the `ollama` SERVICE user (created by
+# the install script). System-level ROCm packages + admin-user membership
+# live in roles/rocm; this is just the service account's membership, set
+# here because the user only exists after Ollama installs (FORGE-29).
+ollama_gpu_groups:
+  - render
+  - video
+
 # ------------------------------------------------------------
 # Runtime config (rendered into /etc/systemd/system/ollama.service.d/override.conf)
 # ------------------------------------------------------------

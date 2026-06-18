@@ -21,6 +21,15 @@ forge_brizza_base_packages:
   - ca-certificates
   - gnupg
 
+# --- DNS (netplan drop-in, FORGE-38) ---
+# Nameservers + search domain for the primary interface, codified as a
+# netplan drop-in (see tasks). DNS=10.10.20.20 is AdGuard on forge-ops.
+forge_brizza_netplan_iface: eth0
+forge_brizza_dns_servers:
+  - 10.10.20.20
+forge_brizza_dns_search:
+  - bezaforge.dev
+
 # --- Time sync ---
 # Cloud-init's systemd-timesyncd is already active and synchronized
 # on forge-brizza; chrony was in the roadmap but offers no concrete

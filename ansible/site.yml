@@ -65,6 +65,8 @@
       tags: common
     - role: fail2ban
       tags: fail2ban
+    - role: rocm
+      tags: rocm
     - role: ollama
       tags: ollama
 

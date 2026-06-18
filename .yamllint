@@ -28,5 +28,6 @@ rules:
 
 ignore: |
   ansible/inventory/host_vars/*/vault.yml
+  ansible/roles/monitoring/files/grafana/provisioning/alerting/alert-rules.yaml
   terraform/
   .git/

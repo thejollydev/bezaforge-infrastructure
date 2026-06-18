@@ -1,0 +1,52 @@
+---
+# ============================================================
+# rocm role — AMD GPU compute prerequisites on forge-ai (FORGE-29)
+#
+# Codifies the previously out-of-band ROCm setup. forge-ai drives an
+# AMD RX 7900 XT (gfx1100). The ACTUAL GPU compute path is:
+#   - the IN-KERNEL amdgpu driver (no amdgpu-dkms installed), and
+#   - Ollama's OWN bundled ROCm userspace (rocBLAS/hipBLAS ship inside
+#     the Ollama install) — see roles/ollama.
+# So this host needs NO full /opt/rocm stack and NO AMD apt repo.
+#
+# As-built note (FORGE-29, after the FORGE-12 26.04 upgrade): the AMD
+# repos (repo.radeon.com amdgpu/rocm) were DISABLED during the 24.04→
+# 26.04 upgrade (no resolute build yet) and the GPU kept working.
+# rocm-smi got swept in the upgrade and was reinstalled from UBUNTU's
+# own repos (rocm-smi 7.1.x-Nubuntu1 in universe) alongside libdrm-dev.
+# This role reproduces exactly that native-package state — it
+# deliberately does NOT re-enable the AMD repo or install amdgpu-dkms.
+# REVISIT: switch to the AMD ROCm apt repo only if a future need
+# requires the full /opt/rocm stack AND a resolute build exists.
+# ============================================================
+
+- name: Install ROCm GPU tooling (Ubuntu-native packages)
+  ansible.builtin.apt:
+    name: "{{ rocm_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Ensure GPU access groups exist
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ rocm_gpu_groups }}"
+
+- name: Add admin users to the GPU access groups
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups: "{{ rocm_gpu_groups }}"
+    append: true
+  loop: "{{ rocm_gpu_users }}"
+
+# Validation, not configuration: confirms rocm-smi is installed and can
+# enumerate the GPU. Fails the run if the GPU is unreachable (broken
+# amdgpu driver / device passthrough) so a bad rebuild is caught here
+# rather than silently in Ollama.
+- name: Verify rocm-smi can enumerate the GPU
+  ansible.builtin.command: rocm-smi --showproductname
+  register: rocm_smi_check
+  changed_when: false
+  failed_when: rocm_smi_check.rc != 0
+  check_mode: false

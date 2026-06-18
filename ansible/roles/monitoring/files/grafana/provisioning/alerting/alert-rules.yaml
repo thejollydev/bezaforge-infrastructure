@@ -1,0 +1,268 @@
+apiVersion: 1
+groups:
+    - orgId: 1
+      name: BezaForge-Alerts
+      folder: BezaForge Alerts
+      interval: 1m
+      rules:
+        - uid: afg8q41305tdsd
+          title: Host Down
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: dfdseqn41ybk0e
+              model:
+                editorMode: builder
+                expr: up
+                instant: true
+                intervalMs: 1000
+                legendFormat: __auto
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 1
+                        type: lt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          noDataState: NoData
+          execErrState: OK
+          for: 1m
+          keepFiringFor: 5m
+          annotations:
+            summary: '{{ $labels.instance }} is down'
+          isPaused: false
+          notification_settings:
+            receiver: Discord
+        - uid: efg8qceg7nbb4e
+          title: High CPU
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: dfdseqn41ybk0e
+              model:
+                editorMode: builder
+                exemplar: false
+                expr: avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))
+                instant: true
+                interval: "5"
+                intervalMs: 1000
+                legendFormat: __auto
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0.1
+                        type: lt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          noDataState: NoData
+          execErrState: OK
+          for: 1m
+          keepFiringFor: 5m
+          annotations:
+            summary: '{{ $labels.instance }} CPU above 90%'
+          isPaused: false
+          notification_settings:
+            receiver: Discord
+        - uid: afg8qhi5sb5dsa
+          title: Disk Space Low
+          condition: B
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: dfdseqn41ybk0e
+              model:
+                editorMode: code
+                expr: node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}
+                instant: true
+                intervalMs: 1000
+                legendFormat: __auto
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: B
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0.2
+                        type: lt
+                      operator:
+                        type: and
+                      query:
+                        params: []
+                      reducer:
+                        params: []
+                        type: avg
+                      type: query
+                datasource:
+                    name: Expression
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: B
+                type: threshold
+          noDataState: NoData
+          execErrState: OK
+          for: 5m
+          keepFiringFor: 10m
+          annotations:
+            summary: '{{ $labels.instance }} disk above 80%'
+          isPaused: false
+          notification_settings:
+            receiver: Discord
+        - uid: ffg8qmo7d222oc
+          title: Container Restarting
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: dfdseqn41ybk0e
+              model:
+                editorMode: builder
+                expr: changes(container_start_time_seconds{name!=""}[10m])
+                instant: true
+                intervalMs: 1000
+                legendFormat: __auto
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          noDataState: NoData
+          execErrState: OK
+          for: 1m
+          annotations:
+            summary: Container {{ $labels.name }} is restarting
+          isPaused: false
+          notification_settings:
+            receiver: Discord
+        - uid: efg8qt5s28xz4e
+          title: Ollama Down
+          condition: B
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: dfdseqn41ybk0e
+              model:
+                editorMode: builder
+                expr: node_systemd_unit_state{instance="forge-ai", name="ollama.service", state="active"}
+                instant: true
+                intervalMs: 1000
+                legendFormat: __auto
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: B
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 1
+                        type: lt
+                      operator:
+                        type: and
+                      query:
+                        params: []
+                      reducer:
+                        params: []
+                        type: avg
+                      type: query
+                datasource:
+                    name: Expression
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: B
+                type: threshold
+          noDataState: NoData
+          execErrState: OK
+          for: 1m
+          keepFiringFor: 5m
+          annotations:
+            summary: forge-ai Ollama inference unavailable
+          isPaused: false
+          notification_settings:
+            receiver: Discord

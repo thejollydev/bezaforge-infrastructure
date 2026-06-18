@@ -137,6 +137,7 @@
     - provisioning
     - provisioning/dashboards
     - provisioning/datasources
+    - provisioning/alerting
     - dashboards
 
 - name: Sync Grafana provisioning + dashboards from repo
@@ -150,6 +151,21 @@
   loop:
     - provisioning
     - dashboards
+  notify: restart grafana
+
+# Contact points carry the Discord webhook secret, so they're templated
+# from ansible-vault rather than copied as a static file (FORGE-58). The
+# alert rules themselves (provisioning/alerting/alert-rules.yaml) are
+# synced as static files above — they must NOT be templated, as their
+# annotations contain Go-template {{ $labels.* }} expressions Jinja would
+# mangle.
+- name: Provision Grafana Discord contact point (webhook from vault)
+  ansible.builtin.template:
+    src: grafana-alerting-contact-points.yaml.j2
+    dest: "{{ bezaforge_root }}/grafana/provisioning/alerting/contact-points.yaml"
+    owner: "472"
+    group: "472"
+    mode: '0644'
   notify: restart grafana
 
 - name: Start Grafana

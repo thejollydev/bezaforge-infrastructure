@@ -6,10 +6,10 @@
 # on forge-ai since 2026-03-02; this role brings it under config
 # management without destructive change to the live install.
 #
-# Assumes the host already has ROCm installed via the AMD repo
-# (handled out-of-band during forge-ai's VM build — ROCm has
-# its own upstream packaging that isn't worth duplicating here).
-# Validate ROCm with `rocm-smi` before running this role.
+# ROCm GPU prerequisites (rocm-smi, libdrm-dev, GPU access groups)
+# are codified in roles/rocm, which runs before this role on
+# gpu_hosts (FORGE-29). This role adds the `ollama` service user to
+# the GPU groups once the install script has created that user.
 #
 # Idempotency:
 #   - install task is skipped when the binary is at the desired
@@ -59,6 +59,19 @@
   notify:
     - reload systemd
     - restart ollama
+
+# ------------------------------------------------------------
+# GPU access for the ollama service user
+# ------------------------------------------------------------
+# The `ollama` user (created by the install script above) needs the
+# render + video groups to reach /dev/kfd and /dev/dri/renderD* for
+# ROCm compute. System-level ROCm setup is roles/rocm (FORGE-29).
+- name: Add the ollama service user to the GPU access groups
+  ansible.builtin.user:
+    name: ollama
+    groups: "{{ ollama_gpu_groups }}"
+    append: true
+  notify: restart ollama
 
 # ------------------------------------------------------------
 # Data dir
