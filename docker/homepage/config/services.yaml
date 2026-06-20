@@ -92,15 +92,8 @@
           key: "{{HOMEPAGE_VAR_JELLYFIN_API_KEY}}"
           enableNowPlaying: true
           enableUser: false
-    - Kavita:
-        href: https://kavita.bezaforge.dev
-        description: Comics · manga · ebooks
-        icon: kavita.png
-        widget:
-          type: kavita
-          url: http://kavita:5000
-          username: admin
-          password: "{{HOMEPAGE_VAR_KAVITA_PASSWORD}}"
+    # Kavita retired 2026-06-20 (FORGE-16) — ebook reader removed; no in-place
+    # replacement (the SFTPGo/Zotero plan was abandoned; ebook solution deferred).
     - Seedbox:
         href: https://seedbox.bezaforge.dev
         description: qBittorrent via Gluetun (ProtonVPN)
