@@ -10,7 +10,6 @@ services:
     environment:
       HOMEPAGE_ALLOWED_HOSTS: bezaforge.dev,home.bezaforge.dev
       HOMEPAGE_VAR_JELLYFIN_API_KEY: ${HOMEPAGE_VAR_JELLYFIN_API_KEY}
-      HOMEPAGE_VAR_KAVITA_PASSWORD: ${HOMEPAGE_VAR_KAVITA_PASSWORD}
       HOMEPAGE_VAR_QBITTORRENT_PASSWORD: ${HOMEPAGE_VAR_QBITTORRENT_PASSWORD}
     volumes:
       - /opt/bezaforge/homepage/config:/app/config

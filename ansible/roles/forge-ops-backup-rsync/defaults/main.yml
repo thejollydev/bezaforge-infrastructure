@@ -29,7 +29,7 @@ backup_services:
   # harbor removed 2026-05-17 (retired — see ROADMAP carryover #8)
   - name: homepage
   - name: jellyfin
-  - name: kavita
+  # kavita removed 2026-06-20 (Kavita retired — FORGE-16)
   - name: langfuse
   - name: loki
   - name: netbox
