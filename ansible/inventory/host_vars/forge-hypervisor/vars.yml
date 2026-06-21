@@ -32,8 +32,9 @@ gcs_bucket: bezaforge-backups-95d56ebe
 
 # ------------------------------------------------------------
 # vault-sync webhook trigger token (ADR 0002 v1.2).
-# Deliberately NOT in ansible-vault: it gates nothing but "start
-# the idempotent sync the 1-min timer runs anyway"; Gitea's
-# webhook config holds the same value server-side.
+# Low-sensitivity (it only gates "start the idempotent sync the
+# 1-min timer runs anyway"), but it IS a Bearer token, so it lives
+# in ansible-vault for defense-in-depth rather than plaintext here
+# (FORGE-41). Defined as `vault_sync_webhook_token` in the sibling
+# vault.yml. Gitea's webhook config holds the same value server-side.
 # ------------------------------------------------------------
-vault_sync_webhook_token: "6977269a41975bd0f7a547d8430fb50b8e8ea4ff90dcd102"
