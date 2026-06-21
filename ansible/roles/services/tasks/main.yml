@@ -4,7 +4,7 @@
 # Services fall into three categories based on how secrets are managed:
 #   1. Template services (gitea, taiga) — secrets baked into compose via Jinja2
 #   2. Env-var services (netbox, langfuse, homepage) — compose uses ${VAR}, secrets in .env file
-#   3. Simple services (uptime-kuma) — no secrets at all
+#   3. Simple services (uptime-kuma, calibre-web) — no secrets at all
 #
 # (wiki was a template service; retired 2026-05-17 per ROADMAP carryover #21)
 #
@@ -144,7 +144,7 @@
     owner: joseph
     group: joseph
     mode: "0644"
-  loop: "{{ compose_services | intersect(['uptime-kuma']) }}"
+  loop: "{{ compose_services | intersect(['uptime-kuma', 'calibre-web']) }}"
 
 # --- Start all services ---
 # docker_compose_v2 with state: present runs "docker compose up -d".

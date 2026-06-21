@@ -1,0 +1,50 @@
+networks:
+  bezaforge-net:
+    external: true
+
+services:
+  calibre-web:
+    # Calibre-Web-Automated (CWA) — the Calibre-Web UI plus a self-managing
+    # library, so there is NO desktop-Calibre dependency. Re-introduces ebooks
+    # to BezaForge after the Kavita retirement (FORGE-16); add-books workflow
+    # is web-upload (Settings -> Basic Configuration -> Enable Uploads).
+    #
+    # Pinned to a verified stable tag + digest; bump deliberately (CWA ships
+    # frequently). v4.0.6 published 2026-02-04; `latest` shared this digest at
+    # pin time. Registry: Docker Hub.
+    image: crocodilestick/calibre-web-automated:v4.0.6@sha256:c31a738b6d5ec6982c050063dd3f063b6943eb1051fc81144789f840d9093a8d
+    container_name: calibre-web
+    restart: unless-stopped
+    environment:
+      # joseph (uid/gid 1000) — matches the bind-mount dir ownership the
+      # services role creates, so CWA can read/write config + library.
+      PUID: "1000"
+      PGID: "1000"
+      TZ: America/Detroit
+      # Library lives on the local /opt/bezaforge LVM, NOT an NFS/cloud share,
+      # so leave share-mode off (it relaxes file-locking semantics for network
+      # filesystems and is unnecessary — and slower — for local storage).
+      NETWORK_SHARE_MODE: "false"
+    volumes:
+      # Bind mounts (NOT named volumes) under /opt/bezaforge/calibre-web/ so the
+      # existing forge-ops-backup-rsync role — which rsyncs /opt/bezaforge/<svc>/
+      # — captures them.
+      #   config/  : app.db, settings, users, sessions
+      #   library/ : metadata.db + the actual book files
+      #   ingest/  : watched drop-folder; web-upload is the primary path, but
+      #              this stays available for folder-drop and is backup-excluded
+      #              (ephemeral — files are moved into the library after import).
+      - /opt/bezaforge/calibre-web/config:/config
+      - /opt/bezaforge/calibre-web/library:/calibre-library
+      - /opt/bezaforge/calibre-web/ingest:/cwa-book-ingest
+    networks:
+      - bezaforge-net
+    labels:
+      # Standard docker-provider route — CWA runs locally on forge-ops, so
+      # labels are all that's needed (no file-provider). Wildcard
+      # *.bezaforge.dev DNS (AdGuard -> Traefik) auto-resolves the host.
+      - "traefik.enable=true"
+      - "traefik.http.routers.calibre-web.rule=Host(`books.bezaforge.dev`)"
+      - "traefik.http.routers.calibre-web.entrypoints=websecure"
+      - "traefik.http.routers.calibre-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.calibre-web.loadbalancer.server.port=8083"

@@ -92,8 +92,13 @@
           key: "{{HOMEPAGE_VAR_JELLYFIN_API_KEY}}"
           enableNowPlaying: true
           enableUser: false
-    # Kavita retired 2026-06-20 (FORGE-16) — ebook reader removed; no in-place
-    # replacement (the SFTPGo/Zotero plan was abandoned; ebook solution deferred).
+    # Kavita retired 2026-06-20 (FORGE-16); ebooks returned same day via
+    # Calibre-Web-Automated (below) — Calibre-Web UI, no desktop Calibre.
+    - Calibre-Web:
+        href: https://books.bezaforge.dev
+        description: Ebook library + reader
+        icon: calibre-web.png
+        siteMonitor: https://books.bezaforge.dev
     - Seedbox:
         href: https://seedbox.bezaforge.dev
         description: qBittorrent via Gluetun (ProtonVPN)
