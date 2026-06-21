@@ -55,6 +55,10 @@ compose_services:
   # (added later). Env-var service: secret in .env (open_webui_secret_key,
   # vault), non-secrets inline in the compose. FORGE-53.
   - open-webui
+  # Calibre-Web-Automated — ebook library + reader. Simple service (no
+  # secrets; admin is set in the UI, not env). Re-introduces ebooks to
+  # BezaForge after the Kavita retirement (FORGE-16); web-upload workflow.
+  - calibre-web
 # taiga retired 2026-05-22 — see ROADMAP carryover #23 / guide 12. Replaced by Plane.
 
 # Feature flags

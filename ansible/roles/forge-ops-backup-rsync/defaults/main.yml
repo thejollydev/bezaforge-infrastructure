@@ -24,6 +24,11 @@ rsync_schedule: "*-*-* 02:45:00"
 #  Add them back here if/when HashiCorp Vault is deployed.)
 backup_services:
   - name: adguard
+  - name: calibre-web
+    excludes:
+      # Watched drop-folder; files are moved into library/ after import.
+      # config/ (app.db, settings) + library/ (metadata.db + books) → bezapool.
+      - "ingest/"
   - name: gitea
   - name: grafana
   # harbor removed 2026-05-17 (retired — see ROADMAP carryover #8)
