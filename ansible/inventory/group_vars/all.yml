@@ -43,5 +43,22 @@ common_admin_ssh_sources:
 # forge-ai and was lost 2026-06-14, which blocked the scrape and
 # fired a false Grafana "forge-ai / ollama down" alert. Same drift
 # class as common_admin_ssh_sources (FORGE-36).
+#
+# Fleet node_exporter UFW posture (FORGE-59) — this allow only matters
+# on hosts running an ACTIVE default-deny UFW, which is exactly the
+# `common`-managed set:
+#   - forge-ops, forge-ai  → run `common` → get this allow. ✓
+#   - forge-hypervisor     → pve-firewall (disabled), no UFW → reachable.
+#   - forge-erp            → no `common` BY DESIGN (a first-touch UFW
+#                            enable could lock it out, site.yml); no
+#                            active UFW → reachable. If UFW is ever
+#                            enabled here, add a 9100 allow from
+#                            10.10.20.20 alongside it.
+#   - forge-brizza         → own role, no active UFW → reachable. Same
+#                            caveat as forge-erp if UFW is later enabled.
+# So there is no live gap; all six scraped targets in
+# roles/monitoring/files/prometheus.yml are reachable. Documented here
+# (not added as dead gated tasks) so the next firewall change on a
+# non-`common` host carries the rule forward.
 common_monitoring_sources:
   - 10.10.20.20   # forge-ops (Prometheus) VLAN-20 scrape source
