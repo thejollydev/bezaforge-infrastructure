@@ -9,9 +9,9 @@ Base path: `/opt/bezaforge/{service}/docker-compose.yml`
 
 ### Traefik v3
 - **Image:** `traefik:v3`
-- **Ports:** 80 (HTTP → HTTPS redirect), 443 (HTTPS), 8080 (dashboard, internal only)
-- **Config:** Static config in `traefik.yml`, dynamic config via Docker labels
-- **SSL:** Wildcard cert `*.bezaforge.dev` via Let's Encrypt DNS-01 (Cloudflare API)
+- **Ports:** 80 (HTTP → HTTPS redirect), 443 (HTTPS). Dashboard at `traefik.bezaforge.dev` (`api.insecure: false`, basicauth via `traefik_basicauth_hash`) — no published 8080 host port
+- **Config:** Static config in `traefik.yml`, dynamic config via Docker labels + the file provider (`/etc/traefik/dynamic/` for off-box routes)
+- **SSL:** Per-host certs via Let's Encrypt DNS-01 (Cloudflare API) — each service router requests its own cert via the `letsencrypt` resolver (**no `*.bezaforge.dev` wildcard SAN**). `dnsChallenge.resolvers: [1.1.1.1, 8.8.8.8]` to bypass the AdGuard split-horizon SOA-walk (FORGE-22)
 - **Notes:**
   - `acme.json` must be `chmod 600` or Traefik refuses to write certs
   - Use `propagation.delayBeforeChecks: 30s` (not `delayBeforeCheck`) in Traefik v3.6+

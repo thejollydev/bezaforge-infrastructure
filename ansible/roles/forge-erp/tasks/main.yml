@@ -8,6 +8,14 @@
 # enable that could lock admin out).
 # ============================================================
 
+# --- Host timezone: forge-erp shipped on Etc/UTC; align to the fleet's
+#     America/Detroit so ERPNext's scheduler + report timestamps match. ERPNext's
+#     app-level Time Zone is a separate System Settings value (set in the UI);
+#     Frappe stores datetimes as UTC in MariaDB, so this host change is safe. ---
+- name: Set host timezone to America/Detroit
+  community.general.timezone:
+    name: "{{ forge_erp_timezone }}"
+
 # --- FORGE-61 (VM-image half): qemu-guest-agent lets the nightly
 #     Proxmox vzdump fs-freeze the filesystem for a clean image. ---
 - name: Ensure qemu-guest-agent is installed
