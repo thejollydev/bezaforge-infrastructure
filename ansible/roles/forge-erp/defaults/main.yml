@@ -41,3 +41,8 @@ forge_erp_backup_dest_path: /bezapool/forge-erp-backup/backups
 # hypervisor root authorized_keys (from="10.10.20.50"-scoped). The play
 # prints the exact line to add.
 forge_erp_backup_ssh_key: /root/.ssh/id_ed25519_forge_erp_backup
+
+# --- Host timezone ---
+# forge-erp shipped on Etc/UTC while the rest of the fleet is America/Detroit,
+# which skews ERPNext's scheduler runs + financial report timestamps. Align it.
+forge_erp_timezone: America/Detroit

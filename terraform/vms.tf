@@ -12,7 +12,7 @@ module "forge_ai" {
   description          = "GPU inference host — ROCm, Ollama"
   node_name            = var.proxmox_node
   cores                = 4
-  memory               = 16384
+  memory               = 8192 # 2026-06-21 rebalance: was 16384 — forge-ai uses ~1 GiB system RAM (LLM weights live in the 20 GiB VRAM)
   disk_size            = 400
   storage_pool         = "vm-fast"
   disk_interface       = "virtio0"
@@ -93,7 +93,7 @@ module "forge_erp" {
   description    = "ERPNext v16 — BezaCore Labs LLC ERP"
   node_name      = var.proxmox_node
   cores          = 2
-  memory         = 4096
+  memory         = 8192 # 2026-06-21: 4096→8192 — ERPNext (MariaDB + gunicorn workers) was RAM-tight now it holds BCL financial data
   disk_size      = 50
   storage_pool   = "vm-fast"
   disk_interface = "scsi0"
