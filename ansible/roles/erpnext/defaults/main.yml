@@ -11,7 +11,7 @@
 # frappe_docker `docker compose ... config` and re-vendor the output.
 # ============================================================
 
-erpnext_version: v16.8.2            # frappe/erpnext tag (baked into the vendored compose; doc only)
+erpnext_version: v16.23.1            # frappe/erpnext tag (baked into the vendored compose; doc only)
 erpnext_site: erp.bezaforge.dev
 erpnext_deploy_dir: /opt/bezaforge/erpnext
 
