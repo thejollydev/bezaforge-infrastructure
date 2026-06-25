@@ -102,24 +102,6 @@ environment:
 
 ---
 
-## forge-dev (Arch Linux VM)
-
-### qemu-guest-agent on Arch
-The `qemu-guest-agent` package on Arch Linux is missing the `[Install]` section in its systemd unit.
-`systemctl enable qemu-guest-agent` fails without a drop-in override:
-
-```bash
-mkdir -p /etc/systemd/system/qemu-guest-agent.service.d/
-cat > /etc/systemd/system/qemu-guest-agent.service.d/override.conf << 'EOF'
-[Install]
-WantedBy=multi-user.target
-EOF
-systemctl daemon-reload
-systemctl enable --now qemu-guest-agent
-```
-
----
-
 ## Networking
 
 ### forge-ops SSH Access — ufw

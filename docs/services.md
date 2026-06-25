@@ -59,7 +59,7 @@ Base path: `/opt/bezaforge/{service}/docker-compose.yml`
 
 ### Node Exporter
 - **Role:** Host-level system metrics (CPU, memory, disk, network)
-- **Deployed on:** forge-ops, forge-ai, forge-dev (systemd service on each host)
+- **Deployed on:** forge-ops, forge-ai (systemd service on each host)
 
 ---
 

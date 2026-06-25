@@ -178,6 +178,28 @@
   ignore_errors: "{{ ansible_check_mode }}"
 
 # ------------------------------------------------------------
+# qemu-guest-agent (FORGE-73)
+# ------------------------------------------------------------
+# The Proxmox VM config advertises agent=enabled=1 (proxmox-vm module
+# default), so the bpg provider queries the guest agent for network
+# interfaces on every refresh. Without the agent installed in-guest,
+# that read blocks for the provider's full agent timeout (~15m) and
+# hangs `terraform plan`/`apply` fleet-wide. Installing it makes the
+# agent respond, so refresh is fast. (Same task forge-erp got under
+# FORGE-61; forge-brizza was missing it.)
+- name: Ensure qemu-guest-agent is installed
+  ansible.builtin.apt:
+    name: qemu-guest-agent
+    state: present
+    update_cache: true
+
+- name: Ensure qemu-guest-agent is enabled and running
+  ansible.builtin.systemd:
+    name: qemu-guest-agent
+    enabled: true
+    state: started
+
+# ------------------------------------------------------------
 # GNOME desktop
 # ------------------------------------------------------------
 # ubuntu-desktop-minimal is large (~1.5 GB) but the smallest

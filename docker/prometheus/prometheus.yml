@@ -31,14 +31,6 @@ scrape_configs:
           host: 'forge-ai'
           vlan: 'ai'
 
-  # forge-dev host metrics
-  - job_name: 'node-forge-dev'
-    static_configs:
-      - targets: ['<forge-dev-ip>:9100']
-        labels:
-          host: 'forge-dev'
-          vlan: 'development'
-
   # Docker container metrics (forge-ops)
   - job_name: 'cadvisor'
     static_configs:

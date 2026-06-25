@@ -164,11 +164,6 @@
         description: 10.10.50.10 · VMID 101 · Ubuntu · GPU · Ollama
         icon: ollama.png
         ping: 10.10.50.10
-    - forge-dev:
-        href: ssh://joseph@10.10.30.10
-        description: 10.10.30.10 · VMID 102 · Arch KDE workstation
-        icon: arch-linux.png
-        ping: 10.10.30.10
     - forge-erp:
         href: https://erp.bezaforge.dev
         description: 10.10.20.50 · VMID 103 · Ubuntu · ERPNext
