@@ -111,4 +111,4 @@ ollama_models_fail_on_error: false
 ollama_ufw_allow_from:
   - 10.10.50.0/24   # AI VLAN (forge-brizza)
   - 10.10.20.0/24   # Mgmt VLAN (forge-ops services)
-  - 10.10.30.0/24   # Dev VLAN (forge-dev, jolly-LOQ-arch when on this VLAN)
+  - 10.10.30.0/24   # Dev VLAN (jolly-LOQ-arch when on this VLAN)

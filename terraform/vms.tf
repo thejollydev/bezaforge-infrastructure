@@ -43,43 +43,6 @@ module "forge_ai" {
 }
 
 # ---------------------------------------------------------------------------
-# forge-dev — VMID 102
-# Arch Linux + KDE Plasma 6, development workstation
-# VLAN 30 (Development), 10.10.30.10
-# ---------------------------------------------------------------------------
-
-module "forge_dev" {
-  source = "./modules/proxmox-vm"
-
-  vm_id                = 102
-  name                 = "forge-dev"
-  description          = "Development workstation — Arch Linux, KDE Plasma 6"
-  node_name            = var.proxmox_node
-  cores                = 4
-  memory               = 8192
-  disk_size            = 150
-  storage_pool         = "vm-fast"
-  disk_interface       = "scsi0"
-  cpu_type             = "host"
-  bios_type            = "ovmf"
-  bridge               = "vmbr0"
-  vlan_id              = 30
-  ip_address           = "10.10.30.10/24"
-  gateway              = "10.10.30.1"
-  ssh_public_key       = var.ssh_public_key
-  cloud_init_password  = var.cloud_init_password
-  tags                 = ["dev", "arch"]
-  vga_type             = "serial0" # preserves current Proxmox web-console-via-serial behavior; revisit if KDE Plasma is ever actually used
-  create_from_template = true
-  template_id          = 9001
-  scsi_hardware        = "virtio-scsi-single"
-  disk_iothread        = true
-  disk_cache           = "writeback"
-  has_efi_disk         = true
-  disk_format          = "raw"
-}
-
-# ---------------------------------------------------------------------------
 # forge-erp — VMID 103
 # Ubuntu 26.04, ERPNext v16
 # VLAN 20 (Production), 10.10.20.50
@@ -125,7 +88,7 @@ module "forge_brizza" {
 
   vm_id               = 104
   name                = "forge-brizza"
-  description         = "Brizza AI assistant — Hermes Agent bridge, Google Chat"
+  description         = "Brizza AI assistant — Hermes Agent bridge (Discord + dashboard)"
   node_name           = var.proxmox_node
   cores               = 4
   memory              = 16384

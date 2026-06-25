@@ -19,7 +19,6 @@ Production-grade private cloud managed entirely as code. VM provisioning via Ter
 | **forge-hypervisor** | Proxmox hypervisor | Ryzen 7 5800X, 48GB RAM, RX 7900 XT, ZFS mirror | Proxmox VE 9.1 |
 | **forge-ops** | Docker service host | i9-12900H, 32GB DDR5 | Debian 13.3 |
 | **forge-ai** | GPU LLM inference | RX 7900 XT passthrough, ROCm | Ubuntu 26.04 |
-| **forge-dev** | Development environment | 4 vCPU, 8GB RAM | Arch Linux + KDE Plasma 6 |
 | **forge-erp** | ERP (ERPNext v16) | 2 vCPU, 4GB RAM | Ubuntu 26.04 |
 | **forge-brizza** | Brizza AI assistant (Hermes Agent bridge; LangGraph graduation planned) | 4 vCPU, 16GB RAM | Ubuntu 26.04 |
 
@@ -145,7 +144,7 @@ ansible-playbook site.yml -l forge-ops --check --diff --ask-become-pass --ask-va
 |------|------|--------|---------|
 | 10 | Management | 10.10.10.0/24 | Infrastructure admin access |
 | 20 | Production | 10.10.20.0/24 | Docker services host (forge-ops) |
-| 30 | Development | 10.10.30.0/24 | Dev VM (forge-dev) |
+| 30 | Development | 10.10.30.0/24 | Reserved — future dev workstation (forge-dev removed 2026-06-24) |
 | 40 | Home | 10.10.40.0/24 | Personal devices, WiFi |
 | 50 | AI | 10.10.50.0/24 | GPU workloads (forge-ai) and AI assistants (forge-brizza) |
 
@@ -187,7 +186,6 @@ forge-ops containers ──► Promtail ──► Loki ──► Grafana
 forge-ops system     ──► Node Exporter ──► Prometheus ──► Grafana
 forge-ops containers ──► cAdvisor ──► Prometheus ──► Grafana
 forge-ai system      ──► Node Exporter ──► Prometheus ──► Grafana
-forge-dev system     ──► Node Exporter ──► Prometheus ──► Grafana
 All services         ──► Uptime Kuma (availability checks)
 ```
 
@@ -289,7 +287,7 @@ bezaforge-infrastructure/
 │   ├── main.tf              # Provider configuration (bpg/proxmox)
 │   ├── variables.tf         # Root variables (api token, node, ssh key)
 │   ├── outputs.tf           # VM IP outputs
-│   ├── vms.tf               # VM definitions (forge-ai, forge-dev, forge-erp, forge-brizza)
+│   ├── vms.tf               # VM definitions (forge-ai, forge-erp, forge-brizza)
 │   └── modules/
 │       └── proxmox-vm/      # Reusable VM module
 │           ├── main.tf      # Resource definition
@@ -321,5 +319,5 @@ bezaforge-infrastructure/
 
 ## Related Projects
 
-- [ansible-arch](https://github.com/thejollydev/ansible-arch) — Ansible playbook for Arch Linux workstation automation (forge-dev + jolly-LOQ-arch)
+- [ansible-arch](https://github.com/thejollydev/ansible-arch) — Ansible playbook for Arch Linux workstation automation (jolly-LOQ-arch)
 - [dotfiles](https://github.com/thejollydev/dotfiles) — GNU Stow-managed dotfiles (zsh, starship, nvim, kitty, zellij)

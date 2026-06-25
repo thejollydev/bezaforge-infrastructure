@@ -40,12 +40,6 @@ scrape_configs:
           instance: 'forge-hypervisor'
           role: 'hypervisor'
 
-  - job_name: 'node-exporter-forge-dev'
-    static_configs:
-      - targets: ['10.10.30.10:9100']
-        labels:
-          instance: 'forge-dev'
-
   - job_name: 'node-exporter-forge-erp'
     static_configs:
       - targets: ['10.10.20.50:9100']
