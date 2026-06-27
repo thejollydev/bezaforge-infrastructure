@@ -59,6 +59,12 @@ compose_services:
   # secrets; admin is set in the UI, not env). Re-introduces ebooks to
   # BezaForge after the Kavita retirement (FORGE-16); web-upload workflow.
   - calibre-web
+  # Jellyfin — media server, HW transcode via iGPU. Simple service (admin in
+  # UI). Codified from a manual deploy 2026-06-27 (FORGE-67).
+  - jellyfin
+  # Seedbox — qBittorrent behind a Gluetun VPN kill-switch. Env-var service
+  # (VPN key in .env ← vault). Codified from a manual deploy 2026-06-27 (FORGE-68).
+  - seedbox
 # taiga retired 2026-05-22 — see ROADMAP carryover #23 / guide 12. Replaced by Plane.
 
 # Feature flags

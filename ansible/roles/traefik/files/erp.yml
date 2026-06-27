@@ -1,0 +1,30 @@
+# Traefik dynamic (file-provider) config — off-box backend.
+#
+# Routes erp.bezaforge.dev → the ERPNext frontend running on forge-erp
+# (10.10.20.50:8080, VLAN 20).
+#
+# The Docker provider only discovers containers local to forge-ops, so the
+# ERPNext stack (which lives on forge-erp, deployed via roles/erpnext) must be
+# declared here explicitly as a router + service. The frontend already carries
+# UPSTREAM_REAL_IP_ADDRESS: 10.10.20.20, confirming it expects forge-ops Traefik
+# as its proxy. Traefik's file provider watches this directory and hot-reloads
+# — no restart needed.
+#
+# Codified 2026-06-27 (FORGE-69) — this route had been hand-added on the host
+# (/opt/bezaforge/traefik/config/dynamic/erp.yml) and never captured in VCS.
+# TLS via the same Let's Encrypt DNS-01 resolver as every other service; the
+# *.bezaforge.dev AdGuard wildcard already resolves this name to forge-ops.
+http:
+  routers:
+    erp:
+      rule: "Host(`erp.bezaforge.dev`)"
+      entrypoints:
+        - websecure
+      service: erp
+      tls:
+        certresolver: letsencrypt
+  services:
+    erp:
+      loadbalancer:
+        servers:
+          - url: "http://10.10.20.50:8080"

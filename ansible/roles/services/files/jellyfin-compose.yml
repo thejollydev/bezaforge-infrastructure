@@ -1,0 +1,35 @@
+# Jellyfin media server. Simple service (no secrets — admin is set in the UI).
+# Codified 2026-06-27 (FORGE-67) from the prior manual deploy at
+# /opt/bezaforge/jellyfin/. HW-accelerated transcoding via the host iGPU:
+#   - devices: /dev/dri/renderD128 passthrough
+#   - group_add 992 (render) + 44 (video) — the host GIDs that own the DRI
+#     device nodes. Re-verify with `getent group render video` on forge-ops if
+#     transcoding breaks after a host/kernel change.
+# Media is mounted read-only; Jellyfin never writes to the library.
+networks:
+  bezaforge-net:
+    external: true
+
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:10.11.7@sha256:17285f9cce63b3519ccad82b84497fc22482c20f8b8bbe0580d51fec5deaa6fd
+    container_name: jellyfin
+    user: "1000:1000"
+    group_add:
+      - "992"
+      - "44"
+    volumes:
+      - /opt/bezaforge/jellyfin/config:/config
+      - /opt/bezaforge/jellyfin/cache:/cache
+      - /mnt/bezapool/media:/media:ro
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
+    restart: unless-stopped
+    networks:
+      - bezaforge-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.jellyfin.rule=Host(`jellyfin.bezaforge.dev`)"
+      - "traefik.http.routers.jellyfin.entrypoints=websecure"
+      - "traefik.http.routers.jellyfin.tls.certresolver=letsencrypt"
+      - "traefik.http.services.jellyfin.loadbalancer.server.port=8096"

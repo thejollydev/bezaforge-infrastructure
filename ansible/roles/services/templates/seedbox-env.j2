@@ -1,0 +1,8 @@
+# Seedbox .env — rendered from roles/services/templates/seedbox-env.j2
+# Secret sourced from ansible-vault (host_vars/forge-ops/vault.yml).
+#
+# docker-compose interpolates ${PROTONVPN_WIREGUARD_PRIVATE_KEY} into the
+# gluetun container (mapped to WIREGUARD_PRIVATE_KEY). This is the ProtonVPN
+# WireGuard private key — rotate it via the ProtonVPN dashboard, then update
+# `seedbox_protonvpn_wireguard_private_key` in the vault and redeploy.
+PROTONVPN_WIREGUARD_PRIVATE_KEY={{ seedbox_protonvpn_wireguard_private_key }}
