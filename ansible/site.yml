@@ -63,6 +63,8 @@
   roles:
     - role: common
       tags: common
+    - role: guest-agent
+      tags: guest-agent
     - role: fail2ban
       tags: fail2ban
     - role: rocm
