@@ -1,0 +1,28 @@
+---
+# guest-agent role — install + enable qemu-guest-agent on a Proxmox VM.
+#
+# Standing rule: EVERY BezaForge Proxmox VM runs qemu-guest-agent. It lets the
+# host fs-freeze the guest for clean vzdump images, report real guest memory/IP
+# back to the Proxmox UI, and answer the bpg provider's agent ping (a
+# non-responding agent hangs terraform plan/apply — see
+# reference_bpg_stopped_vm_terraform_hang / FORGE-79).
+#
+# Apply to VM host-groups ONLY (gpu_hosts, erp_hosts, assistant_hosts) — NEVER
+# to bare-metal hosts (forge-ops, forge-hypervisor), where a guest agent is
+# meaningless. forge-erp and forge-brizza historically installed it inline in
+# their own roles (FORGE-61 / FORGE-79); this role is the shared home so it's
+# codified uniformly (FORGE-83).
+#
+# apt-based: every BezaForge VM is Ubuntu. Add a distro gate if that changes.
+
+- name: Ensure qemu-guest-agent is installed
+  ansible.builtin.apt:
+    name: qemu-guest-agent
+    state: present
+    update_cache: true
+
+- name: Ensure qemu-guest-agent is enabled and running
+  ansible.builtin.systemd:
+    name: qemu-guest-agent
+    enabled: true
+    state: started
