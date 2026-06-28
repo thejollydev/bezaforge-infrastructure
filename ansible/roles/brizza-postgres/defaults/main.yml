@@ -21,7 +21,7 @@
 # Image pin — newest stable Postgres major (18.4 released
 # 2026-05-14; 19 not due until Sept 2026). Plain Postgres,
 # no pgvector (that's Cognee's concern, not this).
-brizza_postgres_image: "postgres:18-alpine"
+brizza_postgres_image: "postgres:18-alpine@sha256:96d56f7f57c6aacd1fcb908bc83b345ec5f83231ee486dd66a1baadce274db88"
 
 # Internal Docker network (created by the docker role).
 brizza_postgres_network: bezaforge-net

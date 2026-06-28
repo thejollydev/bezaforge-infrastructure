@@ -1,0 +1,74 @@
+# Seedbox — qBittorrent behind a Gluetun VPN kill-switch. Env-var service:
+# the one secret (PROTONVPN_WIREGUARD_PRIVATE_KEY) lives in the rendered .env
+# (seedbox-env.j2 ← ansible-vault), interpolated below as ${...}.
+# Codified 2026-06-27 (FORGE-68) from the prior manual deploy at
+# /opt/bezaforge/seedbox/ — secret moved out of a hand-written root .env.
+#
+# qBittorrent shares gluetun's network namespace (network_mode: service:gluetun)
+# so ALL its traffic is forced through the VPN; if gluetun drops, qBittorrent
+# loses connectivity (the kill-switch). Its WebUI is therefore published on the
+# gluetun container, and Traefik routes seedbox.bezaforge.dev → gluetun:8080.
+networks:
+  bezaforge-net:
+    external: true
+
+services:
+  gluetun:
+    image: qmcgaw/gluetun@sha256:e4de2b8cfa165553ffca8c5b28f2a3caccacf467244e15780b065e3fe6747080
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    env_file: .env
+    environment:
+      - VPN_SERVICE_PROVIDER=protonvpn
+      - VPN_TYPE=wireguard
+      - WIREGUARD_PRIVATE_KEY=${PROTONVPN_WIREGUARD_PRIVATE_KEY}
+      - SERVER_COUNTRIES=Netherlands
+      - VPN_PORT_FORWARDING=on
+      - VPN_PORT_FORWARDING_PROVIDER=protonvpn
+      - FIREWALL_OUTBOUND_SUBNETS=10.10.20.0/24,10.10.10.0/24
+      - TZ=America/Detroit
+      - HEALTH_VPN_DURATION_INITIAL=30s
+      - HEALTH_VPN_DURATION_ADDITION=15s
+    volumes:
+      - /opt/bezaforge/seedbox/gluetun:/gluetun
+    restart: unless-stopped
+    networks:
+      - bezaforge-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.seedbox.rule=Host(`seedbox.bezaforge.dev`)"
+      - "traefik.http.routers.seedbox.entrypoints=websecure"
+      - "traefik.http.routers.seedbox.tls.certresolver=letsencrypt"
+      - "traefik.http.services.seedbox.loadbalancer.server.port=8080"
+    healthcheck:
+      test: ["CMD", "/gluetun-entrypoint", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  qbittorrent:
+    image: linuxserver/qbittorrent:5.1.4-r2-ls448@sha256:a89108b1bf43de072a35a59a3ee41b97b564538faae5cbb3f6c803aa7f5fd9f7
+    container_name: qbittorrent
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Detroit
+      - WEBUI_PORT=8080
+      - TORRENTING_PORT=6881
+    volumes:
+      - /opt/bezaforge/seedbox/qbittorrent:/config
+      - /mnt/bezapool/downloads:/downloads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:8080 || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

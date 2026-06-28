@@ -5,12 +5,12 @@ services:
       configurator:
         condition: service_completed_successfully
         required: true
-    image: frappe/erpnext:v16.23.1
+    image: frappe/erpnext:v16.23.1@sha256:fb17c58c2b604139af4f7908fa790132914b79930c20f82516ca4f2064affb21
     networks:
       default: null
       mariadb-network: null
     platform: linux/amd64
-    pull_policy: always
+    pull_policy: missing
     restart: unless-stopped
     volumes:
       - type: volume
@@ -37,12 +37,12 @@ services:
       REDIS_CACHE: redis-cache:6379
       REDIS_QUEUE: redis-queue:6379
       SOCKETIO_PORT: "9000"
-    image: frappe/erpnext:v16.23.1
+    image: frappe/erpnext:v16.23.1@sha256:fb17c58c2b604139af4f7908fa790132914b79930c20f82516ca4f2064affb21
     networks:
       default: null
       mariadb-network: null
     platform: linux/amd64
-    pull_policy: always
+    pull_policy: missing
     restart: on-failure
     volumes:
       - type: volume
@@ -68,13 +68,13 @@ services:
       UPSTREAM_REAL_IP_ADDRESS: 10.10.20.20
       UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
       UPSTREAM_REAL_IP_RECURSIVE: "off"
-    image: frappe/erpnext:v16.23.1
+    image: frappe/erpnext:v16.23.1@sha256:fb17c58c2b604139af4f7908fa790132914b79930c20f82516ca4f2064affb21
     networks:
       default: null
     platform: linux/amd64
     ports:
       - "10.10.20.50:8080:8080"
-    pull_policy: always
+    pull_policy: missing
     restart: unless-stopped
     volumes:
       - type: volume
@@ -91,12 +91,12 @@ services:
       configurator:
         condition: service_completed_successfully
         required: true
-    image: frappe/erpnext:v16.23.1
+    image: frappe/erpnext:v16.23.1@sha256:fb17c58c2b604139af4f7908fa790132914b79930c20f82516ca4f2064affb21
     networks:
       default: null
       mariadb-network: null
     platform: linux/amd64
-    pull_policy: always
+    pull_policy: missing
     restart: unless-stopped
     volumes:
       - type: volume
@@ -113,12 +113,12 @@ services:
       configurator:
         condition: service_completed_successfully
         required: true
-    image: frappe/erpnext:v16.23.1
+    image: frappe/erpnext:v16.23.1@sha256:fb17c58c2b604139af4f7908fa790132914b79930c20f82516ca4f2064affb21
     networks:
       default: null
       mariadb-network: null
     platform: linux/amd64
-    pull_policy: always
+    pull_policy: missing
     restart: unless-stopped
     volumes:
       - type: volume
@@ -126,12 +126,12 @@ services:
         target: /home/frappe/frappe-bench/sites
         volume: {}
   redis-cache:
-    image: redis:6.2-alpine
+    image: redis:6.2-alpine@sha256:c9ab371a96b057d3642be9bd71cb1b3fe97920d345dc949860578bffb3d54460
     networks:
       default: null
     restart: unless-stopped
   redis-queue:
-    image: redis:6.2-alpine
+    image: redis:6.2-alpine@sha256:c9ab371a96b057d3642be9bd71cb1b3fe97920d345dc949860578bffb3d54460
     networks:
       default: null
     restart: unless-stopped
@@ -148,12 +148,12 @@ services:
       configurator:
         condition: service_completed_successfully
         required: true
-    image: frappe/erpnext:v16.23.1
+    image: frappe/erpnext:v16.23.1@sha256:fb17c58c2b604139af4f7908fa790132914b79930c20f82516ca4f2064affb21
     networks:
       default: null
       mariadb-network: null
     platform: linux/amd64
-    pull_policy: always
+    pull_policy: missing
     restart: unless-stopped
     volumes:
       - type: volume
@@ -168,11 +168,11 @@ services:
       configurator:
         condition: service_completed_successfully
         required: true
-    image: frappe/erpnext:v16.23.1
+    image: frappe/erpnext:v16.23.1@sha256:fb17c58c2b604139af4f7908fa790132914b79930c20f82516ca4f2064affb21
     networks:
       default: null
     platform: linux/amd64
-    pull_policy: always
+    pull_policy: missing
     restart: unless-stopped
     volumes:
       - type: volume
@@ -194,14 +194,14 @@ x-backend-defaults:
   depends_on:
     configurator:
       condition: service_completed_successfully
-  image: frappe/erpnext:v16.23.1
-  pull_policy: always
+  image: frappe/erpnext:v16.23.1@sha256:fb17c58c2b604139af4f7908fa790132914b79930c20f82516ca4f2064affb21
+  pull_policy: missing
   restart: unless-stopped
   volumes:
     - sites:/home/frappe/frappe-bench/sites
 x-customizable-image:
-  image: frappe/erpnext:v16.23.1
-  pull_policy: always
+  image: frappe/erpnext:v16.23.1@sha256:fb17c58c2b604139af4f7908fa790132914b79930c20f82516ca4f2064affb21
+  pull_policy: missing
   restart: unless-stopped
 x-depends-on-configurator:
   depends_on:

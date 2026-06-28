@@ -68,6 +68,7 @@
     mode: '0644'
   loop:
     - brizza-dash.yml
+    - erp.yml
 
 # FORGE-56: Hermes Studio was abandoned (unmaintained April-2026 fork
 # targeting Hermes v0.9, incompatible with the live v2026.6.5 gateway).

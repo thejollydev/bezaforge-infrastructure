@@ -66,7 +66,7 @@
     owner: joseph
     group: joseph
     mode: "0644"
-  loop: "{{ compose_services | intersect(['netbox', 'langfuse', 'homepage', 'open-webui']) }}"
+  loop: "{{ compose_services | intersect(['netbox', 'langfuse', 'homepage', 'open-webui', 'seedbox']) }}"
 
 - name: Deploy env-var service .env files
   ansible.builtin.template:
@@ -75,7 +75,7 @@
     owner: joseph
     group: joseph
     mode: "0600"
-  loop: "{{ compose_services | intersect(['netbox', 'langfuse', 'homepage', 'open-webui']) }}"
+  loop: "{{ compose_services | intersect(['netbox', 'langfuse', 'homepage', 'open-webui', 'seedbox']) }}"
 
 # --- Homepage config + brand assets ---
 # Homepage's YAML config and image assets are version-controlled in
@@ -144,7 +144,7 @@
     owner: joseph
     group: joseph
     mode: "0644"
-  loop: "{{ compose_services | intersect(['uptime-kuma', 'calibre-web']) }}"
+  loop: "{{ compose_services | intersect(['uptime-kuma', 'calibre-web', 'jellyfin']) }}"
 
 # --- Start all services ---
 # docker_compose_v2 with state: present runs "docker compose up -d".

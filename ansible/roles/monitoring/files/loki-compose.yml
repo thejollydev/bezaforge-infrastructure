@@ -4,7 +4,7 @@ networks:
 
 services:
   loki:
-    image: grafana/loki:latest
+    image: grafana/loki:3.6.6@sha256:434c7effbd66dbf69c2665fe4b2125549ecf7b45039ac28595d4034031cf47ce
     container_name: loki
     restart: unless-stopped
     ports:
@@ -17,7 +17,7 @@ services:
       - bezaforge-net
 
   promtail:
-    image: grafana/promtail:latest
+    image: grafana/promtail:3.6.6@sha256:73440757b88c8cd4452f199b2ec109590d27cdbbd594264e317466dcd7de7932
     container_name: promtail
     restart: unless-stopped
     user: root

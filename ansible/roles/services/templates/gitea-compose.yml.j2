@@ -4,7 +4,7 @@ networks:
 
 services:
   gitea-db:
-    image: postgres:15-alpine
+    image: postgres:15-alpine@sha256:5fe8ca7fc662071188c30271cb870d1ce9a6ec4578c934b064697ae77a9241e1
     container_name: gitea-db
     restart: unless-stopped
     environment:
@@ -17,7 +17,7 @@ services:
       - bezaforge-net
 
   gitea:
-    image: gitea/gitea:latest
+    image: gitea/gitea:1.25.4@sha256:17d18218be2dad1f8ed402a4f906989505c90ab8b66ee9befcecfb5d470133e7
     container_name: gitea
     restart: unless-stopped
     depends_on:

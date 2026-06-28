@@ -4,7 +4,7 @@ networks:
 
 services:
   netbox:
-    image: netboxcommunity/netbox:latest
+    image: netboxcommunity/netbox:v4.0.0@sha256:d9d62c627d0e23a6c15f9abd35246e49ac001b144003804e976a686d4ac5920a
     container_name: netbox
     restart: unless-stopped
     depends_on:
@@ -43,7 +43,7 @@ services:
       - "traefik.http.services.netbox.loadbalancer.server.port=8080"
 
   netbox-worker:
-    image: netboxcommunity/netbox:latest
+    image: netboxcommunity/netbox:v4.0.0@sha256:d9d62c627d0e23a6c15f9abd35246e49ac001b144003804e976a686d4ac5920a
     container_name: netbox-worker
     restart: unless-stopped
     command: /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py rqworker
@@ -68,7 +68,7 @@ services:
       - bezaforge-net
 
   netbox-postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:97ff59a4e30e08d1c11bdcd9455e7832368c0572b576c9092cde2df4ae5552a3
     container_name: netbox-postgres
     restart: unless-stopped
     environment:
@@ -86,7 +86,7 @@ services:
       retries: 5
 
   netbox-redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:02f2cc4882f8bf87c79a220ac958f58c700bdec0dfb9b9ea61b62fb0e8f1bfcf
     container_name: netbox-redis
     restart: unless-stopped
     command: redis-server --appendonly yes
@@ -101,7 +101,7 @@ services:
       retries: 5
 
   netbox-redis-cache:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:02f2cc4882f8bf87c79a220ac958f58c700bdec0dfb9b9ea61b62fb0e8f1bfcf
     container_name: netbox-redis-cache
     restart: unless-stopped
     networks:

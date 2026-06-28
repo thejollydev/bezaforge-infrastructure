@@ -126,7 +126,7 @@ services:
     # Postgres 17 = Langfuse v3's tested default. Isolated DB — intentionally
     # not pinned to the fleet's PG15 (no cross-DB dependency). Container name
     # kept as 'langfuse-db' so the db-dumps role needs no change.
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:4649d4ce53680767b3ba9a57f814d7ffa5cd694a03bba551576fb3dd6cb90b01
     container_name: langfuse-db
     restart: unless-stopped
     environment:
@@ -147,7 +147,7 @@ services:
       retries: 5
 
   langfuse-clickhouse:
-    image: clickhouse/clickhouse-server:25.8
+    image: clickhouse/clickhouse-server:25.8@sha256:0fa332a9a05ce4138b16d883f9c9d124c8d9d81cf4e52046878d537558626e49
     container_name: langfuse-clickhouse
     restart: unless-stopped
     user: "101:101"
@@ -168,7 +168,7 @@ services:
       start_period: 1s
 
   langfuse-redis:
-    image: redis:7
+    image: redis:7@sha256:33d7c9a245edd95e6703a0addbeaa48fe40c3b3b4783627a72085155462ebfdb
     container_name: langfuse-redis
     restart: unless-stopped
     # noeviction: Redis is a durable-ish queue here, not just a cache —
@@ -187,8 +187,11 @@ services:
       retries: 10
 
   langfuse-minio:
-    # Chainguard distroless MinIO (upstream-faithful). No semver tags
-    # published → :latest (digest-pin later if strict reproducibility needed).
+    # Chainguard distroless MinIO (upstream-faithful). DELIBERATELY left on
+    # :latest (FORGE-70) — the only floating tag in the repo not digest-pinned.
+    # Chainguard's free tier only keeps the CURRENT :latest digest pullable and
+    # garbage-collects older ones, so a digest pin would eventually fail to pull.
+    # If a hard pin is ever required, switch to official minio/minio instead.
     # The entrypoint mkdir creates the 'langfuse' bucket before the server
     # starts (MinIO stores buckets as top-level dirs under the data root).
     image: cgr.dev/chainguard/minio:latest
