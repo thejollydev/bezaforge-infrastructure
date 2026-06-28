@@ -46,6 +46,9 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
   memory {
     dedicated = var.memory
+    # floating < dedicated → balloon device + reclaim to this floor under host
+    # pressure. 0 → ballooning disabled (fixed; required for passthrough VMs).
+    floating = var.balloon_minimum
   }
 
   disk {
