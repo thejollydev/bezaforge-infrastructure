@@ -51,23 +51,27 @@ module "forge_ai" {
 module "forge_erp" {
   source = "./modules/proxmox-vm"
 
-  vm_id          = 103
-  name           = "forge-erp"
-  description    = "ERPNext v16 — BezaCore Labs LLC ERP"
-  node_name      = var.proxmox_node
-  cores          = 2
-  memory         = 8192 # 2026-06-21: 4096→8192 — ERPNext (MariaDB + gunicorn workers) was RAM-tight now it holds BCL financial data
-  disk_size      = 50
-  storage_pool   = "vm-fast"
-  disk_interface = "scsi0"
-  cpu_type       = "x86-64-v2-AES"
-  bios_type      = "seabios"
-  bridge         = "vmbr0"
-  vlan_id        = 20
-  ip_address     = "10.10.20.50/24"
-  gateway        = "10.10.20.1"
-  ssh_public_key = var.ssh_public_key
-  tags           = ["erp", "production"]
+  vm_id       = 103
+  name        = "forge-erp"
+  description = "ERPNext v16 — BezaCore Labs LLC ERP"
+  node_name   = var.proxmox_node
+  cores       = 2
+  memory      = 8192 # 2026-06-21: 4096→8192 — ERPNext (MariaDB + gunicorn workers) was RAM-tight now it holds BCL financial data
+  # FORGE-83: enable ballooning (no passthrough). Reclaim 8192→4096 under host
+  # pressure (>80%); floor 4096 covers MariaDB buffer pool + gunicorn peak so the
+  # guest OOM killer never fires. Also makes the Proxmox RAM gauge accurate.
+  balloon_minimum = 4096
+  disk_size       = 50
+  storage_pool    = "vm-fast"
+  disk_interface  = "scsi0"
+  cpu_type        = "x86-64-v2-AES"
+  bios_type       = "seabios"
+  bridge          = "vmbr0"
+  vlan_id         = 20
+  ip_address      = "10.10.20.50/24"
+  gateway         = "10.10.20.1"
+  ssh_public_key  = var.ssh_public_key
+  tags            = ["erp", "production"]
   # vga_type omitted intentionally — inherits module default "std", which matches
   # forge-erp's effective current Proxmox state (vga unset on Proxmox = std default).
   create_from_template = false
@@ -86,12 +90,16 @@ module "forge_erp" {
 module "forge_brizza" {
   source = "./modules/proxmox-vm"
 
-  vm_id               = 104
-  name                = "forge-brizza"
-  description         = "Brizza AI assistant — Hermes Agent bridge (Discord + dashboard)"
-  node_name           = var.proxmox_node
-  cores               = 4
-  memory              = 16384
+  vm_id       = 104
+  name        = "forge-brizza"
+  description = "Brizza AI assistant — Hermes Agent bridge (Discord + dashboard)"
+  node_name   = var.proxmox_node
+  cores       = 4
+  memory      = 16384
+  # FORGE-83: enable ballooning (no passthrough). Reclaim 16384→4096 under host
+  # pressure; floor 4096 is generous for the lightly-loaded Hermes bridge (could
+  # be lowered for more reclaim). Makes the Proxmox RAM gauge accurate too.
+  balloon_minimum     = 4096
   disk_size           = 100
   storage_pool        = "vm-fast"
   disk_interface      = "scsi0"

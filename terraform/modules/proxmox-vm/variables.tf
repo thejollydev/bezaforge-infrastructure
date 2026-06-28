@@ -25,6 +25,21 @@ variable "memory" {
   default     = 2048
 }
 
+variable "balloon_minimum" {
+  description = <<-EOT
+    Minimum memory in MB for VirtIO ballooning (Proxmox 'floating'/balloon value).
+    0 (default) = ballooning DISABLED, fixed allocation — REQUIRED for PCI-passthrough
+    VMs (e.g. forge-ai), whose RAM must be pinned for DMA. Set a value < `memory` to
+    attach the balloon device and let Proxmox reclaim down to this floor when host RAM
+    pressure exceeds ~80%; below that pressure the guest keeps full `memory`. Also makes
+    the Proxmox RAM gauge accurate. Set the floor >= the guest's real peak working set
+    or the in-guest OOM killer may fire under pressure. Attaching/removing the device
+    requires a VM reboot for the guest to (un)load virtio_balloon.
+  EOT
+  type        = number
+  default     = 0
+}
+
 variable "disk_size" {
   description = "Root disk size in GB"
   type        = number
