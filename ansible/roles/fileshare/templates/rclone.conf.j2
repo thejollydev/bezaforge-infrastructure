@@ -1,0 +1,9 @@
+{# rclone config for the Drive RW mount — secrets from host_vars vault.
+   scope = drive (FULL read-write), distinct from gdrive-replica's
+   drive.readonly remote. #}
+[{{ fileshare_drive_remote }}]
+type = drive
+scope = drive
+client_id = {{ vault_fileshare_drive_client_id }}
+client_secret = {{ vault_fileshare_drive_client_secret }}
+token = {{ vault_fileshare_drive_token }}

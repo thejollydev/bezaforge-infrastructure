@@ -1,0 +1,36 @@
+{# Samba config — ADR 0003 Bucket B. One share serving documents +
+   the nested rclone Drive mount. force user = {{ fileshare_user }} so
+   all access (and the FUSE mount, via --allow-other) is consistent. #}
+[global]
+   workgroup = {{ fileshare_workgroup }}
+   server string = BezaForge file share
+   server role = standalone server
+   security = user
+   map to guest = never
+   # Modern clients only.
+   server min protocol = SMB3_00
+   # hosts-allow IS the access guard (hypervisor has no UFW/common role).
+   hosts allow = {{ fileshare_allowed_networks | join(' ') }}
+   hosts deny = 0.0.0.0/0
+   # Don't advertise as a print server.
+   load printers = no
+   printing = bsd
+   printcap name = /dev/null
+   disable spoolss = yes
+   logging = systemd
+   max log size = 1000
+
+[{{ fileshare_share_name }}]
+   comment = BezaForge documents + Google Drive
+   path = {{ fileshare_root }}
+   browseable = yes
+   read only = no
+   valid users = {{ fileshare_user }}
+   force user = {{ fileshare_user }}
+   force group = {{ fileshare_group }}
+   create mask = 0664
+   directory mask = 0775
+   # Cross into the nested GoogleDrive FUSE mount.
+   follow symlinks = yes
+   veto files = /.DS_Store/._*/.Trashes/
+   delete veto files = yes

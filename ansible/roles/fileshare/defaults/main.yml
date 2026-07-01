@@ -1,0 +1,81 @@
+---
+# ============================================================
+# fileshare role defaults — Bucket B of ADR 0003
+#
+# One Samba share on forge-hypervisor serving:
+#   - /sharepool/files            general documents (ZFS, single-disk
+#                                 sharepool on the 2 TB Seagate)
+#   - /sharepool/files/GoogleDrive  a live read-WRITE rclone mount of
+#                                 Google Drive (two-way, on-demand, no
+#                                 350 GB local copy)
+#
+# Runs on the hypervisor directly (NOT an LXC): the host already owns
+# rclone (gdrive-replica), vault-sync, sanoid, restic — adding Samba +
+# one more rclone mount matches that pattern and avoids the
+# FUSE-in-unprivileged-LXC unknown (ADR 0003 build refinement, 2026-06-28).
+#
+# Consumers (all via SMB/cifs): laptop, Windows desktop, forge-brizza,
+# forge-ai. Code/vault do NOT live here — that's Bucket A (git + Gitea).
+#
+# One-time prereqs (Joseph, interactive):
+#   1. zpool create sharepool on the blank Seagate + `zfs create
+#      sharepool/files` (done before first run).
+#   2. A read-WRITE rclone token (scope = drive, NOT drive.readonly):
+#      mint via `rclone config` on the laptop, then put client_id /
+#      client_secret / token into host_vars/forge-hypervisor/vault.yml.
+# ============================================================
+
+# --- rclone (reuse the gdrive-replica pin; binary already installed) ---
+fileshare_rclone_version: "1.74.3"
+
+# Dedicated service+share user (owns the dataset, runs the mount, all
+# SMB access is force-mapped to it). Kept separate from vaultsync so the
+# share's write surface doesn't tangle with the vault/replica git actor.
+fileshare_user: bezashare
+fileshare_uid: 1500
+fileshare_group: bezashare
+fileshare_gid: 1500
+
+# --- storage layout ---
+fileshare_root: /sharepool/files               # ZFS dataset (Samba share path)
+fileshare_drive_mountpoint: /sharepool/files/GoogleDrive
+fileshare_cache_dir: /sharepool/rclone-cache   # off the small boot disk
+
+# --- rclone Drive RW mount ---
+fileshare_drive_remote: gdrive-rw              # remote name in the templated conf
+fileshare_drive_export_formats: "docx,xlsx,pptx,svg"   # Google-native → these on read
+# VFS + polling flags (Agent-2 research recipe). full = sane arbitrary writes;
+# poll-interval < dir-cache-time so external Drive edits show in ~15s without
+# constant relisting; write-back uploads ~5s after a file is closed.
+fileshare_mount_flags: >-
+  --vfs-cache-mode full
+  --vfs-cache-max-size 100G
+  --vfs-cache-max-age 168h
+  --vfs-write-back 5s
+  --dir-cache-time 1000h
+  --poll-interval 15s
+  --attr-timeout 1s
+  --buffer-size 32M
+  --vfs-read-ahead 128M
+  --umask 002
+  --allow-other
+
+# --- Samba ---
+fileshare_share_name: files
+fileshare_workgroup: WORKGROUP
+# Who may reach SMB (445). Internal VLANs + WireGuard + loopback. The
+# hypervisor has no `common`/UFW role, so this hosts-allow IS the guard.
+fileshare_allowed_networks:
+  - "127.0.0.1"
+  - "10.10.10.0/24"   # mgmt
+  - "10.10.20.0/24"   # production (forge-ops, forge-erp)
+  - "10.10.30.0/24"   # dev
+  - "10.10.40.0/24"   # home (laptop + Windows desktop)
+  - "10.10.50.0/24"   # AI (forge-brizza, forge-ai)
+  - "10.10.99.0/24"   # WireGuard
+
+# Secrets — define in host_vars/forge-hypervisor/vault.yml:
+#   vault_fileshare_smb_password:        "…"          (the SMB login password)
+#   vault_fileshare_drive_client_id:     "….apps.googleusercontent.com"
+#   vault_fileshare_drive_client_secret: "GOCSPX-…"
+#   vault_fileshare_drive_token:         '{"access_token":"…","refresh_token":"…",…}'
