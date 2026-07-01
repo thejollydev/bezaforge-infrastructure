@@ -1,0 +1,28 @@
+{# Live read-WRITE Google Drive mount (ADR 0003 Bucket B).
+   Two-way: writes upload ~5s after close, deletes/renames propagate,
+   incoming Drive changes poll in ~15s, only accessed files cache. #}
+[Unit]
+Description=rclone RW mount of Google Drive ({{ fileshare_drive_mountpoint }})
+Documentation=https://rclone.org/commands/rclone_mount/
+After=network-online.target
+Wants=network-online.target
+AssertPathIsDirectory={{ fileshare_drive_mountpoint }}
+
+[Service]
+Type=notify
+User={{ fileshare_user }}
+Group={{ fileshare_group }}
+ExecStartPre=/usr/bin/mkdir -p {{ fileshare_cache_dir }}
+ExecStart=/usr/bin/rclone mount {{ fileshare_drive_remote }}: {{ fileshare_drive_mountpoint }} \
+  --config /home/{{ fileshare_user }}/.config/rclone/rclone.conf \
+  --cache-dir {{ fileshare_cache_dir }} \
+  --uid {{ fileshare_uid }} --gid {{ fileshare_gid }} \
+  --drive-export-formats {{ fileshare_drive_export_formats }} \
+  {{ fileshare_mount_flags | replace('\n', ' ') }} \
+  --log-level INFO
+ExecStop=/bin/fusermount -uz {{ fileshare_drive_mountpoint }}
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

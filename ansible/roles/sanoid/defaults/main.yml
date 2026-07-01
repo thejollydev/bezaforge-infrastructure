@@ -88,6 +88,14 @@ sanoid_templates:
     daily: 14
     weekly: 8
     monthly: 12
+  # sharepool/files documents share (ADR 0003 Bucket B). Moderate doc
+  # churn — no hourly; generous dailies/weeklies as the first safety
+  # layer on a single-disk pool.
+  share:
+    hourly: 0
+    daily: 14
+    weekly: 8
+    monthly: 6
 
 # ------------------------------------------------------------
 # Datasets covered by sanoid
@@ -136,4 +144,14 @@ sanoid_datasets:
 
   - dataset: "bezapool/vault"
     template: "vault"
+    recursive: "no"
+
+  # sharepool/files — documents share (ADR 0003 Bucket B, 2026-06-28).
+  # Single-disk pool (no redundancy) → snapshots are the first safety
+  # layer. The nested GoogleDrive/ is a FUSE mount (not ZFS), invisible
+  # to snapshots — only the real document files are captured (Drive's
+  # own master + trash cover the mounted side). Offsite (zfs send →
+  # bezapool + restic) is a follow-up.
+  - dataset: "sharepool/files"
+    template: "share"
     recursive: "no"

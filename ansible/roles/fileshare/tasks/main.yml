@@ -1,0 +1,116 @@
+---
+# ============================================================
+# fileshare — Samba share + live RW rclone Google Drive mount
+# on forge-hypervisor (ADR 0003 Bucket B)
+# ============================================================
+
+# --- service user ----------------------------------------------------
+- name: Create fileshare group
+  ansible.builtin.group:
+    name: "{{ fileshare_group }}"
+    gid: "{{ fileshare_gid }}"
+
+- name: Create fileshare service user
+  ansible.builtin.user:
+    name: "{{ fileshare_user }}"
+    uid: "{{ fileshare_uid }}"
+    group: "{{ fileshare_group }}"
+    shell: /usr/sbin/nologin
+    home: "/home/{{ fileshare_user }}"
+    create_home: true
+    system: false
+
+# --- storage (pool/dataset created by hand; we own + lay out dirs) ----
+- name: Assert sharepool/files dataset is mounted (created out-of-band)
+  ansible.builtin.command: zfs list -H -o mountpoint sharepool/files
+  register: fileshare_ds
+  changed_when: false
+  failed_when: fileshare_ds.stdout | trim != fileshare_root
+
+- name: Ensure share root + cache dirs exist with correct ownership
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ fileshare_user }}"
+    group: "{{ fileshare_group }}"
+    mode: "0775"
+  loop:
+    - "{{ fileshare_root }}"
+    - "{{ fileshare_drive_mountpoint }}"   # empty mountpoint when rclone is down
+    - "{{ fileshare_cache_dir }}"
+
+# --- rclone (Drive RW mount) ------------------------------------------
+- name: Install pinned upstream rclone .deb {{ fileshare_rclone_version }}
+  ansible.builtin.apt:
+    deb: "https://downloads.rclone.org/v{{ fileshare_rclone_version }}/rclone-v{{ fileshare_rclone_version }}-linux-amd64.deb"
+
+- name: Allow non-owner access to FUSE mounts (Samba must read the mount)
+  ansible.builtin.lineinfile:
+    path: /etc/fuse.conf
+    regexp: '^#?\s*user_allow_other'
+    line: user_allow_other
+    state: present
+
+- name: Ensure rclone config dir for {{ fileshare_user }}
+  ansible.builtin.file:
+    path: "/home/{{ fileshare_user }}/.config/rclone"
+    state: directory
+    owner: "{{ fileshare_user }}"
+    group: "{{ fileshare_group }}"
+    mode: "0700"
+
+- name: Deploy rclone config (Drive RW remote — secrets from vault)
+  ansible.builtin.template:
+    src: rclone.conf.j2
+    dest: "/home/{{ fileshare_user }}/.config/rclone/rclone.conf"
+    owner: "{{ fileshare_user }}"
+    group: "{{ fileshare_group }}"
+    mode: "0600"
+  no_log: true
+  notify: restart rclone gdrive mount
+
+- name: Deploy rclone Drive mount systemd unit
+  ansible.builtin.template:
+    src: rclone-gdrive-mount.service.j2
+    dest: /etc/systemd/system/rclone-gdrive-mount.service
+    mode: "0644"
+  notify: restart rclone gdrive mount
+
+- name: Enable + start the rclone Drive mount
+  ansible.builtin.systemd:
+    name: rclone-gdrive-mount.service
+    enabled: true
+    state: started
+    daemon_reload: true
+
+# --- Samba ------------------------------------------------------------
+- name: Install Samba
+  ansible.builtin.apt:
+    name: samba
+    state: present
+    update_cache: true
+
+- name: Deploy smb.conf
+  ansible.builtin.template:
+    src: smb.conf.j2
+    dest: /etc/samba/smb.conf
+    validate: testparm -s %s
+    mode: "0644"
+  notify: restart samba
+
+- name: Set the Samba password (idempotent) for user {{ fileshare_user }}
+  ansible.builtin.shell: >-
+    set -o pipefail;
+    printf '%s\n%s\n' '{{ vault_fileshare_smb_password }}' '{{ vault_fileshare_smb_password }}'
+    | smbpasswd -s -a {{ fileshare_user }}
+  args:
+    executable: /bin/bash
+  register: fileshare_smbpw
+  changed_when: "'Added user' in fileshare_smbpw.stdout"
+  no_log: true
+
+- name: Enable + start Samba
+  ansible.builtin.systemd:
+    name: smbd
+    enabled: true
+    state: started

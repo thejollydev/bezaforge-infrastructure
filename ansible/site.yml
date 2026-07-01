@@ -23,6 +23,11 @@
     # amended v1.4.
     - role: gdrive-replica
       tags: gdrive-replica
+    # ADR 0003 Bucket B: one Samba share + a live RW rclone Google Drive
+    # mount, on the hypervisor directly (already the rclone/vault-sync
+    # services host — avoids the FUSE-in-unprivileged-LXC unknown).
+    - role: fileshare
+      tags: fileshare
 
 - name: Configure BezaForge Docker hosts
   hosts: docker_hosts
