@@ -1,0 +1,60 @@
+---
+# ============================================================
+# fileshare-client role defaults — consumer side of ADR 0003
+# Bucket B (FORGE-85)
+#
+# Mounts the `files` Samba share served by roles/fileshare on
+# forge-hypervisor, giving agent VMs (forge-brizza, forge-ai)
+# filesystem access to documents + the live two-way Google
+# Drive mount — an agent write is a plain file write, no Drive
+# MCP/API needed.
+#
+# Reachability note: the hypervisor is single-homed on the Mgmt
+# VLAN (10.10.10.10). VLANs 20/50 → Mgmt routing is permitted by
+# the live Omada Gateway ACL (verified 2026-06-26, FORGE-18 —
+# see design/ip-allocation.md); VLAN 40 consumers instead need
+# membership in the `jolly-LOQ-arch` admin IP group (the Windows
+# dev PC lesson, 2026-07-02).
+#
+# Secret: vault_fileshare_smb_password lives in
+# inventory/group_vars/all/vault.yml (single encrypted source
+# shared by the server role and every client host).
+# ============================================================
+
+fileshare_client_server: 10.10.10.10
+fileshare_client_share: files
+fileshare_client_mountpoint: /mnt/bezashare
+
+# SMB login — the fileshare role's dedicated share user. All access
+# is force-mapped to it server-side regardless of client identity.
+fileshare_client_username: bezashare
+
+# Local ownership as seen THROUGH the mount. cifs has no per-file
+# ownership; everything appears as this uid/gid. 1000 = joseph (the
+# agent/service user on both forge-brizza and forge-ai).
+fileshare_client_uid: 1000
+fileshare_client_gid: 1000
+
+# Root-only credentials file consumed by mount.cifs.
+fileshare_client_credentials_file: /etc/bezashare-smb-credentials
+
+# Mount options (joined with commas below — a folded scalar would
+# join lines with SPACES and corrupt the opts string):
+#   credentials=…        password kept out of fstab (world-readable)
+#   uid/gid/file_mode/dir_mode  local presentation (see above)
+#   iocharset=utf8       correct filename handling
+#   _netdev,nofail       never block/fail boot on an unreachable share
+#   x-systemd.automount  mount on first access; self-heals after the
+#                        hypervisor reboots without remount ceremony
+fileshare_client_opt_list:
+  - "credentials={{ fileshare_client_credentials_file }}"
+  - "uid={{ fileshare_client_uid }}"
+  - "gid={{ fileshare_client_gid }}"
+  - "file_mode=0664"
+  - "dir_mode=0775"
+  - "iocharset=utf8"
+  - "_netdev"
+  - "nofail"
+  - "x-systemd.automount"
+
+fileshare_client_opts: "{{ fileshare_client_opt_list | join(',') }}"

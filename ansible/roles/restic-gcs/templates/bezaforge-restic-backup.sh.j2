@@ -27,6 +27,9 @@ if ! restic backup \
     --host "{{ restic_hostname }}" \
     --tag forge-ops-backup \
     --tag adr-0001 \
+{% for excl in restic_backup_excludes | default([]) %}
+    --exclude "{{ excl }}" \
+{% endfor %}
 {% for src in restic_backup_sources %}
     "{{ src }}" \
 {% endfor %}

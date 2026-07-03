@@ -1,0 +1,10 @@
+# Managed by Ansible role: sanoid — do not edit by hand.
+# Nightly cross-pool ZFS replication (FORGE-85 / ADR 0003).
+[Unit]
+Description=BezaForge syncoid cross-pool replication
+# Both pools must be imported; zfs-mount.service implies that.
+After=zfs-mount.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/bezaforge-syncoid.sh

@@ -150,8 +150,38 @@ sanoid_datasets:
   # Single-disk pool (no redundancy) → snapshots are the first safety
   # layer. The nested GoogleDrive/ is a FUSE mount (not ZFS), invisible
   # to snapshots — only the real document files are captured (Drive's
-  # own master + trash cover the mounted side). Offsite (zfs send →
-  # bezapool + restic) is a follow-up.
+  # own master + trash cover the mounted side). Cross-pool replica +
+  # offsite: see sanoid_syncoid_replications below + restic-gcs sources.
   - dataset: "sharepool/files"
     template: "share"
     recursive: "no"
+
+# ------------------------------------------------------------
+# syncoid replications (cross-pool ZFS replicas)
+#
+# syncoid ships in the same Debian `sanoid` package. Each entry
+# replicates src → dest nightly via the bezaforge-syncoid
+# systemd timer. Flags rationale (FORGE-85):
+#   --no-sync-snap             replicate sanoid's own snapshots
+#                              only — no extra syncoid_* snapshot
+#                              clutter on either side.
+#   --delete-target-snapshots  prune the target in lockstep with
+#                              the source, so the replica never
+#                              pins snapshots sanoid already
+#                              expired (the FORGE-44 lesson).
+#
+# ⚠️ Do NOT add a replication target (e.g. bezapool/sharepool-backup)
+# to sanoid_datasets above — it's a backup dataset; snapshotting
+# backups is the FORGE-44 trap. Its snapshot set mirrors the source's.
+# ------------------------------------------------------------
+sanoid_syncoid_replications:
+  # sharepool/files → bezapool: local replica of the single-disk
+  # documents share (ADR 0003 Bucket B). A Seagate death then costs
+  # at most one day of docs; restic→GCS carries the offsite copy.
+  - src: "sharepool/files"
+    dest: "bezapool/sharepool-backup"
+
+# Nightly at 03:15 — after sanoid's midnight/03:00 snapshot cycle has
+# settled, before restic→GCS fires at 04:00 (ordering parity with the
+# other backup legs, though restic reads the live sharepool path).
+sanoid_syncoid_schedule: "*-*-* 03:15:00"

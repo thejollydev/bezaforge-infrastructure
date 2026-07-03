@@ -10,3 +10,7 @@
 - name: run sanoid
   ansible.builtin.command: /usr/sbin/sanoid --cron
   changed_when: false
+
+- name: reload systemd (sanoid)
+  ansible.builtin.systemd:
+    daemon_reload: true

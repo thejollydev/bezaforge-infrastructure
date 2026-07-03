@@ -1,0 +1,46 @@
+---
+# ============================================================
+# fileshare-client — mount the BezaForge `files` SMB share
+# (ADR 0003 Bucket B consumer side, FORGE-85)
+# ============================================================
+
+- name: Sanity-check the SMB credential is available
+  ansible.builtin.assert:
+    that:
+      - vault_fileshare_smb_password is defined
+      - vault_fileshare_smb_password | length > 0
+    fail_msg: >
+      fileshare-client requires vault_fileshare_smb_password (encrypted,
+      inventory/group_vars/all/vault.yml) — the same credential the
+      fileshare server role sets via smbpasswd.
+
+- name: Install cifs-utils
+  ansible.builtin.apt:
+    name: cifs-utils
+    state: present
+    update_cache: true
+
+- name: Deploy SMB credentials file (root-only)
+  ansible.builtin.copy:
+    dest: "{{ fileshare_client_credentials_file }}"
+    content: |
+      username={{ fileshare_client_username }}
+      password={{ vault_fileshare_smb_password }}
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+
+- name: Create mountpoint
+  ansible.builtin.file:
+    path: "{{ fileshare_client_mountpoint }}"
+    state: directory
+    mode: '0755'
+
+- name: Mount the files share and add to fstab
+  ansible.posix.mount:
+    src: "//{{ fileshare_client_server }}/{{ fileshare_client_share }}"
+    path: "{{ fileshare_client_mountpoint }}"
+    fstype: cifs
+    opts: "{{ fileshare_client_opts }}"
+    state: mounted

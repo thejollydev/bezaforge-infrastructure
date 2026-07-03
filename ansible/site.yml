@@ -76,6 +76,10 @@
       tags: rocm
     - role: ollama
       tags: ollama
+    # ADR 0003 Bucket B consumer: mount the hypervisor's `files` SMB
+    # share (docs + live two-way Google Drive) at /mnt/bezashare.
+    - role: fileshare-client
+      tags: fileshare-client
 
 - name: Configure BezaForge assistant hosts
   hosts: assistant_hosts
@@ -91,6 +95,10 @@
     # all hypervisor-specific behavior is disabled in host_vars.
     - role: vault-sync
       tags: vault-sync
+    # ADR 0003 Bucket B consumer: mount the hypervisor's `files` SMB
+    # share (docs + live two-way Google Drive) at /mnt/bezashare.
+    - role: fileshare-client
+      tags: fileshare-client
 
 - name: Configure BezaForge ERP host
   hosts: erp_hosts

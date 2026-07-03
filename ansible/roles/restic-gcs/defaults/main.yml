@@ -33,6 +33,21 @@ restic_backup_sources:
   # 2026-06-17). Pushed nightly at 03:30 by forge-erp-backup.sh on forge-erp —
   # inside this 04:00 window, so GCS carries same-night financial dumps. ~1 MB.
   - /bezapool/forge-erp-backup
+  # sharepool/files documents share (ADR 0003 Bucket B, FORGE-85). Read from
+  # the LIVE dataset (same host — freshest copy; the role's documented v1
+  # live-read tradeoff), NOT the bezapool/sharepool-backup syncoid replica
+  # (that would double-store the same data in the repo). The nested
+  # GoogleDrive/ rclone FUSE mount is excluded below.
+  - /sharepool/files
+
+# Paths restic must NOT descend into. Restic walks the real filesystem,
+# so without this the nested rclone FUSE mount at
+# /sharepool/files/GoogleDrive would pull the ENTIRE ~350 GB Google
+# Drive into Nearline — and a hung rclone mount would hang the whole
+# nightly backup run. Drive's own master copy + the one-way
+# roles/gdrive-replica mirror already cover that data.
+restic_backup_excludes:
+  - /sharepool/files/GoogleDrive
 
 # Daily fire at 04:00 — sanoid's 03:00 daily snapshot will already
 # include the latest rsync/dumps from 02:30+02:45, so restic backs
