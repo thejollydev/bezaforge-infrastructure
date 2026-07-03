@@ -1,6 +1,12 @@
 ---
 # ============================================================
 # group_vars/all — applies to every host in the inventory
+#
+# Restructured 2026-07-02 (FORGE-85): all.yml → all/vars.yml so a
+# sibling encrypted all/vault.yml can hold fleet-shared secrets.
+# Currently there: vault_fileshare_smb_password (the `files` SMB
+# credential — read by roles/fileshare on the hypervisor AND
+# roles/fileshare-client on forge-brizza/forge-ai).
 # ============================================================
 
 # Silences the "discovered Python interpreter" warning Ansible

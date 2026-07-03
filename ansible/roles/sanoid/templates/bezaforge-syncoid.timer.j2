@@ -1,0 +1,11 @@
+# Managed by Ansible role: sanoid — do not edit by hand.
+[Unit]
+Description=Nightly BezaForge syncoid cross-pool replication (FORGE-85)
+
+[Timer]
+OnCalendar={{ sanoid_syncoid_schedule }}
+# Catch up after a powered-off night rather than skipping a day.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

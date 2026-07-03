@@ -74,8 +74,11 @@ fileshare_allowed_networks:
   - "10.10.50.0/24"   # AI (forge-brizza, forge-ai)
   - "10.10.99.0/24"   # WireGuard
 
-# Secrets — define in host_vars/forge-hypervisor/vault.yml:
-#   vault_fileshare_smb_password:        "…"          (the SMB login password)
+# Secrets:
+#   vault_fileshare_smb_password — inventory/group_vars/all/vault.yml
+#     (moved from host_vars 2026-07-02, FORGE-85: the fileshare-client
+#     role on forge-brizza/forge-ai reads the same credential)
+# Define in host_vars/forge-hypervisor/vault.yml (server-only):
 #   vault_fileshare_drive_client_id:     "….apps.googleusercontent.com"
 #   vault_fileshare_drive_client_secret: "GOCSPX-…"
 #   vault_fileshare_drive_token:         '{"access_token":"…","refresh_token":"…",…}'

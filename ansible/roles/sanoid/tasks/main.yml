@@ -56,6 +56,43 @@
     mode: '0644'
   notify: run sanoid
 
+# ------------------------------------------------------------
+# syncoid cross-pool replication (FORGE-85 / ADR 0003)
+# syncoid ships in the sanoid package installed above.
+# ------------------------------------------------------------
+- name: Deploy bezaforge-syncoid.sh
+  ansible.builtin.template:
+    src: bezaforge-syncoid.sh.j2
+    dest: /usr/local/bin/bezaforge-syncoid.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Deploy syncoid systemd unit + timer
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "/etc/systemd/system/{{ item.dest }}"
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+    - { src: 'bezaforge-syncoid.service.j2', dest: 'bezaforge-syncoid.service' }
+    - { src: 'bezaforge-syncoid.timer.j2', dest: 'bezaforge-syncoid.timer' }
+  notify: reload systemd (sanoid)
+
+- name: Flush handlers (reload systemd)
+  ansible.builtin.meta: flush_handlers
+
+# Skipped in check mode: a first --check run only SIMULATES writing the
+# unit file, so systemd can't find it and this task would false-fail.
+# The unit diff above already shows what a real run deploys.
+- name: Enable + start syncoid timer
+  ansible.builtin.systemd:
+    name: bezaforge-syncoid.timer
+    enabled: true
+    state: started
+  when: not ansible_check_mode
+
 - name: Ensure sanoid.timer is enabled and running
   ansible.builtin.systemd:
     name: sanoid.timer
