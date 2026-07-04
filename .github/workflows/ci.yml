@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: '3.14'
       - run: pip install yamllint==1.38.0
       - run: yamllint -c .yamllint .
 
@@ -46,7 +46,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: '3.14'
       - run: pip install ansible-lint==26.4.0 ansible-core==2.21.0
       - run: ansible-galaxy collection install -r ansible/requirements.yml
       - run: ansible-lint
