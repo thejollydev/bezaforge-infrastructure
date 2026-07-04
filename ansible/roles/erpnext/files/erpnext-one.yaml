@@ -5,7 +5,7 @@ services:
       configurator:
         condition: service_completed_successfully
         required: true
-    image: frappe/erpnext:v16.23.1@sha256:fb17c58c2b604139af4f7908fa790132914b79930c20f82516ca4f2064affb21
+    image: frappe/erpnext:v16.26.2@sha256:549a6681171b99aece2502ef5af1d13d8eb4cc900bd1426f9c0a3cc8c9f2378a
     networks:
       default: null
       mariadb-network: null
@@ -37,7 +37,7 @@ services:
       REDIS_CACHE: redis-cache:6379
       REDIS_QUEUE: redis-queue:6379
       SOCKETIO_PORT: "9000"
-    image: frappe/erpnext:v16.23.1@sha256:fb17c58c2b604139af4f7908fa790132914b79930c20f82516ca4f2064affb21
+    image: frappe/erpnext:v16.26.2@sha256:549a6681171b99aece2502ef5af1d13d8eb4cc900bd1426f9c0a3cc8c9f2378a
     networks:
       default: null
       mariadb-network: null
@@ -68,7 +68,7 @@ services:
       UPSTREAM_REAL_IP_ADDRESS: 10.10.20.20
       UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
       UPSTREAM_REAL_IP_RECURSIVE: "off"
-    image: frappe/erpnext:v16.23.1@sha256:fb17c58c2b604139af4f7908fa790132914b79930c20f82516ca4f2064affb21
+    image: frappe/erpnext:v16.26.2@sha256:549a6681171b99aece2502ef5af1d13d8eb4cc900bd1426f9c0a3cc8c9f2378a
     networks:
       default: null
     platform: linux/amd64
@@ -91,7 +91,7 @@ services:
       configurator:
         condition: service_completed_successfully
         required: true
-    image: frappe/erpnext:v16.23.1@sha256:fb17c58c2b604139af4f7908fa790132914b79930c20f82516ca4f2064affb21
+    image: frappe/erpnext:v16.26.2@sha256:549a6681171b99aece2502ef5af1d13d8eb4cc900bd1426f9c0a3cc8c9f2378a
     networks:
       default: null
       mariadb-network: null
@@ -113,7 +113,7 @@ services:
       configurator:
         condition: service_completed_successfully
         required: true
-    image: frappe/erpnext:v16.23.1@sha256:fb17c58c2b604139af4f7908fa790132914b79930c20f82516ca4f2064affb21
+    image: frappe/erpnext:v16.26.2@sha256:549a6681171b99aece2502ef5af1d13d8eb4cc900bd1426f9c0a3cc8c9f2378a
     networks:
       default: null
       mariadb-network: null
@@ -148,7 +148,7 @@ services:
       configurator:
         condition: service_completed_successfully
         required: true
-    image: frappe/erpnext:v16.23.1@sha256:fb17c58c2b604139af4f7908fa790132914b79930c20f82516ca4f2064affb21
+    image: frappe/erpnext:v16.26.2@sha256:549a6681171b99aece2502ef5af1d13d8eb4cc900bd1426f9c0a3cc8c9f2378a
     networks:
       default: null
       mariadb-network: null
@@ -168,7 +168,7 @@ services:
       configurator:
         condition: service_completed_successfully
         required: true
-    image: frappe/erpnext:v16.23.1@sha256:fb17c58c2b604139af4f7908fa790132914b79930c20f82516ca4f2064affb21
+    image: frappe/erpnext:v16.26.2@sha256:549a6681171b99aece2502ef5af1d13d8eb4cc900bd1426f9c0a3cc8c9f2378a
     networks:
       default: null
     platform: linux/amd64
@@ -194,13 +194,13 @@ x-backend-defaults:
   depends_on:
     configurator:
       condition: service_completed_successfully
-  image: frappe/erpnext:v16.23.1@sha256:fb17c58c2b604139af4f7908fa790132914b79930c20f82516ca4f2064affb21
+  image: frappe/erpnext:v16.26.2@sha256:549a6681171b99aece2502ef5af1d13d8eb4cc900bd1426f9c0a3cc8c9f2378a
   pull_policy: missing
   restart: unless-stopped
   volumes:
     - sites:/home/frappe/frappe-bench/sites
 x-customizable-image:
-  image: frappe/erpnext:v16.23.1@sha256:fb17c58c2b604139af4f7908fa790132914b79930c20f82516ca4f2064affb21
+  image: frappe/erpnext:v16.26.2@sha256:549a6681171b99aece2502ef5af1d13d8eb4cc900bd1426f9c0a3cc8c9f2378a
   pull_policy: missing
   restart: unless-stopped
 x-depends-on-configurator:
