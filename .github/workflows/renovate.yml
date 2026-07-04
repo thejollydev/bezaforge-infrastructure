@@ -1,0 +1,53 @@
+---
+# BezaForge IaC — Renovate (self-hosted dependency-update PRs). FORGE-81.
+#
+# Runs Renovate in our own GitHub Actions runner (no third-party Mend app has
+# repo access). Renovate reads .github/renovate.json and opens reviewed PRs for
+# container-image, GitHub Actions, and Terraform-provider updates. Deployment
+# stays manual (ansible-playbook) — a merged bump is git-visible but NOT live
+# until it is deployed, so `git log` remains the deploy gate. See guide
+# phases/2-automation/03-cicd-pipeline.md.
+#
+# Requires a RENOVATE_TOKEN secret (a fine-grained PAT — Contents: RW,
+# Pull requests: RW, Workflows: RW). The default GITHUB_TOKEN is NOT usable:
+# its PRs don't trigger CI (so automerge couldn't gate on ci.yml) and it can't
+# edit workflow files. Setup steps live in the FORGE-81 runbook.
+name: Renovate
+
+on:
+  schedule:
+    # Mondays 11:00 UTC (~06:00–07:00 America/New_York). Actions cron is UTC.
+    - cron: '0 11 * * 1'
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: Renovate log level
+        type: choice
+        default: info
+        options: [info, debug]
+      dryRun:
+        description: Dry run (log only, open no PRs)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+jobs:
+  renovate:
+    name: renovate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: renovatebot/github-action@v46
+        with:
+          token: ${{ secrets.RENOVATE_TOKEN }}
+        env:
+          LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
+          RENOVATE_DRY_RUN: ${{ (inputs.dryRun && 'full') || 'null' }}
+          RENOVATE_AUTODISCOVER: 'false'
+          RENOVATE_REPOSITORIES: ${{ github.repository }}

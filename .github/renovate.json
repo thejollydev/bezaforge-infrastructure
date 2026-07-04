@@ -1,0 +1,73 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits"
+  ],
+  "timezone": "America/New_York",
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 6,
+  "prHourlyLimit": 0,
+  "dependencyDashboardTitle": "Renovate — dependency dashboard (FORGE-81)",
+  "ansible-galaxy": {
+    "description": "requirements.yml collections are intentionally unpinned; nothing to bump until versions are added.",
+    "enabled": true
+  },
+  "docker-compose": { "enabled": false },
+  "dockerfile": { "enabled": false },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Container images in compose files, Jinja (.j2) templates, and Ansible *_image vars. Handles the FORGE-70 tag@sha256 form, tag-only images, and digest-only (no-tag) images. Skips values containing Jinja {{ }} or ${ } (unresolvable tags).",
+      "managerFilePatterns": [
+        "/^ansible/roles/.+\\.ya?ml(\\.j2)?$/",
+        "/^docker/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "image:\\s+[\"']?(?<depName>[^\\s:@\"'${}]+)(?::(?<currentValue>[^\\s@\"'${}]+))?(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Pin digests for every managed container image — aligns updates to the FORGE-70 tag@sha256 standard (adds a digest to tag-only images on bump).",
+      "matchDatasources": ["docker"],
+      "pinDigests": true
+    },
+    {
+      "description": "Coordinated app stacks — images are version-locked as a unit and updated via their own runbooks (ERPNext = FORGE-84 frappe_docker + bench migrate; Plane = APP_RELEASE; LangFuse = the v3 stack). Renovate must not bump them piecemeal.",
+      "matchFileNames": [
+        "ansible/roles/erpnext/**",
+        "ansible/roles/plane/**",
+        "ansible/roles/services/files/langfuse-compose.yml"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Chainguard free-tier images garbage-collect old digests — must stay on :latest, never digest-pinned.",
+      "matchPackageNames": ["cgr.dev/chainguard/**"],
+      "enabled": false
+    },
+    {
+      "description": "Database & cache engines need a manual data-dir migration on a major bump (see the postgres-18 data-dir gotcha) — allow minor/patch/digest only.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": [
+        "postgres",
+        "mariadb",
+        "redis",
+        "valkey/valkey",
+        "clickhouse/clickhouse-server"
+      ],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "description": "Digest-only refreshes (same tag, re-pushed image) auto-merge — low-risk, still git-visible and not live until an Ansible deploy picks them up.",
+      "matchUpdateTypes": ["digest"],
+      "automerge": true
+    }
+  ]
+}
