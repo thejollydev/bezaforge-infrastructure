@@ -43,7 +43,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: renovatebot/github-action@v46
+      # This action publishes no moving major tag — pin the full version.
+      # Renovate keeps it current via the github-actions manager.
+      - uses: renovatebot/github-action@v46.1.17
         with:
           token: ${{ secrets.RENOVATE_TOKEN }}
         env:
