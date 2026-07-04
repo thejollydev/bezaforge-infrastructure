@@ -7,7 +7,7 @@ services:
     # Standalone image (NOT the :ollama bundle — Ollama runs on forge-ai).
     # Pinned to a verified stable tag; bump deliberately (Open WebUI ships
     # frequent releases). Registry: GitHub Container Registry.
-    image: ghcr.io/open-webui/open-webui:v0.9.6
+    image: ghcr.io/open-webui/open-webui:v0.10.2
     container_name: open-webui
     restart: unless-stopped
     environment:
