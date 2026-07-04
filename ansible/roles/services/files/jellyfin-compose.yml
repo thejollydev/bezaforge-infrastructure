@@ -12,7 +12,7 @@ networks:
 
 services:
   jellyfin:
-    image: jellyfin/jellyfin:10.11.7@sha256:17285f9cce63b3519ccad82b84497fc22482c20f8b8bbe0580d51fec5deaa6fd
+    image: jellyfin/jellyfin:10.11.11@sha256:aefb67e6a7ff1debdd154a78a7bbb780fd0c873d8639210a7f6a2016ad2b35db
     container_name: jellyfin
     user: "1000:1000"
     group_add:
