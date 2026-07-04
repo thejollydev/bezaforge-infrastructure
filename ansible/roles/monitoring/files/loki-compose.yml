@@ -17,7 +17,7 @@ services:
       - bezaforge-net
 
   promtail:
-    image: grafana/promtail:3.6.6@sha256:73440757b88c8cd4452f199b2ec109590d27cdbbd594264e317466dcd7de7932
+    image: grafana/promtail:3.6.11@sha256:a761cb834cfaeee29745440d4884d6748f0a08d8f68928db1d707018c1dcfbe9
     container_name: promtail
     restart: unless-stopped
     user: root
