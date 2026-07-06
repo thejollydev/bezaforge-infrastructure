@@ -65,6 +65,12 @@
       "enabled": false
     },
     {
+      "description": "Traefik held at 3.6.x — v3.7.6 (#102) segfaulted (SIGSEGV/exit 139) on startup on forge-ops and took the whole *.bezaforge.dev fleet down 2026-07-06. v3.6.8 is proven-good on this host. Remove this cap only after a v3.7.x image is verified working here.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["traefik"],
+      "allowedVersions": "<3.7.0"
+    },
+    {
       "description": "Digest-only refreshes (same tag, re-pushed image) auto-merge — low-risk, still git-visible and not live until an Ansible deploy picks them up.",
       "matchUpdateTypes": ["digest"],
       "automerge": true
