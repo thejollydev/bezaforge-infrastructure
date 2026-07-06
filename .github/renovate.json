@@ -65,10 +65,10 @@
       "enabled": false
     },
     {
-      "description": "Traefik held at 3.6.x — v3.7.6 (#102) segfaulted (SIGSEGV/exit 139) on startup on forge-ops and took the whole *.bezaforge.dev fleet down 2026-07-06. v3.6.8 is proven-good on this host. Remove this cap only after a v3.7.x image is verified working here.",
+      "description": "Skip traefik v3.7.6 ONLY — that single patch segfaults (SIGSEGV/exit 139) during Go runtime init on forge-ops's real i9-12900H, taking the whole *.bezaforge.dev fleet down 2026-07-06. Bisected: 3.7.5 (same go1.25.11) runs fine; the regression is in the 3.7.5->3.7.6 diff (rides with the CVE-2026-54763/64/65 fixes). We run 3.7.5. This range allows 3.7.5 and everything AFTER 3.7.6, so the fixed 3.7.7+ flows through normally (test on forge-ops before merge). Reported upstream; remove this rule once 3.7.7+ is verified here.",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["traefik"],
-      "allowedVersions": "<3.7.0"
+      "allowedVersions": "<3.7.6 || >3.7.6"
     },
     {
       "description": "Digest-only refreshes (same tag, re-pushed image) auto-merge — low-risk, still git-visible and not live until an Ansible deploy picks them up.",
