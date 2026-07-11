@@ -2,9 +2,7 @@
 
 **Audience:** Joseph, or any future operator with `root@forge-hypervisor` + `--ask-vault-pass` access.
 
-**Status:** Policy v1 — 2026-07-06 (FORGE-76). Backups are only as good as the last *restore* you proved. This runbook makes restore-testing a scheduled, repeatable thing instead of a hope. It does **not** automate anything — it defines *what* to drill, *how often*, *the exact commands*, and *where to log the result*.
-
-> **Cadence table below is a PROPOSED default — ratify or adjust before treating it as policy.** Everything else (procedures, commands, log format) is ready to use as-is.
+**Status:** Policy v1 — **ratified 2026-07-11** (FORGE-76). Backups are only as good as the last *restore* you proved. This runbook makes restore-testing a scheduled, repeatable thing instead of a hope. It does **not** automate anything — it defines *what* to drill, *how often*, *the exact commands*, and *where to log the result*.
 
 ---
 
@@ -139,19 +137,18 @@ A walkthrough, not a live restore: "forge-hypervisor is gone — rebuild from ze
 
 ---
 
-## Proposed cadence — RATIFY BEFORE ADOPTING
+## Cadence — ratified 2026-07-11
 
-| Drill | Layer | Proposed cadence | Rationale |
-|-------|-------|------------------|-----------|
-| **B — Offsite restic restore** | 4 | **Semi-annual** | Highest value; only test of the GCS/password/creds path. Do this one first. |
-| **A — VM image restore (forge-erp)** | 1 | **Quarterly** | Financials host; also validates guest-agent fs-freeze quality. |
-| **D — forge-erp bench restore** | 2 | **Semi-annual** | Proves the books restore independent of the VM. |
-| **C — Postgres dump restore** (rotate service) | 2 | **Semi-annual** | Rotate through gitea/plane/outline/etc. so each gets exercised ~yearly. |
-| **A — VM image restore** (rotate other VMs) | 1 | **Annual** | forge-ops / forge-ai / forge-brizza on rotation. |
-| **E — ZFS file recovery** | 3 | **Annual** | Low-risk layer; spot-check granularity. |
-| **F — Full DR tabletop** | all | **Annual** | Catch dependency/creds gaps between layers. |
+Deliberately lean so it actually gets done by a solo operator. **Two tiers, one anchor date each.**
 
-Suggested anchor: run **Drill B + A(forge-erp)** together each quarter-start; layer the semi-annual/annual ones onto the Q1/Q3 runs. A `RECURRING` Plane item per drill (or a single "DR drill — <quarter>" item) keeps it on the radar.
+| When | Drills | Layers | Why this is the whole quarterly/annual set |
+|------|--------|--------|--------------------------------------------|
+| **Quarterly** (each quarter-start) | **B — Offsite restic restore** + **A — VM image restore (forge-erp)** | 4, 1 | The two highest-value drills, ~20 min total. B is the *only* test of the GCS/password/creds path; A validates the financials host boots + its guest-agent fs-freeze. |
+| **Annual** (fold onto the Q1 run) | **C — Postgres dump restore** (rotate one service) + **D — forge-erp bench restore** + **E — ZFS file recovery** + **F — Full DR tabletop** | 2, 2, 3, all | One yearly "everything else" pass. Proves app-level restores (books + a rotated Postgres service), file-level ZFS recovery, and the cross-layer creds/dependency tabletop. |
+
+**Anchor:** run the quarterly **B + A(forge-erp)** together at each quarter-start; on the **Q1** run, add the four annual drills (C/D/E/F). A single recurring Plane item — *"DR drill — <quarter>"* — keeps it on the radar; the Q1 instance carries the annual add-ons.
+
+*Rationale for the lean v1: the risk with a solo operator isn't the cadence being wrong, it's it being too much ceremony to sustain. Start with the two drills that matter most on a habit you'll keep, and add rigor later if the pattern holds. The individual per-layer cadences (semi-annual C/D, annual E/F rotations) can be split back out if annual proves too coarse.*
 
 ---
 
