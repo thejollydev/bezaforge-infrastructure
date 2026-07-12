@@ -99,10 +99,11 @@ forge_brizza_docker_user: joseph
 # Runs bare-metal as {{ forge_brizza_docker_user }} since BRIZZA-66
 # (Docker→bare-metal, 2026-06-16): `hermes` runs DIRECTLY, not via
 # `docker exec` (BRIZZA-73 — the old container wrapper failed nightly
-# once the `hermes` container was removed). NB: this and the FORGE-25
-# rsync backup below are still gated on forge_brizza_install_docker in
-# tasks/main.yml — vestigial now that the host is bare-metal; decoupling
-# that gate is a tracked FORGE follow-up.
+# once the `hermes` container was removed). This job + the FORGE-25 rsync
+# backup gate only on their own `_enabled` flags — FORGE-94 decoupled them
+# from forge_brizza_install_docker, which went vestigial once the host
+# left Docker (BRIZZA-66/70) and would otherwise silently skip both
+# backups if the flag were ever flipped off.
 forge_brizza_hermes_insurance_enabled: true
 # Absolute path to the hermes launcher — ~/.local/bin is NOT on the
 # systemd unit's PATH — plus the bare-metal Hermes state dir the export
@@ -126,8 +127,8 @@ forge_brizza_hermes_insurance_retention_days: 14
 # target with NO git actor — which disproves FORGE-49's git-race theory),
 # which breaks rsync --delete (it scans the dest tree). Over SSH the
 # remote rsync runs ON the hypervisor against the LOCAL ZFS path — no NFS
-# in the path — so --delete + --delete-excluded work. Rides the docker
-# flag (no container → no ~/.hermes).
+# in the path — so --delete + --delete-excluded work. Gates on
+# forge_brizza_hermes_backup_enabled only (FORGE-94 — was the docker flag).
 forge_brizza_hermes_backup_enabled: true
 forge_brizza_hermes_backup_src: /home/{{ forge_brizza_docker_user }}/.hermes
 forge_brizza_hermes_backup_dest_host: 10.10.10.10
