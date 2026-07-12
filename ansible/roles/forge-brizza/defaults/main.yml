@@ -94,10 +94,21 @@ forge_brizza_docker_user: joseph
 # SQLite-WAL, so raw copies can tear). JSONL → ~/.hermes/exports,
 # snapshots → ~/.hermes/state-snapshots (quick mode ignores -o).
 # ⚠ Off-VM durability of ~/.hermes is FORGE-25 — this produces the
-# consistent artifacts that backup should carry. Rides the docker flag:
-# no container, no exports.
+# consistent artifacts that backup carries.
+#
+# Runs bare-metal as {{ forge_brizza_docker_user }} since BRIZZA-66
+# (Docker→bare-metal, 2026-06-16): `hermes` runs DIRECTLY, not via
+# `docker exec` (BRIZZA-73 — the old container wrapper failed nightly
+# once the `hermes` container was removed). NB: this and the FORGE-25
+# rsync backup below are still gated on forge_brizza_install_docker in
+# tasks/main.yml — vestigial now that the host is bare-metal; decoupling
+# that gate is a tracked FORGE follow-up.
 forge_brizza_hermes_insurance_enabled: true
-forge_brizza_hermes_container: hermes
+# Absolute path to the hermes launcher — ~/.local/bin is NOT on the
+# systemd unit's PATH — plus the bare-metal Hermes state dir the export
+# and snapshot commands read/write.
+forge_brizza_hermes_bin: "/home/{{ forge_brizza_docker_user }}/.local/bin/hermes"
+forge_brizza_hermes_state_dir: "/home/{{ forge_brizza_docker_user }}/.hermes"
 # 03:30 — clear of the 07:00 briefing cron and ahead of the hypervisor's
 # 04:00 restic window (relevant once FORGE-25 pulls these off-VM).
 forge_brizza_hermes_insurance_schedule: "*-*-* 03:30:00"
