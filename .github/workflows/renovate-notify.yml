@@ -1,0 +1,60 @@
+---
+# BezaForge IaC — Renovate → Discord notifications. FORGE-90.
+#
+# Renovate (FORGE-81) opens dependency-update PRs authored by the RENOVATE_TOKEN
+# PAT. GitHub does NOT notify Joseph about them — they're his own PAT's PRs — so
+# without this they stay silent until someone checks the PRs tab or the
+# dependency dashboard (#88). This posts each new Renovate PR to the BezaForge
+# Alerts Discord channel, matching the Grafana / Uptime-Kuma alert flow.
+#
+# Fires because PAT-authored PRs DO trigger `pull_request` workflows (unlike the
+# default GITHUB_TOKEN — the exact reason FORGE-81 needed the PAT). Renovate
+# branches are pushed in-repo (not forks), so repo secrets are available here.
+#
+# Scoping: filter on the `renovate/` branch prefix, NOT the `dependencies` label.
+# Renovate adds labels in a separate API call after creating the PR, so they may
+# be absent from the `opened` event payload; the branch prefix is always present
+# at open and is unique to Renovate. Human PRs never match.
+#
+# Requires a DISCORD_WEBHOOK_RENOVATE repo secret = a Discord channel webhook URL
+# (kept out of the repo, same reason Grafana's webhook lives in ansible-vault).
+name: Renovate → Discord
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+# No GITHUB_TOKEN needed — the job only reads the event context and curls out.
+permissions: {}
+
+jobs:
+  notify:
+    name: notify-discord
+    if: startsWith(github.event.pull_request.head.ref, 'renovate/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post PR to Discord
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_RENOVATE }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Build the payload with jq --arg so the (untrusted) PR title can never
+          # break the JSON or inject shell — it is passed as data, never
+          # interpolated into the command.
+          payload="$(jq -n \
+            --arg title "#${PR_NUMBER}: ${PR_TITLE}" \
+            --arg url "${PR_URL}" \
+            '{
+              username: "Renovate",
+              embeds: [{
+                title: $title,
+                url: $url,
+                color: 3447003,
+                description: "New dependency-update PR — review, merge, then deploy (ansible-playbook; a merged bump is not live until deployed).",
+                footer: { text: "bezaforge-infrastructure · Renovate" }
+              }]
+            }')"
+          curl -fsS -X POST -H "Content-Type: application/json" \
+            --data "${payload}" "${WEBHOOK}"
