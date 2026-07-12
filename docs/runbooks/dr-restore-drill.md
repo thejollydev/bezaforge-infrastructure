@@ -159,7 +159,8 @@ Append one row per drill run. Keep it here (version-controlled) so the history t
 | Date | Drill | Target | Result | RTO (wall-clock) | Notes / findings | Operator |
 |------|-------|--------|--------|------------------|------------------|----------|
 | 2026-06-15 | A | forge-erp (VMID 103) → scratch 199 | ✅ Pass | ~not recorded | Booted clean, ERPNext came up. Pre-runbook baseline (recorded retroactively). | Joseph |
-| _next_ | B | restic `latest` → /root/dr-drill | — | — | First-ever offsite restore drill — establishes the baseline. | |
+| 2026-07-11 | B | restic `latest` → /root/dr-drill | ✅ Pass | ~3s | **First-ever offsite restore drill.** GCS auth + repo decrypt + download all confirmed working. Restored `/bezapool/forge-erp-backup` (1.86 MiB) from snapshot `486f15b3`; `database.sql.gz` passed `gunzip -t`, both `-files.tar`/`-private-files.tar` passed `tar -tf`. The GCS/password/creds path — never exercised by ops before — is proven. | Joseph |
+| 2026-07-11 | A | forge-erp (VMID 103) → scratch 199 | ✅ Pass | ~40s (restore) | 50 GB image, 68.5% sparse, `qmrestore`→disk in 39.7s. Booted NIC-down (`link_down=1`); guest-agent up ~5s; all 8 ERPNext containers `Up`, `mariadb-database` `Up (healthy)`. Confirms forge-erp guest-agent is present (not part of FORGE-79/83 gap). Scratch VM purged after. | Joseph |
 
 ---
 
