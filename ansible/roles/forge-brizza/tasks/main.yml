@@ -14,8 +14,9 @@
 #           container (Brizza ADR 0009). Gated on
 #           forge_brizza_install_docker.
 # Hermes insurance (BRIZZA-58): nightly sessions-JSONL + quick-state
-#           exports via systemd timer. Gated on the docker flag +
-#           forge_brizza_hermes_insurance_enabled.
+#           exports via systemd timer. Gated on
+#           forge_brizza_hermes_insurance_enabled (FORGE-94 decoupled
+#           this + the FORGE-25 rsync backup from the docker flag).
 #
 # Companion docs (Master-Mind vault):
 #   - 05_Projects/brizza/ROADMAP.md
@@ -408,7 +409,7 @@
     dest: /usr/local/bin/hermes-insurance.sh
     mode: "0755"
   tags: hermes-insurance
-  when: forge_brizza_install_docker | bool and forge_brizza_hermes_insurance_enabled | bool
+  when: forge_brizza_hermes_insurance_enabled | bool
 
 - name: Deploy hermes-insurance systemd units
   ansible.builtin.template:
@@ -419,7 +420,7 @@
     - hermes-insurance.service
     - hermes-insurance.timer
   tags: hermes-insurance
-  when: forge_brizza_install_docker | bool and forge_brizza_hermes_insurance_enabled | bool
+  when: forge_brizza_hermes_insurance_enabled | bool
 
 - name: Enable and start the hermes-insurance timer
   ansible.builtin.systemd:
@@ -428,7 +429,7 @@
     state: started
     daemon_reload: true
   tags: hermes-insurance
-  when: forge_brizza_install_docker | bool and forge_brizza_hermes_insurance_enabled | bool
+  when: forge_brizza_hermes_insurance_enabled | bool
 
 # ------------------------------------------------------------
 # Hermes off-VM backup (FORGE-25) — see defaults for rationale
@@ -438,14 +439,14 @@
     cmd: ssh-keygen -t ed25519 -N "" -C "hermes-backup@forge-brizza" -f {{ forge_brizza_hermes_backup_ssh_key }}
     creates: "{{ forge_brizza_hermes_backup_ssh_key }}"
   tags: hermes-backup
-  when: forge_brizza_install_docker | bool and forge_brizza_hermes_backup_enabled | bool
+  when: forge_brizza_hermes_backup_enabled | bool
 
 - name: Read the hermes-backup public key
   ansible.builtin.slurp:
     src: "{{ forge_brizza_hermes_backup_ssh_key }}.pub"
   register: _hermes_backup_pubkey
   tags: hermes-backup
-  when: forge_brizza_install_docker | bool and forge_brizza_hermes_backup_enabled | bool
+  when: forge_brizza_hermes_backup_enabled | bool
 
 # Write the exact authorized_keys line to a file rather than printing it via
 # debug: ansible's debug callback JSON-escapes the inner quotes (from="..."
@@ -462,7 +463,7 @@
       from="10.10.50.20",no-pty,no-agent-forwarding,no-port-forwarding,no-X11-forwarding
       {{ _hermes_backup_pubkey.content | b64decode | trim }}
   tags: hermes-backup
-  when: forge_brizza_install_docker | bool and forge_brizza_hermes_backup_enabled | bool
+  when: forge_brizza_hermes_backup_enabled | bool
 
 - name: Show how to register the hermes-backup key on forge-hypervisor (ONE-TIME)
   ansible.builtin.debug:
@@ -471,7 +472,7 @@
       (on forge-brizza) to /root/.ssh/authorized_keys on forge-hypervisor — copy it
       from cat (NOT from this debug output, which escapes the quotes).
   tags: hermes-backup
-  when: forge_brizza_install_docker | bool and forge_brizza_hermes_backup_enabled | bool
+  when: forge_brizza_hermes_backup_enabled | bool
 
 - name: Deploy hermes-backup-rsync script
   ansible.builtin.template:
@@ -479,7 +480,7 @@
     dest: /usr/local/bin/hermes-backup-rsync.sh
     mode: "0755"
   tags: hermes-backup
-  when: forge_brizza_install_docker | bool and forge_brizza_hermes_backup_enabled | bool
+  when: forge_brizza_hermes_backup_enabled | bool
 
 - name: Deploy hermes-backup-rsync systemd units
   ansible.builtin.template:
@@ -490,7 +491,7 @@
     - hermes-backup-rsync.service
     - hermes-backup-rsync.timer
   tags: hermes-backup
-  when: forge_brizza_install_docker | bool and forge_brizza_hermes_backup_enabled | bool
+  when: forge_brizza_hermes_backup_enabled | bool
 
 - name: Enable and start the hermes-backup-rsync timer
   ansible.builtin.systemd:
@@ -499,4 +500,4 @@
     state: started
     daemon_reload: true
   tags: hermes-backup
-  when: forge_brizza_install_docker | bool and forge_brizza_hermes_backup_enabled | bool
+  when: forge_brizza_hermes_backup_enabled | bool
