@@ -52,6 +52,10 @@
       tags: outline
     - role: plane
       tags: plane
+    # PILOT (FORGE): OpenProject as a permanent Plane replacement —
+    # runs alongside Plane at pm.bezaforge.dev, non-destructive.
+    - role: openproject
+      tags: openproject
     - role: brizza-postgres
       tags: brizza-postgres
     - role: db-dumps

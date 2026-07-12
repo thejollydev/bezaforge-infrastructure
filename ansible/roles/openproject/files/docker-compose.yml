@@ -1,0 +1,46 @@
+# OpenProject all-in-one — PILOT (FORGE), Plane replacement evaluation.
+#
+# The openproject/openproject image bundles Postgres + memcached +
+# web + Rails workers under an internal supervisor. It listens on
+# container port 80; Traefik fronts TLS (OPENPROJECT_HTTPS=true in
+# .env forces https URL generation behind the proxy).
+#
+# ⚠ First boot is SLOW (~5-10 min): the container runs DB init +
+# migrations + asset seeding before the web server answers. A 502
+# from Traefik during that window is expected — wait it out.
+#
+# Named volumes (not bind mounts): pilot data is disposable (FORGE
+# is re-migrated from Plane = source of truth), so it's excluded
+# from the file-tree backup on purpose. Teardown: `docker compose
+# down -v` wipes both volumes cleanly. A production cutover would
+# switch to bind mounts under /opt/bezaforge/openproject.
+#
+# Traefik labels mirror the plane-proxy pattern verbatim
+# (router/service = openproject, websecure, letsencrypt, :80).
+
+volumes:
+  openproject_pgdata:
+  openproject_assets:
+
+networks:
+  bezaforge-net:
+    external: true
+
+services:
+  openproject:
+    image: openproject/openproject:${OPENPROJECT_RELEASE}
+    container_name: openproject
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - openproject_pgdata:/var/openproject/pgdata
+      - openproject_assets:/var/openproject/assets
+    networks:
+      - bezaforge-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=bezaforge-net"
+      - "traefik.http.routers.openproject.rule=Host(`${OPENPROJECT_HOST}`)"
+      - "traefik.http.routers.openproject.entrypoints=websecure"
+      - "traefik.http.routers.openproject.tls.certresolver=letsencrypt"
+      - "traefik.http.services.openproject.loadbalancer.server.port=80"

@@ -1,0 +1,47 @@
+---
+# ============================================================
+# openproject role — OpenProject Community (all-in-one), PILOT
+#
+# Non-destructive Plane-replacement evaluation. Deploys the
+# openproject/openproject all-in-one container behind Traefik at
+# pm.bezaforge.dev. Data lives in named Docker volumes (disposable
+# pilot data), so — unlike the plane role — there are NO bind-mount
+# data dirs to create or chown here.
+#
+# Dependencies: docker role (creates bezaforge-net), traefik role
+# (TLS via the letsencrypt certresolver).
+#
+# Post-deploy: first boot takes ~5-10 min (DB init + migrations +
+# seeding). Then log in at https://pm.bezaforge.dev as `admin` with
+# the seeded password and change it. See defaults/main.yml.
+# ============================================================
+
+- name: Create OpenProject install root
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/openproject"
+    state: directory
+    owner: joseph
+    group: joseph
+    mode: "0755"
+
+- name: Deploy OpenProject docker-compose.yml
+  ansible.builtin.copy:
+    src: docker-compose.yml
+    dest: "{{ bezaforge_root }}/openproject/docker-compose.yml"
+    owner: joseph
+    group: joseph
+    mode: "0644"
+
+- name: Deploy OpenProject .env
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ bezaforge_root }}/openproject/.env"
+    owner: joseph
+    group: joseph
+    mode: "0600"
+
+- name: Start OpenProject
+  community.docker.docker_compose_v2:
+    project_src: "{{ bezaforge_root }}/openproject"
+    state: present
+    remove_orphans: true

@@ -1,0 +1,39 @@
+---
+# ============================================================
+# openproject role defaults — OpenProject Community (GPLv3)
+#
+# PILOT (FORGE): evaluating OpenProject as a permanent Plane
+# replacement. Runs NON-DESTRUCTIVELY alongside Plane — separate
+# hostname (pm.bezaforge.dev), separate data, Plane untouched.
+#
+# Deployed as the all-in-one image (openproject/openproject),
+# which bundles Postgres + memcached + web + Rails workers in one
+# container. Chosen over the multi-container compose for the pilot:
+# self-contained, fast teardown (`docker compose down -v`).
+#
+# The pilot's #1 gate: prove the Community REST API v3 filters
+# server-side (the exact thing Plane CE's API could NOT do). If it
+# does, filtering for the Claude Code integration is solved via a
+# free API helper (OpenProject's first-party MCP is an Enterprise
+# add-on; community MCP servers exist if we want MCP ergonomics).
+#
+# Pilot data lives in NAMED VOLUMES (disposable — FORGE is
+# re-migrated from Plane, which stays the source of truth), so it
+# is deliberately NOT covered by forge-ops-backup-rsync. A
+# production cutover would switch to bind mounts under
+# {{ bezaforge_root }}/openproject with proper uid handling.
+# ============================================================
+
+# Upstream release pin (all-in-one image tag). Verified current
+# stable 2026-07-12 (released 2026-07-08). Renovate tracks this.
+openproject_release: "17.6.0"
+
+# Public URL — Traefik routes pm.bezaforge.dev → this container on
+# bezaforge-net. AdGuard rewrites the host to 10.10.20.20. The
+# hostname is deliberately tool-agnostic (pm, not openproject) so a
+# future tool swap doesn't churn DNS/bookmarks/muscle-memory.
+openproject_host: "pm.{{ domain }}"
+openproject_url: "https://pm.{{ domain }}"
+
+# Internal Docker network (created by the docker role).
+openproject_network: bezaforge-net
