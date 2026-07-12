@@ -1,8 +1,9 @@
 # {{ ansible_managed }}
 [Unit]
-Description=Brizza portability exports (sessions JSONL + quick state zip — BRIZZA-58)
-After=docker.service
-Requires=docker.service
+Description=Brizza portability exports (sessions JSONL + quick state snapshot — BRIZZA-58)
+# Bare-metal since BRIZZA-66 (BRIZZA-73): no docker dependency. The export
+# reads ~/.hermes directly and `hermes backup -q` snapshots live state
+# consistently, so it needs no ordering against docker or brizza.service.
 
 [Service]
 Type=oneshot
