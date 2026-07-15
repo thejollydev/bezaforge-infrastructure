@@ -28,7 +28,7 @@
 # mode 0700 on first boot. Managing it in Ansible reverts the uid
 # back to joseph (1000) on every re-run, silently breaking the
 # container on its next restart. Same trap documented in the
-# outline + plane roles.
+# outline role.
 
 - name: Deploy Brizza Postgres schema init script
   ansible.builtin.copy:

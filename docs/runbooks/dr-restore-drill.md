@@ -23,7 +23,7 @@ Per ADR 0001 (MVB four-layer) + the forge-erp hardening in PR #63 (FORGE-60/61/6
 | # | Layer | Produces | Schedule | Offsite? | Restore proves |
 |---|-------|----------|----------|----------|----------------|
 | 1 | **VM image** (Proxmox vzdump, all VMs, `snapshot` mode + guest-agent fs-freeze) | `vzdump-qemu-<vmid>-*.vma.zst` on `bezapool-vzdump`, keep-daily=7 | 02:00 | **No** (on-pool only) | A whole VM boots from bare metal |
-| 2 | **App-consistent dumps** — forge-ops Postgres (`db-dumps`: gitea, langfuse, netbox, outline, plane, brizza → `bezapool/forge-ops-backup`, keep 14) + forge-erp `bench backup --with-files` → `bezapool/forge-erp-backup` | `.sql.gz` / bench `.tgz` | 02:30 / 03:30 | Yes (via layer 4) | A database/site restores independent of the VM |
+| 2 | **App-consistent dumps** — forge-ops Postgres (`db-dumps`: gitea, langfuse, netbox, outline, brizza → `bezapool/forge-ops-backup`, keep 14) + forge-erp `bench backup --with-files` → `bezapool/forge-erp-backup` | `.sql.gz` / bench `.tgz` | 02:30 / 03:30 | Yes (via layer 4) | A database/site restores independent of the VM |
 | 3 | **ZFS snapshots** (sanoid, every 15 min) on `gdrive`, `forge-ops-backup`, `brizza-backup`, `forge-erp-backup`, `downloads`, `media` | block-level snapshots | continuous | No | File-level "undo" + point-in-time recovery |
 | 4 | **Offsite** (restic → GCS Nearline) of `/bezapool/{forge-ops-backup,vault,brizza-backup,forge-erp-backup}` + `/sharepool/files` | encrypted restic repo in GCS | 04:00; integrity `restic check` Sun 05:00 | **Yes (this IS the offsite)** | Data survives total loss of the rack |
 
@@ -75,25 +75,25 @@ rm -rf /root/dr-drill
 
 ### Drill C — Postgres dump restore (layer 2, forge-ops)
 
-Restore a service's nightly dump into a scratch database inside its own container — never over the live DB. Example: Plane (adjust service/container per `db-dumps` defaults).
+Restore a service's nightly dump into a scratch database inside its own container — never over the live DB. Example: Gitea (adjust service/container per `db-dumps` defaults).
 
 ```bash
 # On forge-ops as joseph. Newest dump for the service:
-ls -t /mnt/bezapool/forge-ops-backup/plane/*.sql.gz | head -1
+ls -t /mnt/bezapool/forge-ops-backup/gitea/*.sql.gz | head -1
 # Create a scratch DB and load into it (socket auth inside the container):
-docker exec -e PGHOST=/var/run/postgresql plane-plane-db-1 \
+docker exec gitea-db \
   psql -U <superuser> -c 'CREATE DATABASE dr_drill;'
-gunzip -c /mnt/bezapool/forge-ops-backup/plane/<TS>.sql.gz | \
-  docker exec -i -e PGHOST=/var/run/postgresql plane-plane-db-1 \
+gunzip -c /mnt/bezapool/forge-ops-backup/gitea/<TS>.sql.gz | \
+  docker exec -i gitea-db \
   psql -U <superuser> -d dr_drill
 # Spot-check row counts on a couple of core tables, then drop:
-docker exec -e PGHOST=/var/run/postgresql plane-plane-db-1 \
+docker exec gitea-db \
   psql -U <superuser> -d dr_drill -c '\dt' | head
-docker exec -e PGHOST=/var/run/postgresql plane-plane-db-1 \
+docker exec gitea-db \
   psql -U <superuser> -c 'DROP DATABASE dr_drill;'
 ```
 
-> Plane needs the `PGHOST=/var/run/postgresql` override (its compose injects `PGHOST=plane-db`, forcing TCP + password auth). The other five services (gitea/langfuse/netbox/outline/brizza) do not. The superuser is whatever `POSTGRES_USER` each container sets — read it with `docker exec <container> printenv POSTGRES_USER`.
+> The superuser is whatever `POSTGRES_USER` each container sets — read it with `docker exec <container> printenv POSTGRES_USER`. (Some services inject a `PGHOST` that forces TCP + password auth; if a dump/restore hits `fe_sendauth: no password supplied`, add `-e PGHOST=/var/run/postgresql` to force the local Unix socket — check the `db-dumps` defaults for per-service `pghost` overrides.)
 
 ### Drill D — forge-erp app-consistent restore (layer 2, financials)
 
@@ -146,7 +146,7 @@ Deliberately lean so it actually gets done by a solo operator. **Two tiers, one 
 | **Quarterly** (each quarter-start) | **B — Offsite restic restore** + **A — VM image restore (forge-erp)** | 4, 1 | The two highest-value drills, ~20 min total. B is the *only* test of the GCS/password/creds path; A validates the financials host boots + its guest-agent fs-freeze. |
 | **Annual** (fold onto the Q1 run) | **C — Postgres dump restore** (rotate one service) + **D — forge-erp bench restore** + **E — ZFS file recovery** + **F — Full DR tabletop** | 2, 2, 3, all | One yearly "everything else" pass. Proves app-level restores (books + a rotated Postgres service), file-level ZFS recovery, and the cross-layer creds/dependency tabletop. |
 
-**Anchor:** run the quarterly **B + A(forge-erp)** together at each quarter-start; on the **Q1** run, add the four annual drills (C/D/E/F). A single recurring Plane item — *"DR drill — <quarter>"* — keeps it on the radar; the Q1 instance carries the annual add-ons.
+**Anchor:** run the quarterly **B + A(forge-erp)** together at each quarter-start; on the **Q1** run, add the four annual drills (C/D/E/F). A single recurring OpenProject item — *"DR drill — <quarter>"* — keeps it on the radar; the Q1 instance carries the annual add-ons.
 
 *Rationale for the lean v1: the risk with a solo operator isn't the cadence being wrong, it's it being too much ceremony to sustain. Start with the two drills that matter most on a habit you'll keep, and add rigor later if the pattern holds. The individual per-layer cadences (semi-annual C/D, annual E/F rotations) can be split back out if annual proves too coarse.*
 

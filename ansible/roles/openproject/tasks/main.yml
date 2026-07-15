@@ -1,12 +1,13 @@
 ---
 # ============================================================
-# openproject role — OpenProject Community (all-in-one), PILOT
+# openproject role — OpenProject Community (all-in-one)
 #
-# Non-destructive Plane-replacement evaluation. Deploys the
-# openproject/openproject all-in-one container behind Traefik at
-# pm.bezaforge.dev. Data lives in named Docker volumes (disposable
-# pilot data), so — unlike the plane role — there are NO bind-mount
-# data dirs to create or chown here.
+# The live work tracker (replaced Plane 2026-07, FORGE #455). Deploys
+# the openproject/openproject all-in-one container behind Traefik at
+# pm.bezaforge.dev. Data currently lives in named Docker volumes, so
+# there are NO bind-mount data dirs to create or chown here.
+# ⚠ Named volumes are NOT yet backed up — see the BACKUP GAP note in
+#   defaults/main.yml (FORGE #455 follow-up).
 #
 # Dependencies: docker role (creates bezaforge-net), traefik role
 # (TLS via the letsencrypt certresolver).

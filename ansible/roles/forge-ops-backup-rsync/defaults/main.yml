@@ -42,16 +42,10 @@ backup_services:
     # Open WebUI sqlite DB (users/chats/settings/connections) + uploads +
     # RAG vector store live under data/. FORGE-53.
   - name: outline
-  - name: plane
-    excludes:
-      # RabbitMQ + Valkey state rebuilds from Postgres + queue replay.
-      # MinIO uploads cover via the bind-mounted /opt/bezaforge/plane/minio.
-      # Skip the high-churn live-update + log dirs.
-      - "logs/"
   - name: brizza-postgres
     # Physical copy of the data dir alongside the logical pg_dumpall
     # (db-dumps). The dump is the authoritative restore path; this
-    # mirrors the outline/plane pattern for parity.
+    # mirrors the outline pattern for parity.
   # cognee removed 2026-06-09 (Cognee retired — see Cognee KB doc + journal)
   - name: prometheus
     excludes:
@@ -62,4 +56,5 @@ backup_services:
   - name: traefik
   - name: uptime-kuma
 # wiki removed 2026-05-17 (Wiki.js retired — see ROADMAP carryover #21)
-# taiga removed 2026-05-22 (Taiga retired — replaced by Plane per guide 12)
+# taiga removed 2026-05-22 (Taiga retired — see guide 12)
+# plane removed 2026-07-14 (Plane retired — migrated to OpenProject, FORGE #455)

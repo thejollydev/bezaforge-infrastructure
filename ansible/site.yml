@@ -50,10 +50,8 @@
       tags: services
     - role: outline
       tags: outline
-    - role: plane
-      tags: plane
-    # PILOT (FORGE): OpenProject as a permanent Plane replacement —
-    # runs alongside Plane at pm.bezaforge.dev, non-destructive.
+    # OpenProject — self-hosted work tracking at pm.bezaforge.dev.
+    # Replaced Plane 2026-07 (Plane retired, FORGE #455).
     - role: openproject
       tags: openproject
     - role: brizza-postgres

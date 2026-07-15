@@ -65,12 +65,12 @@
         description: Self-hosted wiki + docs · replaces Wiki.js
         icon: outline.png
         siteMonitor: https://docs.bezaforge.dev
-    - Plane:
-        href: https://plane.bezaforge.dev
-        description: Linear-style project + work tracking
-        icon: plane.png
-        siteMonitor: https://plane.bezaforge.dev
-    # Taiga retired 2026-05-22 — replaced by Plane (above). See ROADMAP carryover #23 / guide 12.
+    - OpenProject:
+        href: https://pm.bezaforge.dev
+        description: Project + work tracking · replaces Plane
+        icon: openproject.png
+        siteMonitor: https://pm.bezaforge.dev
+    # Taiga retired 2026-05-22 → Plane; Plane retired 2026-07-14 → OpenProject (above). FORGE #455.
     - ERPNext:
         # MDI fallback — ERPNext logo isn't in homarr-labs/dashboard-icons.
         # If a custom PNG ever lands at docker/homepage/images/erpnext.png,

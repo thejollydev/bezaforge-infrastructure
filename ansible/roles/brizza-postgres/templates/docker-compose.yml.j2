@@ -18,7 +18,7 @@ services:
     volumes:
       # Postgres 18+ stores data in a major-version subdirectory and
       # wants the volume at /var/lib/postgresql (NOT .../data, which is
-      # the PG≤15 layout used by outline/plane). Mounting the old path
+      # the PG≤15 layout used by outline). Mounting the old path
       # makes the 18 image refuse to start. The host dir will then hold
       # an 18/ subdir; backups (rsync + pg_dumpall) are unaffected.
       - /opt/bezaforge/brizza-postgres/postgres:/var/lib/postgresql
