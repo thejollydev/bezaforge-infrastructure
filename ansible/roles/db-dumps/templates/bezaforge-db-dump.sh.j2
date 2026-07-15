@@ -41,6 +41,25 @@ fi
     svc_dir="${BACKUP_ROOT}/{{ entry.service }}/dumps"
     mkdir -p "${svc_dir}"
     target="${svc_dir}/${TS}.sql.gz"
+{% if entry.dump_cmd is defined %}
+    # Bespoke dump command (service bundles its own Postgres, so the
+    # generic pg_dumpall-via-superuser path below doesn't fit). The
+    # command must emit SQL on stdout; we gzip it. (e.g. OpenProject
+    # all-in-one — #471.)
+    if {{ entry.dump_cmd }} 2>/tmp/bezaforge-db-dump-{{ entry.container }}.err \
+        | gzip -c > "${target}.partial"; then
+        mv "${target}.partial" "${target}"
+        echo "OK   {{ entry.service }} → ${target} ($(stat -c %s "${target}" | numfmt --to=iec)) [dump_cmd]"
+        ls -1t "${svc_dir}"/*.sql.gz 2>/dev/null \
+            | tail -n +$((RETENTION + 1)) \
+            | xargs --no-run-if-empty rm --
+    else
+        echo "FAIL {{ entry.service }} ({{ entry.container }}) [dump_cmd]" >&2
+        cat /tmp/bezaforge-db-dump-{{ entry.container }}.err >&2 || true
+        rm -f "${target}.partial"
+        failed=1
+    fi
+{% else %}
     # Auto-discover the superuser from the container's env. Every
     # official postgres image sets POSTGRES_USER to whatever superuser
     # was bootstrapped at first init. Falling back to "postgres" is
@@ -64,6 +83,7 @@ fi
         rm -f "${target}.partial"
         failed=1
     fi
+{% endif %}
 }
 {% endfor %}
 

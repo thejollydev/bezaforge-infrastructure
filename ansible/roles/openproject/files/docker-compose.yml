@@ -10,17 +10,13 @@
 # migrations + asset seeding before the web server answers. A 502
 # from Traefik during that window is expected — wait it out.
 #
-# ⚠ BACKUP GAP: data is in named volumes (not bind mounts) and is
-# NOT yet backed up — a pilot-phase holdover. Now that this IS the
-# source of truth it needs a real backup path (bind mounts under
-# /opt/bezaforge/openproject + db-dumps + rsync). FORGE #455 follow-up.
+# Backups (#471): pgdata + assets are bind-mounted under
+# /opt/bezaforge/openproject, so forge-ops-backup-rsync captures the
+# tree. The authoritative DB restore path is the app-consistent
+# logical dump in the db-dumps role (openproject entry, dump_cmd).
 #
 # Traefik labels: router/service = openproject, websecure,
 # letsencrypt, :80.
-
-volumes:
-  openproject_pgdata:
-  openproject_assets:
 
 networks:
   bezaforge-net:
@@ -33,8 +29,14 @@ services:
     restart: unless-stopped
     env_file: .env
     volumes:
-      - openproject_pgdata:/var/openproject/pgdata
-      - openproject_assets:/var/openproject/assets
+      # Bind mounts under the install dir (#471) — so the tree is captured by
+      # forge-ops-backup-rsync like every other service, and a `down -v` can't
+      # wipe the DB. Paths are relative to this compose file's dir
+      # (/opt/bezaforge/openproject). Docker creates them empty on a fresh
+      # deploy (the image's entrypoint chowns + initdb's); on the migration
+      # from named volumes they were pre-populated with `cp -a`.
+      - ./pgdata:/var/openproject/pgdata
+      - ./assets:/var/openproject/assets
     networks:
       - bezaforge-net
     labels:

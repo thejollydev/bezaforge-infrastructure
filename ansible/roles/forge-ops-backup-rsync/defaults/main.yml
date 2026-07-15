@@ -42,6 +42,11 @@ backup_services:
     # Open WebUI sqlite DB (users/chats/settings/connections) + uploads +
     # RAG vector store live under data/. FORGE-53.
   - name: outline
+  - name: openproject
+    # pgdata + assets bind-mounted under /opt/bezaforge/openproject (#471).
+    # The db-dumps logical pg_dump is the authoritative DB restore path;
+    # this physical tree copy is a secondary (crash-consistent for the live
+    # pgdata) and captures attachments under assets/.
   - name: brizza-postgres
     # Physical copy of the data dir alongside the logical pg_dumpall
     # (db-dumps). The dump is the authoritative restore path; this

@@ -12,13 +12,13 @@
 # which bundles Postgres + memcached + web + Rails workers in one
 # container.
 #
-# ⚠️ BACKUP GAP (FORGE #455 follow-up): data currently lives in
-# NAMED VOLUMES and is NOT covered by db-dumps / forge-ops-backup-
-# rsync — a holdover from the pilot phase when Plane was the source
-# of truth. Now that OpenProject IS the source of truth, it needs a
-# real backup path: switch to bind mounts under
-# {{ bezaforge_root }}/openproject (proper uid handling) + add its
-# Postgres to db-dumps + the tree to rsync. Tracked separately.
+# Backups (#471): pgdata + assets are bind-mounted under
+# {{ bezaforge_root }}/openproject → captured by forge-ops-backup-
+# rsync. App-consistent DB dumps run via the db-dumps role
+# (openproject entry uses a dump_cmd override:
+# `su - postgres -c 'pg_dump -d openproject -x -O'` — the all-in-one
+# bundles PG internally, so the generic pg_dumpall path doesn't fit).
+# The logical dump is the authoritative restore path.
 # ============================================================
 
 # Upstream release pin (all-in-one image tag). Verified current

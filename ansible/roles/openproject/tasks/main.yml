@@ -4,10 +4,11 @@
 #
 # The live work tracker (replaced Plane 2026-07, FORGE #455). Deploys
 # the openproject/openproject all-in-one container behind Traefik at
-# pm.bezaforge.dev. Data currently lives in named Docker volumes, so
-# there are NO bind-mount data dirs to create or chown here.
-# ⚠ Named volumes are NOT yet backed up — see the BACKUP GAP note in
-#   defaults/main.yml (FORGE #455 follow-up).
+# pm.bezaforge.dev. pgdata + assets are bind-mounted under
+# {{ bezaforge_root }}/openproject (#471) — this role does NOT create
+# or chown those dirs (the image's entrypoint owns pgdata/assets uids;
+# managing them here would revert the uids, the outline-role trap).
+# Docker creates them empty on a fresh deploy.
 #
 # Dependencies: docker role (creates bezaforge-net), traefik role
 # (TLS via the letsencrypt certresolver).
