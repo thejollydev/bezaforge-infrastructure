@@ -33,6 +33,15 @@ postgres_dumps:
     container: netbox-postgres
   - service: outline
     container: outline-db
+  - service: openproject
+    container: openproject
+    # OpenProject all-in-one bundles Postgres internally — no separate
+    # *-db container and no POSTGRES_USER, so the generic pg_dumpall path
+    # doesn't fit. Use OpenProject's official all-in-one dump command:
+    # pg_dump of the single 'openproject' DB, run as the postgres OS user
+    # (socket peer-auth), -x -O so it restores into the DB a fresh
+    # container recreates. (#471)
+    dump_cmd: "docker exec openproject su - postgres -c 'pg_dump -d openproject -x -O'"
   - service: brizza
     container: brizza-db
 # harbor removed 2026-05-17 (retired — see ROADMAP carryover #8)
