@@ -78,9 +78,9 @@ variable "ssh_public_key" {
 }
 
 variable "template_id" {
-  description = "VMID of the cloud-init template to clone"
+  description = "VMID of the cloud-init template to clone (ubuntu-26.04-cloud). Only used when create_from_template = true."
   type        = number
-  default     = 9000
+  default     = 9002
 }
 
 variable "tags" {

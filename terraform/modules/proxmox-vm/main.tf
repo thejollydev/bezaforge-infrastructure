@@ -106,6 +106,11 @@ resource "proxmox_virtual_environment_vm" "vm" {
   }
 
   lifecycle {
-    ignore_changes = [initialization]
+    # `clone` and `initialization` are create-time-only blocks. Terraform applies
+    # them when the VM is first built, but Proxmox doesn't round-trip them cleanly,
+    # and their attributes are force-replacement. Ignoring drift on both lets a
+    # once-cloned VM (e.g. forge-brizza) be re-declared create_from_template=false
+    # — and lets the template_id default move — without destroying the live VM.
+    ignore_changes = [initialization, clone]
   }
 }

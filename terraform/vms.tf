@@ -112,5 +112,12 @@ module "forge_brizza" {
   ssh_public_key      = var.ssh_public_key
   cloud_init_password = var.cloud_init_password
   tags                = ["ai", "brizza"]
+  # Live pet — manage as imported (like forge-ai/erp), not template-clone. It was
+  # cloned from the template at birth, but it's a running VM now; leaving
+  # create_from_template=true kept a live `clone` block whose template vm_id is a
+  # force-replacement attribute, so bumping the template_id default (9000→9002)
+  # would have destroyed+recreated it. Disk is already raw (module default), so no
+  # disk_format override needed. See ROADMAP #107 provisioning decision (2026-07-15).
+  create_from_template = false
 }
 
