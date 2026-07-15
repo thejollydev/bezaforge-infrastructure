@@ -146,8 +146,8 @@
     # wiki removed 2026-05-17 (Wiki.js retired — see ROADMAP carryover #21).
     # The dir on forge-ops is renamed to _retired-wikijs-2026-05-17/ by the
     # ship-down runbook; this list intentionally no longer creates a new wiki/.
-    # taiga removed 2026-06-08 (Taiga retired 2026-05-22, replaced by Plane —
-    # PR #21 / guide 12). Was still re-creating an empty /opt/bezaforge/taiga.
+    # taiga removed 2026-06-08 (Taiga retired 2026-05-22 — PR #21 / guide 12).
+    # Was still re-creating an empty /opt/bezaforge/taiga.
     - uptime-kuma
     - netbox
     - langfuse

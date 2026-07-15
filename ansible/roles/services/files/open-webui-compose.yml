@@ -40,7 +40,7 @@ services:
       # forge-ops-backup-rsync role — which rsyncs /opt/bezaforge/<svc>/ —
       # captures it. Holds the sqlite DB (users/chats/settings/connections),
       # uploads, and the RAG vector store. Docker creates this dir on first
-      # run; deliberately NOT Ansible-managed (mirrors the outline/plane
+      # run; deliberately NOT Ansible-managed (mirrors the outline
       # data-dir ownership trap).
       - /opt/bezaforge/open-webui/data:/app/backend/data
     networks:

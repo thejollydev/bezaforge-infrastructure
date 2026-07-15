@@ -84,15 +84,6 @@ systemctl stop systemd-resolved
 systemctl disable systemd-resolved
 ```
 
-### Plane — Caddy parser quirk + IS_GOOGLE_ENABLED seed
-Upstream Plane v1.3.1's `plane-proxy` (Caddy) crashes parsing the global block if `CERT_ACME_CA` is an empty string (which the compose's `:-` default produces), even when `SITE_ADDRESS=:80` means plain HTTP only.
-Set `CERT_ACME_CA` to the Let's Encrypt default URL in `.env` — never invoked, satisfies the parser.
-
-Plane v1.3.1 also has [makeplane/plane#8679](https://github.com/makeplane/plane/issues/8679) — `IS_GOOGLE_ENABLED` row missing from the `instance_configurations` table on fresh init, so god-mode toggle silently no-ops. Fix codified in `ansible/roles/plane/tasks/main.yml` as an idempotent `INSERT ... ON CONFLICT DO NOTHING` via `community.docker.docker_container_exec`. Remove once upstream PR #8740 merges and we bump.
-
-### Plane — Google OAuth redirect URI (trailing slash)
-Plane v1.3.1 sends `https://plane.bezaforge.dev/auth/google/callback/` (**with trailing slash**) — official Plane docs omit the slash, which produces `redirect_uri_mismatch` from Google. Register both variants (slash + no-slash + mobile) in GCP. See `~/.claude/projects/.../memory/reference_plane_oauth_callback_urls.md`.
-
 ### Homepage — Allowed Hosts
 Requires explicit env var or it refuses connections:
 ```yaml

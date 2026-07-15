@@ -1,4 +1,5 @@
-# OpenProject all-in-one — PILOT (FORGE), Plane replacement evaluation.
+# OpenProject all-in-one — the live work tracker (replaced Plane
+# 2026-07, FORGE #455).
 #
 # The openproject/openproject image bundles Postgres + memcached +
 # web + Rails workers under an internal supervisor. It listens on
@@ -9,14 +10,13 @@
 # migrations + asset seeding before the web server answers. A 502
 # from Traefik during that window is expected — wait it out.
 #
-# Named volumes (not bind mounts): pilot data is disposable (FORGE
-# is re-migrated from Plane = source of truth), so it's excluded
-# from the file-tree backup on purpose. Teardown: `docker compose
-# down -v` wipes both volumes cleanly. A production cutover would
-# switch to bind mounts under /opt/bezaforge/openproject.
+# ⚠ BACKUP GAP: data is in named volumes (not bind mounts) and is
+# NOT yet backed up — a pilot-phase holdover. Now that this IS the
+# source of truth it needs a real backup path (bind mounts under
+# /opt/bezaforge/openproject + db-dumps + rsync). FORGE #455 follow-up.
 #
-# Traefik labels mirror the plane-proxy pattern verbatim
-# (router/service = openproject, websecure, letsencrypt, :80).
+# Traefik labels: router/service = openproject, websecure,
+# letsencrypt, :80.
 
 volumes:
   openproject_pgdata:

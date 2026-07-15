@@ -2,26 +2,23 @@
 # ============================================================
 # openproject role defaults — OpenProject Community (GPLv3)
 #
-# PILOT (FORGE): evaluating OpenProject as a permanent Plane
-# replacement. Runs NON-DESTRUCTIVELY alongside Plane — separate
-# hostname (pm.bezaforge.dev), separate data, Plane untouched.
+# The live work tracker at pm.bezaforge.dev. Replaced Plane
+# 2026-07 (Plane retired, FORGE #455) — its Community REST API v3
+# filters server-side, the exact thing Plane CE's API could NOT do,
+# so the Claude Code integration works via the free op-query helper
+# (OpenProject's first-party MCP is an Enterprise add-on).
 #
 # Deployed as the all-in-one image (openproject/openproject),
 # which bundles Postgres + memcached + web + Rails workers in one
-# container. Chosen over the multi-container compose for the pilot:
-# self-contained, fast teardown (`docker compose down -v`).
+# container.
 #
-# The pilot's #1 gate: prove the Community REST API v3 filters
-# server-side (the exact thing Plane CE's API could NOT do). If it
-# does, filtering for the Claude Code integration is solved via a
-# free API helper (OpenProject's first-party MCP is an Enterprise
-# add-on; community MCP servers exist if we want MCP ergonomics).
-#
-# Pilot data lives in NAMED VOLUMES (disposable — FORGE is
-# re-migrated from Plane, which stays the source of truth), so it
-# is deliberately NOT covered by forge-ops-backup-rsync. A
-# production cutover would switch to bind mounts under
-# {{ bezaforge_root }}/openproject with proper uid handling.
+# ⚠️ BACKUP GAP (FORGE #455 follow-up): data currently lives in
+# NAMED VOLUMES and is NOT covered by db-dumps / forge-ops-backup-
+# rsync — a holdover from the pilot phase when Plane was the source
+# of truth. Now that OpenProject IS the source of truth, it needs a
+# real backup path: switch to bind mounts under
+# {{ bezaforge_root }}/openproject (proper uid handling) + add its
+# Postgres to db-dumps + the tree to rsync. Tracked separately.
 # ============================================================
 
 # Upstream release pin (all-in-one image tag). Verified current

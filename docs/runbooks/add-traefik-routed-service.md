@@ -20,7 +20,7 @@ For Traefik installation, configuration, or DNS challenge setup — see `docs/ar
 
 ### 1. Choose the hostname
 
-Pattern: `<service>.bezaforge.dev` (e.g. `langfuse.bezaforge.dev` for LangFuse, `plane.bezaforge.dev` for Plane).
+Pattern: `<service>.bezaforge.dev` (e.g. `langfuse.bezaforge.dev` for LangFuse, `pm.bezaforge.dev` for OpenProject).
 
 Keep names short, lowercase, no underscores. The hostname will appear in router labels and certificate SANs (the wildcard cert covers them automatically).
 
@@ -96,7 +96,7 @@ labels:
 
 Note the `$$` escaping — Compose interprets a single `$` as a variable reference.
 
-For services with their own auth (Grafana's login, Plane's own auth), no middleware is needed.
+For services with their own auth (Grafana's login, OpenProject's own auth), no middleware is needed.
 
 ### 7. Bring up the service
 

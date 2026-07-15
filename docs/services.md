@@ -77,14 +77,12 @@ Base path: `/opt/bezaforge/{service}/docker-compose.yml`
 - **Storage:** Local-FS uploads at `/opt/bezaforge/outline/uploads/` (no MinIO — overkill for solo wiki use)
 - **Ansible role:** `ansible/roles/outline/`
 
-### Plane
-- **Image:** Upstream `makeplane/plane-*` v1.3.1 multi-container compose, vendored verbatim with 3 mods (bind-mounts replace named volumes; `proxy` host port-binding stripped — Traefik handles 80/443; `proxy` added to `bezaforge-net` for Traefik labels)
-- **Role:** Self-hosted Linear-style project management at `plane.bezaforge.dev` (replaced retired Taiga)
-- **Auth:** Google OAuth (registered callback URLs include the trailing-slash variant `https://plane.bezaforge.dev/auth/google/callback/` that Plane v1.3.1 actually sends — see `~/.claude/projects/.../memory/reference_plane_oauth_callback_urls.md`)
-- **Known upstream bugs (workarounds codified in role):**
-  - `IS_GOOGLE_ENABLED` row missing from `instance_configurations` on fresh init ([makeplane/plane#8679](https://github.com/makeplane/plane/issues/8679)) — idempotent post-init task seeds it via `community.docker.docker_container_exec` + `ON CONFLICT DO NOTHING`. Remove when upstream PR #8740 merges + we bump.
-  - Caddy parser quirk: empty `CERT_ACME_CA` env var crashes parser even when `SITE_ADDRESS=:80` (plain HTTP). Set to Let's Encrypt default — never invoked, satisfies parser.
-- **Ansible role:** `ansible/roles/plane/`
+### OpenProject
+- **Image:** `openproject/openproject` all-in-one (bundles Postgres + memcached + web + Rails workers under one supervisor), pinned to a release tag; Renovate tracks it
+- **Role:** Self-hosted project + work tracking at `pm.bezaforge.dev` — the live work tracker (replaced Plane 2026-07, FORGE #455). Its Community REST API v3 filters server-side (unlike Plane CE), so the Claude Code integration works via the free `op-query` helper
+- **Auth:** local admin (seeded on first boot); no external OIDC configured
+- **Notes:** first boot is slow (~5–10 min: DB init + migrations + seeding — a 502 during that window is expected). ⚠️ **Backup gap:** data is in named volumes, not yet covered by db-dumps/rsync — a pilot-phase holdover now that this is the source of truth (FORGE #455 follow-up)
+- **Ansible role:** `ansible/roles/openproject/`
 
 ### NetBox
 - **Image:** `netboxcommunity/netbox`

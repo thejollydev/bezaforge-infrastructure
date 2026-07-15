@@ -5,7 +5,7 @@
 # Standalone Postgres container on forge-ops backing Brizza's
 # LangGraph checkpointer + APScheduler job store (Brizza ADR
 # 0001). Unlike the other per-service Postgres containers
-# (gitea-db, outline-db, plane-db …) this one is reached by a
+# (gitea-db, outline-db …) this one is reached by a
 # REMOTE client — forge-brizza on VLAN 50 — so it publishes
 # its port on the production IP and opens UFW for that host.
 #

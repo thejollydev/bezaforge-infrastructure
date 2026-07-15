@@ -96,7 +96,7 @@ Ansible automates all post-provisioning configuration for forge-ops. A single co
 | `monitoring` | Prometheus + Grafana + Loki + Promtail + node-exporter + cAdvisor; Grafana dashboards provisioned from VCS (`files/grafana/dashboards/`) |
 | `services` | Codified application services (gitea, netbox, langfuse, homepage, uptime-kuma) across 3 secret-management patterns |
 | `outline` | Outline wiki (`docs.bezaforge.dev`) — Outline + Postgres + Redis; Google OIDC; local-FS uploads |
-| `plane` | Plane PM (`plane.bezaforge.dev`) — upstream v1.3.1 compose with bind-mounts + Traefik integration; per-service Postgres/Redis/RabbitMQ/MinIO; Google OAuth; `IS_GOOGLE_ENABLED` seed task workaround (upstream issue #8679) |
+| `openproject` | OpenProject Community PM (`pm.bezaforge.dev`) — all-in-one image (bundled Postgres/memcached/web/Rails workers) behind Traefik; the live work tracker (replaced Plane 2026-07, FORGE #455) |
 | `ollama` | GPU LLM inference on forge-ai (version-pinned install, env-file, UFW rules to VLANs 50/20/30, model seed list, custom Modelfile builds) |
 | `forge-brizza` | forge-brizza host config — GNOME desktop + autologin, Docker engine (Hermes Agent), NFS tuning (`nconnect=8`, `actimeo=600`, `fsc`), cachefilesd |
 | `fail2ban` | SSH brute-force protection (forge-ops, forge-ai, forge-brizza) |
@@ -113,7 +113,7 @@ Ansible automates all post-provisioning configuration for forge-ops. A single co
 Secrets (DB passwords, API tokens, secret keys, OIDC client secrets) are stored in an ansible-vault encrypted file (`host_vars/forge-ops/vault.yml`). Inventory + rotation policy in `docs/runbooks/secret-rotation.md`. Three patterns handle secret injection across the codified services:
 
 - **Template services** (gitea) — Jinja2 compose files with vault variables
-- **Env-var services** (netbox, langfuse, outline, plane) — `.env` files templated from vault, compose files copied or bind-mounted as-is
+- **Env-var services** (netbox, langfuse, outline, openproject) — `.env` files templated from vault, compose files copied or bind-mounted as-is
 - **Simple services** (homepage, uptime-kuma) — no secrets, plain file copy
 
 ### Usage
@@ -168,7 +168,7 @@ All services run on **forge-ops** via Docker Compose at `/opt/bezaforge/{service
 | **Uptime Kuma** | Service availability monitoring | `uptime.bezaforge.dev` |
 | **Gitea** | Self-hosted Git server (SSH on port 2222) | `git.bezaforge.dev` |
 | **Outline** | Self-hosted wiki (Google Workspace OIDC; replaces retired Wiki.js) | `docs.bezaforge.dev` |
-| **Plane** | Self-hosted Linear-style project management (Google Workspace OIDC; replaces retired Taiga) | `plane.bezaforge.dev` |
+| **OpenProject** | Self-hosted project + work tracking (Community edition; replaced retired Plane) | `pm.bezaforge.dev` |
 | **NetBox** | IP address management + network docs | `netbox.bezaforge.dev` |
 | **Langfuse** | LLM observability and tracing | `langfuse.bezaforge.dev` |
 | **Homepage** | Unified service dashboard | `home.bezaforge.dev` |
@@ -273,7 +273,7 @@ bezaforge-infrastructure/
 │       ├── monitoring/                # Prometheus + Grafana + Loki + Promtail (dashboards in VCS)
 │       ├── services/                  # Codified app services (gitea, netbox, langfuse, homepage, uptime-kuma)
 │       ├── outline/                   # Outline wiki (docs.bezaforge.dev) — Google OIDC
-│       ├── plane/                     # Plane PM (plane.bezaforge.dev) — Google OAuth
+│       ├── openproject/               # OpenProject PM (pm.bezaforge.dev) — all-in-one
 │       ├── brizza-postgres/           # Brizza's Postgres 18 on forge-ops
 │       ├── ollama/                    # GPU inference on forge-ai (pinned version, model seeds, Modelfiles)
 │       ├── forge-brizza/              # forge-brizza host (GNOME, Docker, NFS tuning, cachefilesd)
@@ -313,7 +313,7 @@ bezaforge-infrastructure/
 
 ## Technologies
 
-`Terraform` `Ansible` `Proxmox VE` `Docker` `Docker Compose` `Traefik v3` `Prometheus` `Grafana` `Loki` `Promtail` `Uptime Kuma` `AdGuard Home` `Gitea` `Outline` `Plane` `NetBox` `Langfuse` `Jellyfin` `Kavita` `qBittorrent` `Gluetun` `Ollama` `ROCm` `ZFS` `sanoid` `restic` `Google Cloud Storage` `NFS` `Linux (Arch / Debian / Ubuntu)` `Cloudflare` `Let's Encrypt` `TP-Link Omada SDN` `Bash` `YAML` `HCL` `Jinja2`
+`Terraform` `Ansible` `Proxmox VE` `Docker` `Docker Compose` `Traefik v3` `Prometheus` `Grafana` `Loki` `Promtail` `Uptime Kuma` `AdGuard Home` `Gitea` `Outline` `OpenProject` `NetBox` `Langfuse` `Jellyfin` `Kavita` `qBittorrent` `Gluetun` `Ollama` `ROCm` `ZFS` `sanoid` `restic` `Google Cloud Storage` `NFS` `Linux (Arch / Debian / Ubuntu)` `Cloudflare` `Let's Encrypt` `TP-Link Omada SDN` `Bash` `YAML` `HCL` `Jinja2`
 
 ---
 

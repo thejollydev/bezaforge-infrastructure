@@ -29,8 +29,8 @@
 # Each container's entrypoint chowns its dir to the expected uid on
 # first boot (postgres=70 mode 0700, redis=999). Managing them in
 # Ansible reverts the uids back to joseph (1000) on every re-run,
-# silently breaking the containers on their next restart. Same fix
-# applied to plane role 2026-05-22.
+# silently breaking the containers on their next restart. Same trap
+# handled across the other bind-mounted service roles.
 
 - name: Deploy Outline docker-compose.yml
   ansible.builtin.template:
