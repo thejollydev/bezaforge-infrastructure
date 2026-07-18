@@ -62,7 +62,7 @@ The following secret variable names appear in templates under `ansible/roles/*/t
 | `langfuse_db_password` | Internal DB | `host_vars/forge-ops/vault.yml` | Langfuse Postgres | — (initial) |
 | `langfuse_nextauth_secret` | App framework | `host_vars/forge-ops/vault.yml` | Langfuse `NEXTAUTH_SECRET` (session signing) | — (initial) |
 | `homepage_jellyfin_api_key` | Internal API | `host_vars/forge-ops/vault.yml` | Homepage widget → Jellyfin | Removed 2026-07-18 (media stack retired — #485) |
-| `homepage_kavita_password` | Internal API | `host_vars/forge-ops/vault.yml` | Homepage widget → Kavita | — (initial) |
+| `homepage_kavita_password` | Internal API | `host_vars/forge-ops/vault.yml` | Homepage widget → Kavita | Removed 2026-07-18 (Kavita retired 2026-06-20, FORGE-16 — dead secret swept) |
 | `homepage_qbittorrent_password` | Internal API | `host_vars/forge-ops/vault.yml` | Homepage widget → qBittorrent | Removed 2026-07-18 (media stack retired — #485) |
 | `seedbox_protonvpn_wireguard_private_key` | External-scope API | `host_vars/forge-ops/vault.yml` | Seedbox Gluetun ProtonVPN WireGuard key | Removed 2026-07-18 (media stack retired — #485) |
 | `grafana_admin_password` | Admin UI | `host_vars/forge-ops/vault.yml` | Grafana initial admin password | — (initial) |
