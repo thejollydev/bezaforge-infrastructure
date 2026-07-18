@@ -172,9 +172,7 @@ All services run on **forge-ops** via Docker Compose at `/opt/bezaforge/{service
 | **NetBox** | IP address management + network docs | `netbox.bezaforge.dev` |
 | **Langfuse** | LLM observability and tracing | `langfuse.bezaforge.dev` |
 | **Homepage** | Unified service dashboard | `home.bezaforge.dev` |
-| **Jellyfin** | Media streaming server | `jellyfin.bezaforge.dev` |
-| **Kavita** | Self-hosted reading server (books, comics, manga) | `kavita.bezaforge.dev` |
-| **qBittorrent + Gluetun** | Seedbox with WireGuard VPN kill switch | `seedbox.bezaforge.dev` |
+| **Calibre-Web** | Ebook library + reader (replaced retired Kavita) | `books.bezaforge.dev` |
 | **Ollama** | Local LLM inference (on forge-ai) | `10.10.50.10:11434` |
 
 ---
@@ -313,7 +311,7 @@ bezaforge-infrastructure/
 
 ## Technologies
 
-`Terraform` `Ansible` `Proxmox VE` `Docker` `Docker Compose` `Traefik v3` `Prometheus` `Grafana` `Loki` `Promtail` `Uptime Kuma` `AdGuard Home` `Gitea` `Outline` `OpenProject` `NetBox` `Langfuse` `Jellyfin` `Kavita` `qBittorrent` `Gluetun` `Ollama` `ROCm` `ZFS` `sanoid` `restic` `Google Cloud Storage` `NFS` `Linux (Arch / Debian / Ubuntu)` `Cloudflare` `Let's Encrypt` `TP-Link Omada SDN` `Bash` `YAML` `HCL` `Jinja2`
+`Terraform` `Ansible` `Proxmox VE` `Docker` `Docker Compose` `Traefik v3` `Prometheus` `Grafana` `Loki` `Promtail` `Uptime Kuma` `AdGuard Home` `Gitea` `Outline` `OpenProject` `NetBox` `Langfuse` `Calibre-Web` `Ollama` `ROCm` `ZFS` `sanoid` `restic` `Google Cloud Storage` `NFS` `Linux (Arch / Debian / Ubuntu)` `Cloudflare` `Let's Encrypt` `TP-Link Omada SDN` `Bash` `YAML` `HCL` `Jinja2`
 
 ---
 

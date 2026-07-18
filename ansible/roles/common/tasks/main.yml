@@ -350,10 +350,7 @@
   loop: "{{ nfs_mounts }}"
   when: nfs_client | bool
 
-- name: Create media directory structure
-  ansible.builtin.file:
-    path: "/mnt/bezapool/media/{{ item }}"
-    state: directory
-    mode: '0755'
-  loop: "{{ media_dirs }}"
-  when: nfs_client | bool
+# "Create media directory structure" task REMOVED 2026-07-18 (#485): it created
+# movies/tv/music/... under /mnt/bezapool/media for Jellyfin. The media stack
+# was retired and the bezapool/media dataset destroyed, so media_dirs and this
+# task are gone.

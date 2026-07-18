@@ -9,8 +9,6 @@ services:
     restart: unless-stopped
     environment:
       HOMEPAGE_ALLOWED_HOSTS: bezaforge.dev,home.bezaforge.dev
-      HOMEPAGE_VAR_JELLYFIN_API_KEY: ${HOMEPAGE_VAR_JELLYFIN_API_KEY}
-      HOMEPAGE_VAR_QBITTORRENT_PASSWORD: ${HOMEPAGE_VAR_QBITTORRENT_PASSWORD}
     volumes:
       - /opt/bezaforge/homepage/config:/app/config
       - /opt/bezaforge/homepage/images:/app/public/images

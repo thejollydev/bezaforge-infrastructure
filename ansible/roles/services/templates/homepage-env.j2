@@ -1,2 +1,7 @@
-HOMEPAGE_VAR_JELLYFIN_API_KEY={{ homepage_jellyfin_api_key }}
-HOMEPAGE_VAR_QBITTORRENT_PASSWORD={{ homepage_qbittorrent_password }}
+# Homepage .env — rendered from roles/services/templates/homepage-env.j2
+#
+# Currently no secrets: the only HOMEPAGE_VAR_* entries were the Jellyfin API
+# key + qBittorrent password, removed 2026-07-18 (#485) when the media stack
+# was retired. This file is intentionally kept (homepage stays in the env-var
+# deploy loop) so a deploy overwrites any stale .env on disk. Add HOMEPAGE_VAR_*
+# lines here (backed by ansible-vault) if a future widget needs a secret.
