@@ -13,7 +13,6 @@ ansible/roles/monitoring/files/grafana/dashboards/
 │   ├── docker-host.json
 │   └── network.json
 ├── Services/
-│   ├── jellyfin.json
 │   ├── traefik.json
 │   └── gitea.json
 └── Logs/

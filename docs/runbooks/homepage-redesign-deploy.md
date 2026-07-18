@@ -17,11 +17,11 @@ container on forge-ops. Its compose file + env template live in
 
 ## Prerequisites
 
-- Ansible vault unlocks (`--ask-vault-pass`) — the `homepage-env.j2` template
-  reads `homepage_jellyfin_api_key`, `homepage_kavita_password`, and
-  `homepage_qbittorrent_password` from the encrypted host_vars.
-- These services should be reachable from the homepage container on
-  `bezaforge-net`: `jellyfin:8096`, `kavita:5000`, `gluetun:8080`.
+- Ansible vault unlocks (`--ask-vault-pass`) — required for the run in general,
+  though `homepage-env.j2` no longer carries any secrets (the Jellyfin/Kavita/
+  qBittorrent widget vars were removed when the media stack was retired, #485).
+- Widget-backed tiles should be reachable from the homepage container on
+  `bezaforge-net` (e.g. `langfuse`, `open-webui`).
 
 ## Deploy
 

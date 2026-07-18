@@ -17,11 +17,10 @@ domain: bezaforge.dev
 # gdrive was previously mounted out-of-band during Cognee Phase A — added
 # here 2026-05-17 so it's Ansible-managed (audit drift fix).
 # forge-ops-backup is new 2026-05-17 per ADR 0001 — nightly backup target.
+# bezapool/media + bezapool/downloads mounts REMOVED 2026-07-18 (#485):
+# their only consumers were Jellyfin + Seedbox (retired); the datasets were
+# destroyed on the hypervisor and the exports retired with them.
 nfs_mounts:
-  - src: "10.10.10.10:/bezapool/media"
-    path: "/mnt/bezapool/media"
-  - src: "10.10.10.10:/bezapool/downloads"
-    path: "/mnt/bezapool/downloads"
   - src: "10.10.10.10:/bezapool/gdrive"
     path: "/mnt/bezapool/gdrive"
   - src: "10.10.10.10:/bezapool/forge-ops-backup"
@@ -29,14 +28,6 @@ nfs_mounts:
   # bezapool/vault RO mount REMOVED 2026-06-09 (FORGE-49): its only
   # consumer was Cognee (retired 2026-06-09); the hypervisor export
   # stanza was retired with it.
-
-# Media directories to create under /mnt/bezapool/media
-media_dirs:
-  - movies
-  - tv
-  - music
-  - photos
-  - books
 
 # Service directory
 bezaforge_root: /opt/bezaforge
@@ -59,13 +50,10 @@ compose_services:
   # secrets; admin is set in the UI, not env). Re-introduces ebooks to
   # BezaForge after the Kavita retirement (FORGE-16); web-upload workflow.
   - calibre-web
-  # Jellyfin — media server, HW transcode via iGPU. Simple service (admin in
-  # UI). Codified from a manual deploy 2026-06-27 (FORGE-67).
-  - jellyfin
-  # Seedbox — qBittorrent behind a Gluetun VPN kill-switch. Env-var service
-  # (VPN key in .env ← vault). Codified from a manual deploy 2026-06-27 (FORGE-68).
-  - seedbox
 # taiga retired 2026-05-22 — see ROADMAP carryover #23 / guide 12.
+# jellyfin + seedbox retired 2026-07-18 (#485) — media stack removed from
+# BezaForge entirely; reverses FORGE-67/68. Compose files deleted, the
+# bezapool/media + bezapool/downloads datasets destroyed on the hypervisor.
 
 # Feature flags
 nfs_client: true

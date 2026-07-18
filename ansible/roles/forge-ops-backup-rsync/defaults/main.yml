@@ -33,7 +33,7 @@ backup_services:
   - name: grafana
   # harbor removed 2026-05-17 (retired — see ROADMAP carryover #8)
   - name: homepage
-  - name: jellyfin
+  # jellyfin removed 2026-07-18 (media stack retired — #485)
   # kavita removed 2026-06-20 (Kavita retired — FORGE-16)
   - name: langfuse
   - name: loki
@@ -57,7 +57,7 @@ backup_services:
       # The write-ahead-log is constantly mutating during scrape.
       # Skip it — TSDB will rebuild on restart.
       - "data/wal/"
-  - name: seedbox
+  # seedbox removed 2026-07-18 (media stack retired — #485)
   - name: traefik
   - name: uptime-kuma
 # wiki removed 2026-05-17 (Wiki.js retired — see ROADMAP carryover #21)

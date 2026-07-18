@@ -230,11 +230,11 @@
 # Wait-for-NFS systemd drop-in
 # ------------------------------------------------------------
 # When forge-ops reboots, Docker can start before the NFS
-# mounts at /mnt/bezapool/{media,downloads} come up. Containers
-# that bind-mount those paths then capture the empty mountpoint;
-# NFS later mounts on top, but the containers still see the
-# stale empty dir. Symptom: Jellyfin/Kavita libraries appear
-# empty after a reboot until the containers are recreated.
+# mounts at /mnt/bezapool/* come up. Containers that bind-mount
+# those paths then capture the empty mountpoint; NFS later mounts
+# on top, but the containers still see the stale empty dir.
+# (Historically this bit Jellyfin/Kavita libraries — both retired;
+# it still guards any container mounting the gdrive/backup shares.)
 #
 # This drop-in tells systemd to hold docker.service until the
 # NFS mounts are active, eliminating the race entirely. Only

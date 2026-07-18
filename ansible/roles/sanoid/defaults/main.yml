@@ -30,8 +30,6 @@
 #           granularity is genuinely useful.
 # - forge-ops-backup: derivative copy refreshed nightly. No
 #           value in hourly. 7 dailies plus weeklies/monthlies.
-# - downloads: ephemeral (qBittorrent in-flight). Lightweight.
-# - media: large + slow-churn. Don't need lots of snapshots.
 # - vzdump: NOT snapshotted — it IS the VM backups (snapshotting backups
 #           pins pruned copies; see FORGE-44 note below).
 # ------------------------------------------------------------
@@ -65,16 +63,9 @@ sanoid_templates:
     weekly: 8
     monthly: 12
     yearly: 3
-  downloads:
-    hourly: 0
-    daily: 7
-    weekly: 0
-    monthly: 0
-  media:
-    hourly: 0
-    daily: 4
-    weekly: 4
-    monthly: 3
+  # downloads + media templates REMOVED 2026-07-18 (#485): the bezapool/media
+  # + bezapool/downloads datasets were destroyed when the Jellyfin/Seedbox
+  # media stack was retired.
   # vzdump template REMOVED 2026-06-08 (FORGE-44): bezapool/vzdump is no longer
   # snapshotted — it already holds point-in-time VM backups, and snapshotting a
   # backup dataset pinned every pruned-out daily backup (1.44 TB dead weight;
@@ -128,13 +119,9 @@ sanoid_datasets:
     template: "forge_erp_backup"
     recursive: "no"
 
-  - dataset: "bezapool/downloads"
-    template: "downloads"
-    recursive: "no"
-
-  - dataset: "bezapool/media"
-    template: "media"
-    recursive: "no"
+  # bezapool/downloads + bezapool/media datasets destroyed 2026-07-18 (#485)
+  # when the Jellyfin/Seedbox media stack was retired — sanoid rows removed
+  # with them (sanoid errors on a missing dataset).
 
   # bezapool/vzdump intentionally NOT snapshotted (removed 2026-06-08, FORGE-44):
   # it's a backup dataset (Proxmox VM images). Snapshotting backups pinned every

@@ -81,33 +81,15 @@
         icon: mdi-finance-#1E40AF
         siteMonitor: https://erp.bezaforge.dev
 
+# Jellyfin + Seedbox retired 2026-07-18 (#485) — media stack removed from
+# BezaForge entirely. Kavita retired 2026-06-20 (FORGE-16); ebooks returned
+# same day via Calibre-Web-Automated — Calibre-Web UI, no desktop Calibre.
 - Media:
-    - Jellyfin:
-        href: https://jellyfin.bezaforge.dev
-        description: Movies · TV · music
-        icon: jellyfin.png
-        widget:
-          type: jellyfin
-          url: http://jellyfin:8096
-          key: "{{HOMEPAGE_VAR_JELLYFIN_API_KEY}}"
-          enableNowPlaying: true
-          enableUser: false
-    # Kavita retired 2026-06-20 (FORGE-16); ebooks returned same day via
-    # Calibre-Web-Automated (below) — Calibre-Web UI, no desktop Calibre.
     - Calibre-Web:
         href: https://books.bezaforge.dev
         description: Ebook library + reader
         icon: calibre-web.png
         siteMonitor: https://books.bezaforge.dev
-    - Seedbox:
-        href: https://seedbox.bezaforge.dev
-        description: qBittorrent via Gluetun (ProtonVPN)
-        icon: qbittorrent.png
-        widget:
-          type: qbittorrent
-          url: http://gluetun:8080
-          username: admin
-          password: "{{HOMEPAGE_VAR_QBITTORRENT_PASSWORD}}"
 
 - Edge & Network:
     - Traefik:
@@ -192,7 +174,5 @@
         href: https://dash.cloudflare.com
         description: DNS for bezaforge.dev
         icon: cloudflare.png
-    - ProtonVPN:
-        href: https://account.protonvpn.com
-        description: VPN account · used by Gluetun
-        icon: protonvpn.png
+    # ProtonVPN tile removed 2026-07-18 (#485) — its only consumer was the
+    # Seedbox/Gluetun kill-switch, retired with the media stack.

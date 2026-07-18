@@ -61,9 +61,10 @@ The following secret variable names appear in templates under `ansible/roles/*/t
 | `netbox_api_token_peppers` | App framework | `host_vars/forge-ops/vault.yml` | NetBox API token pepper | — (initial) |
 | `langfuse_db_password` | Internal DB | `host_vars/forge-ops/vault.yml` | Langfuse Postgres | — (initial) |
 | `langfuse_nextauth_secret` | App framework | `host_vars/forge-ops/vault.yml` | Langfuse `NEXTAUTH_SECRET` (session signing) | — (initial) |
-| `homepage_jellyfin_api_key` | Internal API | `host_vars/forge-ops/vault.yml` | Homepage widget → Jellyfin | — (initial) |
+| `homepage_jellyfin_api_key` | Internal API | `host_vars/forge-ops/vault.yml` | Homepage widget → Jellyfin | Removed 2026-07-18 (media stack retired — #485) |
 | `homepage_kavita_password` | Internal API | `host_vars/forge-ops/vault.yml` | Homepage widget → Kavita | — (initial) |
-| `homepage_qbittorrent_password` | Internal API | `host_vars/forge-ops/vault.yml` | Homepage widget → qBittorrent | — (initial) |
+| `homepage_qbittorrent_password` | Internal API | `host_vars/forge-ops/vault.yml` | Homepage widget → qBittorrent | Removed 2026-07-18 (media stack retired — #485) |
+| `seedbox_protonvpn_wireguard_private_key` | External-scope API | `host_vars/forge-ops/vault.yml` | Seedbox Gluetun ProtonVPN WireGuard key | Removed 2026-07-18 (media stack retired — #485) |
 | `grafana_admin_password` | Admin UI | `host_vars/forge-ops/vault.yml` | Grafana initial admin password | — (initial) |
 | `cloudflare_dns_api_token` | External-scope API | `host_vars/forge-ops/vault.yml` | Traefik DNS-01 challenge | — (initial) |
 | `vault_restic_password` | Backup encryption | `host_vars/forge-hypervisor/vault.yml` | restic repo encryption | — (initial 2026-05-17) |
@@ -75,9 +76,6 @@ The following secret variable names appear in templates under `ansible/roles/*/t
 
 - AdGuard Home admin password (web UI → Settings → Users)
 - ERPNext admin password
-- Jellyfin admin password
-- Kavita admin password
-- qBittorrent web UI password
 - NetBox superuser is `netbox_superuser_password` above *for initial seed only* — subsequent rotation is done in the NetBox UI.
 - **Outline:** sign-in is Google Workspace OIDC only — no local admin accounts to rotate. Outline OIDC client config (`outline_oidc_client_id` + `outline_oidc_client_secret`) IS in ansible-vault (see inventory above) and is rotated via Google Cloud Console + ansible-vault edit.
 - **OpenProject:** sign-in is a local admin account (seeded on first boot) — no external OIDC configured, so no OAuth client secret to rotate. Rotate the admin password in the OpenProject UI (replaced Plane 2026-07, FORGE #455).
