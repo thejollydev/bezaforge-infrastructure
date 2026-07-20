@@ -66,6 +66,14 @@
     owner: "{{ fileshare_user }}"
     group: "{{ fileshare_group }}"
     mode: "0600"
+    # Seed once, then hands-off — rclone rewrites the refreshed OAuth
+    # token into this file at runtime, so a managed template would
+    # differ on every run and needlessly restart the Drive mount
+    # (via the handler below). force:false creates it on a fresh host
+    # and lets rclone own it thereafter. To push a structural change,
+    # delete the file on the host and re-run.
+    # (Idempotency fix from the #493 dry-run audit, 2026-07-19.)
+    force: false
   no_log: true
   notify: restart rclone gdrive mount
 

@@ -229,33 +229,63 @@
 # ------------------------------------------------------------
 # sysctl tuning
 # ------------------------------------------------------------
-# ansible.posix.sysctl writes to /etc/sysctl.d/ and runs
-# sysctl -p to apply immediately. These are the same tuning
-# parameters from the Phase 1 manual setup.
+# Written to /etc/sysctl.d/60-bezaforge.conf (NOT the module
+# default /etc/sysctl.conf) + sysctl_set to apply immediately.
+# This matters: on modern systemd (257/259) /etc/sysctl.conf is
+# NOT applied at boot on these hosts (no /etc/sysctl.d compat
+# symlink), so the old default-target tuning silently reverted to
+# kernel defaults on EVERY reboot — inert since Phase 1 and never
+# noticed. /etc/sysctl.d/*.conf IS applied at boot, so these now
+# actually persist. (Root-caused by the #493 dry-run audit,
+# 2026-07-19.)
 #
-# somaxconn / tcp_max_syn_backlog — increase the TCP listen
-# queue depth. Defaults (128/1024) are too low for a host
-# running 15+ services behind a reverse proxy.
+# somaxconn / tcp_max_syn_backlog — TCP listen-queue depth
+# (completed + half-open accept queues). Modest, harmless bumps
+# for a host running 15+ services behind a reverse proxy.
 #
-# file-max — raise the system-wide file descriptor limit.
-# Docker containers each consume file descriptors; the default
-# (usually ~65535) can be exhausted with many containers.
+# inotify.max_user_watches — per-user inotify watch limit (default
+# 8192), raised for file-watchers (Docker bind mounts, editors,
+# sync tools). Was hand-added on forge-ops only; codified here so
+# it's managed + persistent fleet-wide.
 #
-# ip_unprivileged_port_start — allow non-root processes to
-# bind to port 53+. AdGuard Home runs as a container and
-# needs port 53 for DNS.
+# Dropped by the #493 audit:
+#   * fs.file-max — the modern kernel default is effectively
+#     unlimited (2^63-1); the old '2097152' actually LOWERED it for
+#     no benefit. Per-process LimitNOFILE (Docker/systemd) is the
+#     knob that matters, not this.
+#   * ip_unprivileged_port_start=53 — AdGuard runs in Docker, so
+#     dockerd/root binds host-53; the container never needed the
+#     host knob. Proven: AdGuard serves DNS with it at the default.
 
 - name: Apply sysctl performance tuning
   ansible.posix.sysctl:
     name: "{{ item.key }}"
     value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/60-bezaforge.conf
     sysctl_set: true
     reload: true
   loop:
     - { key: 'net.core.somaxconn', value: '65535' }
     - { key: 'net.ipv4.tcp_max_syn_backlog', value: '65535' }
-    - { key: 'fs.file-max', value: '2097152' }
-    - { key: 'net.ipv4.ip_unprivileged_port_start', value: '53' }
+    - { key: 'fs.inotify.max_user_watches', value: '1048576' }
+
+# Remove the legacy tuning from /etc/sysctl.conf now that the
+# managed set lives in /etc/sysctl.d/60-bezaforge.conf. These lines
+# are inert at boot (see above) but left them lurking would let the
+# dropped values (file-max, ip_unprivileged_port_start) resurface if
+# anyone ever ran `sysctl -p` or restored the compat symlink. Single
+# source of truth = the .d file.
+- name: Remove legacy BezaForge sysctl tuning from /etc/sysctl.conf
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.conf
+    regexp: "^\\s*{{ item | regex_escape }}\\s*="
+    state: absent
+  loop:
+    - net.core.somaxconn
+    - net.ipv4.tcp_max_syn_backlog
+    - fs.file-max
+    - net.ipv4.ip_unprivileged_port_start
+    - fs.inotify.max_user_watches
 
 # ------------------------------------------------------------
 # systemd-resolved DNS
