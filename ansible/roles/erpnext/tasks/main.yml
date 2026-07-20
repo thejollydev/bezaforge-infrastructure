@@ -133,6 +133,17 @@
       - mariadb.env
     state: present
 
+# NOTE: this task always reports `changed` — expected, benign, do
+# not chase it. erpnext-one.yaml includes a one-shot `configurator`
+# service (runs `bench set-config …`, exits 0, restart: on-failure).
+# `docker compose up` starts every defined service, so it re-runs the
+# exited configurator each run → docker_compose_v2 reports changed.
+# This is frappe_docker's design; the long-running services are
+# untouched and the config re-apply is idempotent. Confirmed the sole
+# residual non-idempotency in the #493 audit (2026-07-19); left as-is
+# rather than restructuring the bootstrap flow behind a compose
+# profile (which would risk the ERPNext update runbook for a purely
+# cosmetic gain).
 - name: Bring up the ERPNext app project
   community.docker.docker_compose_v2:
     project_src: "{{ erpnext_deploy_dir }}"

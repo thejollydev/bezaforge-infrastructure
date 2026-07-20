@@ -12,10 +12,18 @@
 # Query log retention. AdGuard's default after the setup wizard
 # is 2160h (90 days), which writes a huge JSON log of every DNS
 # query made on the LAN. For a homelab with ~6 devices doing
-# thousands of queries/day, that climbs into the GB. 168h is a
-# week — long enough to investigate "what was that weird DNS
-# query" without the unbounded growth.
+# thousands of queries/day, that climbs into the GB. 7 days is
+# long enough to investigate "what was that weird DNS query"
+# without the unbounded growth.
+#
+# IMPORTANT — store this as "7d", NOT "168h" (same duration).
+# AdGuard canonicalizes the interval to days in AdGuardHome.yaml on
+# container start, so a stored "168h" gets rewritten to "7d". That
+# made the enforce task flap: Ansible writes 168h → AdGuard rewrites
+# to 7d → next run sees a diff → restarts AdGuard, every single run.
+# Matching AdGuard's own canonical form keeps it idempotent.
+# (Found by the #493 dry-run idempotency audit, 2026-07-19.)
 #
 # AdGuard prunes existing entries on the next maintenance pass
 # when this value is decreased.
-adguard_querylog_interval: "168h"
+adguard_querylog_interval: "7d"
