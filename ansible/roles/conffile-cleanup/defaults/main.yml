@@ -1,0 +1,30 @@
+---
+# ============================================================
+# conffile-cleanup — remove obsolete dpkg conffiles left behind
+# by package splits during a distro upgrade
+# ============================================================
+# Each entry is removed ONLY when all of these hold:
+#   * the obsolete file exists
+#   * the successor file exists
+#   * their contents are byte-identical (so nothing local is lost)
+# The obsolete path is additionally expected to be flagged `obsolete` by
+# dpkg, meaning no installed package ships it any more — so deleting it is
+# permanent and will not be restored on the next upgrade.
+#
+# Deliberately an explicit allow-list. "Delete every obsolete conffile" is
+# a genuinely dangerous sweep; each entry here is one diagnosed bug.
+
+conffile_cleanup_items:
+  # Ubuntu cloud-init logrotate duplicate — Launchpad #2152107 / #2089790.
+  # cloud-init was split into cloud-init + cloud-init-base, and both ship an
+  # identical /var/log/cloud-init*.log logrotate stanza. cloud-init-base's
+  # `Replaces: cloud-init (<< 25.1.1-0ubuntu2~)` does not cover an upgrade
+  # from a newer version, so a Noble->Resolute upgrade (our FORGE-12 fleet
+  # pass, 2026-05-31) leaves the old file behind while a FRESH 26.04 install
+  # never sees it. logrotate then aborts with
+  #   error: cloud-init-base:1 duplicate log entry for /var/log/cloud-init.log
+  # and exits 1, so logrotate.service sits failed on every upgraded VM and
+  # NOTHING rotates from that config file onward.
+  - obsolete: /etc/logrotate.d/cloud-init
+    successor: /etc/logrotate.d/cloud-init-base
+    reason: "cloud-init/cloud-init-base logrotate duplicate (LP#2152107)"

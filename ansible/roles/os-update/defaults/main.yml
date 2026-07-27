@@ -1,0 +1,7 @@
+---
+# `safe` = dist-upgrade without removing packages to satisfy dependencies.
+# Use `full` only deliberately (e.g. a Proxmox point release that needs it).
+os_update_upgrade_mode: safe
+
+# Clean up orphaned dependencies + old kernels so /boot doesn't fill.
+os_update_autoremove: true

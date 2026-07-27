@@ -28,14 +28,25 @@ services:
     container_name: node-exporter
     restart: unless-stopped
     pid: host
+    # Root + the systemd private socket are required for --collector.systemd:
+    # the collector talks to systemd over its private D-Bus socket, which is
+    # root-only. Without this, forge-ops was the ONE host with no
+    # node_systemd_unit_state metrics, so the "Systemd Unit Failed" alert
+    # could not see the fleet's most important box (DNS, Traefik, every
+    # service). The other four hosts run the native node-exporter package,
+    # which gets this for free. Added 2026-07-26 after the sharepool
+    # incident went unalerted for ~24 h.
+    user: root
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/rootfs:ro
+      - /run/systemd/private:/run/systemd/private:ro
     command:
       - '--path.procfs=/host/proc'
       - '--path.sysfs=/host/sys'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--collector.systemd'
     networks:
       - bezaforge-net
 

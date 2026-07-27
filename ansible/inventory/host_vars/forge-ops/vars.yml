@@ -57,3 +57,18 @@ compose_services:
 
 # Feature flags
 nfs_client: true
+
+# --- health-check expectations (health.yml) ---
+# The services that, if down, mean the fleet is degraded: DNS, ingress,
+# the work tracker, and the monitoring pipeline.
+health_expected_containers:
+  - adguard
+  - traefik
+  - prometheus
+  - grafana
+  - loki
+  - openproject
+  - outline
+  - gitea
+  - uptime-kuma
+  - homepage

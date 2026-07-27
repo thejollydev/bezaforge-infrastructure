@@ -1,0 +1,48 @@
+---
+# ============================================================
+# unattended-upgrades — automatic SECURITY patching only
+# ============================================================
+# Closes the window where a known CVE sits unpatched between Joseph's manual
+# passes. Deliberately does NOT auto-reboot: see defaults/main.yml.
+
+- name: Install unattended-upgrades
+  ansible.builtin.apt:
+    name:
+      - unattended-upgrades
+      - apt-listchanges
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Configure which origins may auto-upgrade (security only)
+  ansible.builtin.template:
+    src: 50unattended-upgrades.j2
+    dest: /etc/apt/apt.conf.d/50unattended-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+    # testparm-equivalent: refuse to install a config apt cannot parse,
+    # otherwise EVERY later apt run on the host breaks.
+    validate: apt-config -c %s dump
+
+- name: Configure the periodic schedule (list update + upgrade + autoclean)
+  ansible.builtin.template:
+    src: 20auto-upgrades.j2
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+    validate: apt-config -c %s dump
+
+- name: Enable + start the unattended-upgrades timer
+  ansible.builtin.systemd:
+    name: unattended-upgrades.service
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Verify unattended-upgrades config parses and security origins resolve
+  ansible.builtin.command: unattended-upgrades --dry-run
+  register: uu_dryrun
+  changed_when: false
+  failed_when: uu_dryrun.rc != 0

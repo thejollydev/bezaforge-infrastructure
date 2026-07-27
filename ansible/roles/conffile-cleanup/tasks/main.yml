@@ -1,0 +1,58 @@
+---
+# ============================================================
+# conffile-cleanup — remove obsolete duplicate dpkg conffiles
+# ============================================================
+# See defaults/main.yml for the allow-list and the reasoning behind each
+# entry. Debian-family only.
+
+- name: Stat the obsolete conffiles
+  ansible.builtin.stat:
+    path: "{{ item.obsolete }}"
+    checksum_algorithm: md5
+  register: cc_obsolete
+  loop: "{{ conffile_cleanup_items }}"
+  loop_control:
+    label: "{{ item.obsolete }}"
+
+- name: Stat the successor conffiles
+  ansible.builtin.stat:
+    path: "{{ item.successor }}"
+    checksum_algorithm: md5
+  register: cc_successor
+  loop: "{{ conffile_cleanup_items }}"
+  loop_control:
+    label: "{{ item.successor }}"
+
+# Only remove when BOTH exist and the contents match exactly. If a local
+# edit ever diverged the two, this deliberately does nothing and leaves the
+# duplicate in place rather than silently discarding that edit.
+- name: Remove obsolete duplicate conffiles
+  ansible.builtin.file:
+    path: "{{ conffile_cleanup_items[cc_idx].obsolete }}"
+    state: absent
+  loop: "{{ cc_obsolete.results }}"
+  loop_control:
+    index_var: cc_idx
+    label: "{{ conffile_cleanup_items[cc_idx].obsolete }}"
+  when:
+    - item.stat.exists
+    - cc_successor.results[cc_idx].stat.exists
+    - item.stat.checksum == cc_successor.results[cc_idx].stat.checksum
+  notify:
+    - verify logrotate config
+    - reset failed logrotate unit
+
+- name: Report entries skipped because the files differ
+  ansible.builtin.debug:
+    msg: >-
+      SKIPPED {{ conffile_cleanup_items[cc_idx].obsolete }} —
+      it differs from {{ conffile_cleanup_items[cc_idx].successor }},
+      so it may carry a local edit. Reconcile by hand.
+  loop: "{{ cc_obsolete.results }}"
+  loop_control:
+    index_var: cc_idx
+    label: "{{ conffile_cleanup_items[cc_idx].obsolete }}"
+  when:
+    - item.stat.exists
+    - cc_successor.results[cc_idx].stat.exists
+    - item.stat.checksum != cc_successor.results[cc_idx].stat.checksum

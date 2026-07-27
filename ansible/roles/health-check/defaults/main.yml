@@ -1,0 +1,13 @@
+---
+# Per-host expectations are set in inventory host_vars; these are the
+# safe empty defaults so the role is a no-op on a host that hasn't
+# declared anything yet.
+
+health_expected_zpools: []          # e.g. [bezapool, sharepool]
+health_expected_containers: []      # docker container names that must be running
+health_expected_mounts: []          # [{path: /sharepool/files, fstype: zfs}]
+
+# A failed systemd unit is reported loudly but does not abort the run by
+# default — logrotate failing shouldn't stop you seeing the rest of the
+# fleet's health. Set false to make it a hard failure.
+health_units_warn_only: true

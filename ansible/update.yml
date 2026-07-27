@@ -1,0 +1,79 @@
+---
+# ============================================================
+# update.yml — deliberate fleet package upgrade, in a safe order
+# ============================================================
+#
+#   cd ~/Projects/bezaforge-infrastructure/ansible
+#   ansible-playbook update.yml --ask-become-pass --ask-vault-pass
+#
+# Reports which hosts need a reboot. NEVER reboots anything — you reboot
+# manually, in the same order the plays run, then verify with health.yml.
+#
+# WHY THIS ORDER (it is not arbitrary):
+#
+#   1. forge-hypervisor — rebooting it bounces every VM, so it goes first,
+#      while nothing else is mid-dpkg. forge-ops is bare metal, so DNS is
+#      unaffected by a hypervisor reboot.
+#
+#   2. the VMs (forge-ai, forge-erp, forge-brizza) — freshly booted after
+#      step 1. forge-erp wants a clean container stop for ERPNext/MariaDB.
+#
+#   3. forge-ops LAST — it runs AdGuard, which is DNS for EVERY VLAN. While
+#      forge-ops is down nothing else can resolve deb.debian.org, so no other
+#      host may be mid-apt. It also carries Traefik and every service.
+#
+# AFTER REBOOTING, RUN health.yml. On 2026-07-25 a hypervisor reboot left the
+# sharepool ZFS pool unimported and it went unnoticed for ~24 h. Ordering does
+# not catch that; verification does.
+
+- name: Update forge-hypervisor (first — its reboot bounces all VMs)
+  hosts: forge-hypervisor
+  become: true
+  gather_facts: true
+  roles:
+    - os-update
+  tags: [update, hypervisor]
+
+- name: Update the Proxmox guest VMs
+  hosts: forge-ai,forge-erp,forge-brizza
+  become: true
+  gather_facts: true
+  serial: 1
+  roles:
+    - os-update
+  tags: [update, vms]
+
+- name: Update forge-ops (last — it is DNS + Traefik for the whole fleet)
+  hosts: forge-ops
+  become: true
+  gather_facts: true
+  roles:
+    - os-update
+  tags: [update, ops]
+
+# Runs on localhost rather than `hosts: all` + run_once. Same single summary,
+# but without run_once — which ansible-lint flags at the production profile
+# because its behaviour changes under `strategy: free`. hostvars is global, so
+# localhost can read every updated host's facts directly.
+- name: Summarise which hosts need a reboot
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: false
+  tasks:
+    - name: Reboot summary
+      ansible.builtin.debug:
+        msg:
+          - "hosts needing reboot : {{ osu_reboot_hosts | join(', ') if osu_reboot_hosts else 'none' }}"
+          - "reboot order         : forge-hypervisor -> forge-ai/forge-erp/forge-brizza -> forge-ops"
+          - "why forge-ops last   : it runs AdGuard, DNS for every VLAN"
+          - "then verify with     : ansible-playbook health.yml"
+      vars:
+        osu_reboot_hosts: >-
+          {{ groups['all'] | default([])
+             | map('extract', hostvars)
+             | selectattr('osu_reboot_flag', 'defined')
+             | selectattr('osu_reboot_flag.stat.exists')
+             | map(attribute='inventory_hostname')
+             | list }}
+  tags: [update]

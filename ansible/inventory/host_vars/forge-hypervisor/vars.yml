@@ -38,3 +38,14 @@ gcs_bucket: bezaforge-backups-95d56ebe
 # (FORGE-41). Defined as `vault_sync_webhook_token` in the sibling
 # vault.yml. Gitea's webhook config holds the same value server-side.
 # ------------------------------------------------------------
+
+# --- health-check expectations (health.yml) ---
+# sharepool is the one that silently failed to import after the 2026-07-25
+# reboot; listing it here is what makes health.yml catch a repeat.
+health_expected_zpools:
+  - bezapool
+  - sharepool
+health_expected_mounts:
+  - {path: /sharepool/files, fstype: zfs}
+  - {path: /bezapool/vault, fstype: zfs}
+  - {path: /bezapool/forge-ops-backup, fstype: zfs}

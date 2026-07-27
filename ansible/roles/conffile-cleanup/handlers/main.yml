@@ -1,0 +1,17 @@
+---
+# Prove the duplicate is actually gone: logrotate --debug parses every
+# config and exits non-zero on a duplicate entry, so this fails loudly if
+# the removal didn't resolve it.
+- name: verify logrotate config
+  ansible.builtin.command: logrotate --debug /etc/logrotate.conf
+  register: cc_logrotate
+  changed_when: false
+  failed_when: cc_logrotate.rc != 0
+
+# The unit is left in a failed state from before the fix; clear it so the
+# new Grafana "Systemd Unit Failed" alert reflects reality rather than
+# paging on an already-resolved failure.
+- name: reset failed logrotate unit
+  ansible.builtin.systemd:
+    name: logrotate.service
+    state: restarted
