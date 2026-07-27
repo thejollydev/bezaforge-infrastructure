@@ -8,9 +8,6 @@
 # /var/run/reboot-required and wait for Joseph, in the documented order
 # (hypervisor -> VMs -> forge-ops; forge-ops is DNS for every VLAN).
 
-# Apply security updates automatically.
-unattended_security_only: true
-
 # Hard off. An unattended reboot of forge-hypervisor would bounce every VM,
 # and an unattended reboot of forge-ops would take DNS + Traefik down.
 unattended_automatic_reboot: false

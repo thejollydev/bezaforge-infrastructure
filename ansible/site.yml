@@ -13,6 +13,10 @@
     # a deliberate pass via update.yml.
     - role: unattended-upgrades
       tags: unattended-upgrades
+    # Masks units that can never succeed on the host (opt-in per host_vars),
+    # so the #552 failed-unit alert only ever fires on real failures.
+    - role: systemd-hygiene
+      tags: systemd-hygiene
     - role: sanoid
       tags: sanoid
     - role: restic-gcs
@@ -40,6 +44,10 @@
   roles:
     - role: unattended-upgrades
       tags: unattended-upgrades
+    # Masks units that can never succeed on the host (opt-in per host_vars),
+    # so the #552 failed-unit alert only ever fires on real failures.
+    - role: systemd-hygiene
+      tags: systemd-hygiene
     - role: common
       tags: common
     - role: fail2ban
@@ -76,6 +84,10 @@
   roles:
     - role: unattended-upgrades
       tags: unattended-upgrades
+    # Masks units that can never succeed on the host (opt-in per host_vars),
+    # so the #552 failed-unit alert only ever fires on real failures.
+    - role: systemd-hygiene
+      tags: systemd-hygiene
     # Removes obsolete duplicate dpkg conffiles left by distro upgrades
     # (currently the cloud-init logrotate duplicate, LP#2152107).
     - role: conffile-cleanup
@@ -102,6 +114,10 @@
   roles:
     - role: unattended-upgrades
       tags: unattended-upgrades
+    # Masks units that can never succeed on the host (opt-in per host_vars),
+    # so the #552 failed-unit alert only ever fires on real failures.
+    - role: systemd-hygiene
+      tags: systemd-hygiene
     # Removes obsolete duplicate dpkg conffiles left by distro upgrades
     # (currently the cloud-init logrotate duplicate, LP#2152107).
     - role: conffile-cleanup
@@ -131,6 +147,10 @@
   roles:
     - role: unattended-upgrades
       tags: unattended-upgrades
+    # Masks units that can never succeed on the host (opt-in per host_vars),
+    # so the #552 failed-unit alert only ever fires on real failures.
+    - role: systemd-hygiene
+      tags: systemd-hygiene
     # Removes obsolete duplicate dpkg conffiles left by distro upgrades
     # (currently the cloud-init logrotate duplicate, LP#2152107).
     - role: conffile-cleanup

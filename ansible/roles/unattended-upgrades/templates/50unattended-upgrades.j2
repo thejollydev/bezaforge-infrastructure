@@ -2,19 +2,37 @@
 // Security-pocket auto-patching only. Everything else waits for a deliberate
 // pass via `ansible-playbook update.yml`. Reboots are never automatic.
 //
-// Origin patterns differ between Debian (forge-hypervisor, forge-ops) and
-// Ubuntu (forge-ai, forge-erp, forge-brizza), so they are templated per host.
-
-Unattended-Upgrade::Allowed-Origins {
+// Debian (forge-hypervisor, forge-ops) and Ubuntu (forge-ai, forge-erp,
+// forge-brizza) need DIFFERENT KEYS here, not merely different values:
+//
+//   Ubuntu -> Unattended-Upgrade::Allowed-Origins. Entries are "origin:archive",
+//     exactly two fields. Correct on Ubuntu because Ubuntu's security suite IS
+//     the archive (a=resolute-security).
+//
+//   Debian -> Unattended-Upgrade::Origins-Pattern. Entries are key=value CSV.
+//     Debian must NOT use Allowed-Origins: that parser rewrites an entry to
+//     "o=<id>,a=<codename>", but Debian's security archive is a=stable-security
+//     while trixie-security is the CODENAME (n=). An Allowed-Origins entry
+//     compiles to o=Debian,a=trixie-security, matches no repository, and
+//     installs nothing -- with no error. Origins-Pattern's codename= maps to
+//     n=, which does match. Do not collapse these back into one block.
+//
+// The single-block form shipped in #137 put Origins-Pattern syntax under the
+// Allowed-Origins key. unattended-upgrades 2.12 sees no ":" in the entry, falls
+// back to splitting on whitespace, gets one field, and raises ValueError on
+// every run -- which is what the --dry-run verify task below catches.
 {% if ansible_facts['distribution'] == 'Ubuntu' %}
+Unattended-Upgrade::Allowed-Origins {
         "${distro_id}:${distro_codename}-security";
         "${distro_id}ESMApps:${distro_codename}-apps-security";
         "${distro_id}ESM:${distro_codename}-infra-security";
+};
 {% else %}
+Unattended-Upgrade::Origins-Pattern {
         "origin=Debian,codename=${distro_codename},label=Debian-Security";
         "origin=Debian,codename=${distro_codename}-security,label=Debian-Security";
-{% endif %}
 };
+{% endif %}
 
 // Coordinated / disruptive packages are upgraded only via their runbooks.
 Unattended-Upgrade::Package-Blacklist {
