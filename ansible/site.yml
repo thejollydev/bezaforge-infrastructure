@@ -76,6 +76,10 @@
   roles:
     - role: unattended-upgrades
       tags: unattended-upgrades
+    # Removes obsolete duplicate dpkg conffiles left by distro upgrades
+    # (currently the cloud-init logrotate duplicate, LP#2152107).
+    - role: conffile-cleanup
+      tags: conffile-cleanup
     - role: common
       tags: common
     - role: guest-agent
@@ -98,6 +102,10 @@
   roles:
     - role: unattended-upgrades
       tags: unattended-upgrades
+    # Removes obsolete duplicate dpkg conffiles left by distro upgrades
+    # (currently the cloud-init logrotate duplicate, LP#2152107).
+    - role: conffile-cleanup
+      tags: conffile-cleanup
     - role: fail2ban
       tags: fail2ban
     - role: forge-brizza
@@ -123,6 +131,10 @@
   roles:
     - role: unattended-upgrades
       tags: unattended-upgrades
+    # Removes obsolete duplicate dpkg conffiles left by distro upgrades
+    # (currently the cloud-init logrotate duplicate, LP#2152107).
+    - role: conffile-cleanup
+      tags: conffile-cleanup
     - role: erpnext
       tags: erpnext
     - role: forge-erp
