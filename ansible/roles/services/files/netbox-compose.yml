@@ -86,7 +86,7 @@ services:
       retries: 5
 
   netbox-redis:
-    image: redis:7-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+    image: redis:7-alpine@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
     container_name: netbox-redis
     restart: unless-stopped
     command: redis-server --appendonly yes
@@ -101,7 +101,7 @@ services:
       retries: 5
 
   netbox-redis-cache:
-    image: redis:7-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+    image: redis:7-alpine@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
     container_name: netbox-redis-cache
     restart: unless-stopped
     networks:
