@@ -9,6 +9,10 @@
   become: false  # ansible_user is root on forge-hypervisor
 
   roles:
+    # Security-pocket auto-patching (never auto-reboots). Full upgrades are
+    # a deliberate pass via update.yml.
+    - role: unattended-upgrades
+      tags: unattended-upgrades
     - role: sanoid
       tags: sanoid
     - role: restic-gcs
@@ -34,6 +38,8 @@
   become: true
 
   roles:
+    - role: unattended-upgrades
+      tags: unattended-upgrades
     - role: common
       tags: common
     - role: fail2ban
@@ -68,6 +74,8 @@
   become: true
 
   roles:
+    - role: unattended-upgrades
+      tags: unattended-upgrades
     - role: common
       tags: common
     - role: guest-agent
@@ -88,6 +96,8 @@
   become: true
 
   roles:
+    - role: unattended-upgrades
+      tags: unattended-upgrades
     - role: fail2ban
       tags: fail2ban
     - role: forge-brizza
@@ -111,6 +121,8 @@
   # frappe_docker app) deploys first so the stack is up before the forge-erp
   # backup layer (FORGE-60/61/62) runs.
   roles:
+    - role: unattended-upgrades
+      tags: unattended-upgrades
     - role: erpnext
       tags: erpnext
     - role: forge-erp

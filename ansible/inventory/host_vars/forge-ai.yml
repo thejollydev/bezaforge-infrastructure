@@ -61,3 +61,7 @@ ollama_modelfiles:
 # cold-load cost every prompt. Override here if a different
 # pattern emerges.
 ollama_keep_alive: "24h"
+
+# --- health-check expectations (health.yml) ---
+health_expected_mounts:
+  - {path: /mnt/bezashare, fstype: cifs}

@@ -1,0 +1,36 @@
+---
+# ============================================================
+# unattended-upgrades — automatic SECURITY patching only
+# ============================================================
+# Baseline posture, converged by site.yml on every run. Security-pocket
+# updates land automatically; everything else waits for a deliberate pass
+# via update.yml. Reboots are NEVER automatic — kernel/libc updates set
+# /var/run/reboot-required and wait for Joseph, in the documented order
+# (hypervisor -> VMs -> forge-ops; forge-ops is DNS for every VLAN).
+
+# Apply security updates automatically.
+unattended_security_only: true
+
+# Hard off. An unattended reboot of forge-hypervisor would bounce every VM,
+# and an unattended reboot of forge-ops would take DNS + Traefik down.
+unattended_automatic_reboot: false
+
+# Housekeeping so /boot and the package cache don't creep.
+unattended_remove_unused_deps: true
+unattended_autoclean_interval: 7
+
+# Daily check + download + apply.
+unattended_update_package_lists: 1
+unattended_unattended_upgrade: 1
+
+# Packages never auto-upgraded, even from the security pocket: anything whose
+# restart would be disruptive or needs a coordinated runbook.
+unattended_blacklist:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - zfsutils-linux
+  - zfs-dkms
+  - proxmox-ve
+  - pve-manager
+  - pve-kernel-*

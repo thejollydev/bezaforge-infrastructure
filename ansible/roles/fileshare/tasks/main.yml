@@ -20,12 +20,60 @@
     create_home: true
     system: false
 
-# --- storage (pool/dataset created by hand; we own + lay out dirs) ----
-- name: Assert sharepool/files dataset is mounted (created out-of-band)
-  ansible.builtin.command: zfs list -H -o mountpoint sharepool/files
+# --- storage ----------------------------------------------------------
+# The pool + dataset are still created by hand (see defaults/main.yml), but
+# IMPORT and BOOT PERSISTENCE are owned here.
+#
+# Why: sharepool is not a PVE storage, so nothing imported it at boot. It was
+# imported by hand at creation (2026-06-28) and silently vanished on the first
+# reboot after that (2026-07-25). /sharepool/files disappeared for ~24 h —
+# Samba share down, rclone Drive mount down, sanoid CRITICAL every 15 min,
+# syncoid failing nightly, agent-VM mounts dead, and restic quietly dropped
+# the source while still exiting 0. bezapool survives reboots only because
+# PVE imports it (it is cachefile=none). Never rely on a manual import again.
+- name: Check whether the sharepool ZFS pool is imported
+  ansible.builtin.command: zpool list -H -o name {{ fileshare_zpool }}
+  register: fileshare_pool
+  changed_when: false
+  failed_when: false
+
+- name: Import the sharepool ZFS pool if it is not currently imported
+  ansible.builtin.command: zpool import {{ fileshare_zpool }}
+  when: fileshare_pool.rc != 0
+  changed_when: true
+
+# Putting the pool in the cache file is what actually makes it survive a
+# reboot: zfs-import-cache.service carries
+# ConditionFileNotEmpty=/etc/zfs/zpool.cache, so an EMPTY cache file makes
+# systemd skip the import entirely (which is exactly what happened here —
+# the file was 0 bytes and zfs-import-scan.service is disabled).
+- name: Ensure sharepool is recorded in the ZFS cache file (survives reboot)
+  ansible.builtin.command: zpool set cachefile={{ fileshare_zpool_cachefile }} {{ fileshare_zpool }}
+  register: fileshare_cachefile_set
+  changed_when: fileshare_cachefile_set.rc == 0
+  when: fileshare_pool.rc != 0
+
+- name: Assert the ZFS cache file is non-empty (else the pool will NOT auto-import)
+  ansible.builtin.stat:
+    path: "{{ fileshare_zpool_cachefile }}"
+  register: fileshare_cache_stat
+  failed_when: not fileshare_cache_stat.stat.exists or fileshare_cache_stat.stat.size == 0
+
+- name: Assert sharepool/files dataset is mounted at the expected path
+  ansible.builtin.command: zfs list -H -o mountpoint {{ fileshare_zpool }}/files
   register: fileshare_ds
   changed_when: false
   failed_when: fileshare_ds.stdout | trim != fileshare_root
+
+# Guard rail: if the pool were ever missing, /sharepool would be a plain
+# directory on the 68 G root filesystem, and the tasks below would happily
+# create the share + rclone cache there — putting a ~350 G Drive mount on the
+# boot disk. Refuse to continue unless the path is genuinely a ZFS mountpoint.
+- name: Assert the share root is a real ZFS mount, not a root-fs directory
+  ansible.builtin.command: findmnt -no FSTYPE --target {{ fileshare_root }}
+  register: fileshare_fstype
+  changed_when: false
+  failed_when: fileshare_fstype.stdout | trim != 'zfs'
 
 - name: Ensure share root + cache dirs exist with correct ownership
   ansible.builtin.file:

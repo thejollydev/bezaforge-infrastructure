@@ -266,3 +266,62 @@ groups:
           isPaused: false
           notification_settings:
             receiver: Discord
+        # Added 2026-07-26 after the sharepool incident: forge-hypervisor was
+        # rebooted, the sharepool ZFS pool failed to import, and sanoid threw
+        # CRITICAL every 15 minutes for ~24 h with nobody alerted. A failed
+        # systemd unit is the earliest generic signal that a host is degraded.
+        # Covers forge-hypervisor / forge-ai / forge-erp / forge-brizza, which
+        # run the NATIVE prometheus-node-exporter (systemd collector enabled).
+        # forge-ops uses the containerised exporter and is NOT covered yet.
+        - uid: bfg9sysunitfail01
+          title: Systemd Unit Failed
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 300
+                to: 0
+              datasourceUid: dfdseqn41ybk0e
+              model:
+                editorMode: code
+                expr: node_systemd_unit_state{state="failed"} == 1
+                instant: true
+                intervalMs: 1000
+                legendFormat: '{{ $labels.instance }} / {{ $labels.name }}'
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          noDataState: OK
+          execErrState: OK
+          for: 15m
+          annotations:
+            summary: 'systemd unit {{ $labels.name }} has FAILED on {{ $labels.instance }}'
+            description: 'Check with: systemctl status {{ $labels.name }} --no-pager'
+          isPaused: false
+          notification_settings:
+            receiver: Discord

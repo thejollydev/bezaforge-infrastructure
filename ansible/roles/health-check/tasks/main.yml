@@ -1,0 +1,141 @@
+---
+# ============================================================
+# health-check — post-reboot / post-update state verification
+# ============================================================
+# This role exists because of the 2026-07-25 incident: the hypervisor was
+# rebooted, everything *looked* fine, and the sharepool ZFS pool silently
+# failed to import. Nobody noticed for ~24 h while sanoid threw CRITICAL
+# every 15 minutes, syncoid failed nightly, and restic quietly dropped a
+# backup source while still exiting 0. Ordering the reboots would not have
+# caught that — only verifying afterwards does.
+#
+# Read-only: asserts and reports, changes nothing. Safe to run any time.
+
+# noqa justified: ansible.builtin.systemd_service acts on ONE named unit; it
+# cannot enumerate "whatever happens to be failed", which is the entire point
+# of this check.
+- name: Collect failed systemd units  # noqa: command-instead-of-module
+  ansible.builtin.command: systemctl list-units --state=failed --no-legend --plain
+  register: hc_failed_units
+  changed_when: false
+
+- name: Extract failed unit names
+  ansible.builtin.set_fact:
+    hc_failed_names: >-
+      {{ hc_failed_units.stdout_lines
+         | map('regex_replace', '^\s+', '')
+         | map('regex_replace', '\s.*$', '')
+         | select('truthy') | list }}
+
+# --- ZFS pools --------------------------------------------------------
+- name: Collect imported ZFS pools
+  ansible.builtin.command: zpool list -H -o name
+  register: hc_pools
+  changed_when: false
+  failed_when: false
+  when: health_expected_zpools | length > 0
+
+- name: Determine which expected ZFS pools are missing
+  ansible.builtin.set_fact:
+    hc_missing_pools: >-
+      {{ health_expected_zpools
+         | difference(hc_pools.stdout_lines | default([]) | map('trim') | list) }}
+  when: health_expected_zpools | length > 0
+
+# --- mountpoints ------------------------------------------------------
+# Guards the specific trap behind the incident: when a pool is not imported,
+# its mountpoint silently degrades to a plain directory on the root
+# filesystem, so "the path exists" is NOT sufficient — the filesystem type
+# has to be checked too.
+- name: Check filesystem type at each expected mountpoint
+  ansible.builtin.command: findmnt -no FSTYPE --target {{ item.path }}
+  register: hc_mount_checks
+  changed_when: false
+  failed_when: false
+  loop: "{{ health_expected_mounts }}"
+  loop_control:
+    label: "{{ item.path }} (expect {{ item.fstype }})"
+
+# findmnt can legitimately return MORE THAN ONE line for a single target —
+# an autofs-managed CIFS mount reports both "autofs" and "cifs". So test for
+# membership, not string equality (an equality check here produced a false
+# failure on forge-ai/forge-brizza during development).
+- name: Build the list of bad mountpoints
+  ansible.builtin.set_fact:
+    hc_bad_mounts: "{{ hc_bad_mounts | default([]) + [item.item.path] }}"
+  loop: "{{ hc_mount_checks.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+  when: item.item.fstype not in (item.stdout_lines | default([]) | map('trim') | list)
+
+# --- containers -------------------------------------------------------
+- name: Collect running containers
+  ansible.builtin.command: docker ps --format '{{ '{{' }}.Names{{ '}}' }}'
+  register: hc_containers
+  changed_when: false
+  failed_when: false
+  when: health_expected_containers | length > 0
+
+- name: Determine which expected containers are not running
+  ansible.builtin.set_fact:
+    hc_missing_containers: >-
+      {{ health_expected_containers
+         | difference(hc_containers.stdout_lines | default([]) | map('trim') | list) }}
+  when: health_expected_containers | length > 0
+
+# --- report + assert --------------------------------------------------
+- name: Health summary
+  ansible.builtin.debug:
+    msg:
+      - "host                : {{ inventory_hostname }}"
+      - "failed units        : {{ hc_failed_names | length }}{{ hc_failed_names | length and ' -> ' ~ (hc_failed_names | join(', ')) or '' }}"
+      - "missing zpools      : {{ hc_missing_pools | default([]) | join(', ') if (hc_missing_pools | default([]) | length) else 'none' }}"
+      - "bad/missing mounts  : {{ hc_bad_mounts | default([]) | join(', ') if (hc_bad_mounts | default([]) | length) else 'none' }}"
+      - "missing containers  : {{ hc_missing_containers | default([]) | join(', ') if (hc_missing_containers | default([]) | length) else 'none' }}"
+
+- name: FAIL if an expected ZFS pool is not imported
+  ansible.builtin.assert:
+    that: hc_missing_pools | default([]) | length == 0
+    fail_msg: >-
+      ZFS pool(s) NOT imported on {{ inventory_hostname }}:
+      {{ hc_missing_pools | default([]) | join(', ') }} — this is the
+      2026-07-25 failure mode. Import the pool, then confirm it is recorded
+      in /etc/zfs/zpool.cache so it survives the next reboot.
+    success_msg: "All expected ZFS pools are imported."
+
+- name: FAIL if an expected mountpoint is missing or on the wrong filesystem
+  ansible.builtin.assert:
+    that: hc_bad_mounts | default([]) | length == 0
+    fail_msg: >-
+      Mountpoint(s) missing or wrong filesystem on {{ inventory_hostname }}:
+      {{ hc_bad_mounts | default([]) | join(', ') }} — a ZFS path that has
+      degraded to a plain root-filesystem directory will silently accept
+      writes onto the boot disk.
+    success_msg: "All expected mountpoints are correct."
+
+- name: FAIL if an expected container is not running
+  ansible.builtin.assert:
+    that: hc_missing_containers | default([]) | length == 0
+    fail_msg: >-
+      Container(s) not running on {{ inventory_hostname }}:
+      {{ hc_missing_containers | default([]) | join(', ') }}
+    success_msg: "All expected containers are running."
+
+# Split into warn-vs-fail rather than assert + ignore_errors, so a warning
+# is a real warning instead of a red "failed (ignored)" that trains you to
+# scroll past it.
+- name: WARN about failed systemd units
+  ansible.builtin.debug:
+    msg: >-
+      WARNING — failed systemd unit(s) on {{ inventory_hostname }}:
+      {{ hc_failed_names | join(', ') }}
+  when:
+    - hc_failed_names | length > 0
+    - health_units_warn_only | bool
+
+- name: FAIL on failed systemd units
+  ansible.builtin.fail:
+    msg: "Failed systemd unit(s) on {{ inventory_hostname }}: {{ hc_failed_names | join(', ') }}"
+  when:
+    - hc_failed_names | length > 0
+    - not (health_units_warn_only | bool)

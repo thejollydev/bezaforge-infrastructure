@@ -1,0 +1,66 @@
+---
+# ============================================================
+# os-update — deliberate, on-demand full package upgrade
+# ============================================================
+# Invoked ONLY by update.yml, never by site.yml — site.yml converges
+# configuration and must stay safe to run at any time; upgrading packages is
+# a decision, not a convergence.
+#
+# Reports what needs a reboot; never reboots. See update.yml for the safe
+# host ordering and why it matters.
+
+- name: Refresh package lists
+  ansible.builtin.apt:
+    update_cache: true
+  register: osu_cache
+  retries: 3
+  delay: 10
+  until: osu_cache is succeeded
+
+# noqa justified: ansible.builtin.apt has no "tell me what WOULD upgrade"
+# read-only mode that returns the package list; a simulated apt-get run is
+# the only way to report the count before acting on it.
+- name: List packages that will be upgraded (before)  # noqa: command-instead-of-module
+  ansible.builtin.command: apt-get -s upgrade
+  register: osu_sim
+  changed_when: false
+
+- name: Record how many packages are pending
+  ansible.builtin.set_fact:
+    osu_pending: "{{ osu_sim.stdout_lines | select('match', '^Inst ') | list | length }}"
+
+- name: Upgrade packages
+  ansible.builtin.apt:
+    upgrade: "{{ os_update_upgrade_mode }}"
+    autoremove: "{{ os_update_autoremove }}"
+    autoclean: true
+  register: osu_upgrade
+  when: osu_pending | int > 0
+
+- name: Check whether a reboot is required
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: osu_reboot_flag
+
+- name: Read which packages triggered the reboot requirement
+  ansible.builtin.slurp:
+    src: /var/run/reboot-required.pkgs
+  register: osu_reboot_pkgs
+  when: osu_reboot_flag.stat.exists
+  failed_when: false
+
+- name: Determine which packages triggered the reboot requirement
+  ansible.builtin.set_fact:
+    osu_reboot_reason: >-
+      {{ (osu_reboot_pkgs.content | b64decode).split() | unique | join(', ') }}
+  when:
+    - osu_reboot_flag.stat.exists
+    - osu_reboot_pkgs.content is defined
+
+- name: Report per-host update result
+  ansible.builtin.debug:
+    msg:
+      - "host            : {{ inventory_hostname }}"
+      - "packages        : {{ osu_pending }} upgraded"
+      - "reboot required : {{ osu_reboot_flag.stat.exists | ternary('YES', 'no') }}"
+      - "triggered by    : {{ osu_reboot_reason | default('n/a', true) | trim }}"

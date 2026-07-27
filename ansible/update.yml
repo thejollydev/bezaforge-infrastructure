@@ -1,0 +1,70 @@
+---
+# ============================================================
+# update.yml — deliberate fleet package upgrade, in a safe order
+# ============================================================
+#
+#   cd ~/Projects/bezaforge-infrastructure/ansible
+#   ansible-playbook update.yml --ask-become-pass --ask-vault-pass
+#
+# Reports which hosts need a reboot. NEVER reboots anything — you reboot
+# manually, in the same order the plays run, then verify with health.yml.
+#
+# WHY THIS ORDER (it is not arbitrary):
+#
+#   1. forge-hypervisor — rebooting it bounces every VM, so it goes first,
+#      while nothing else is mid-dpkg. forge-ops is bare metal, so DNS is
+#      unaffected by a hypervisor reboot.
+#
+#   2. the VMs (forge-ai, forge-erp, forge-brizza) — freshly booted after
+#      step 1. forge-erp wants a clean container stop for ERPNext/MariaDB.
+#
+#   3. forge-ops LAST — it runs AdGuard, which is DNS for EVERY VLAN. While
+#      forge-ops is down nothing else can resolve deb.debian.org, so no other
+#      host may be mid-apt. It also carries Traefik and every service.
+#
+# AFTER REBOOTING, RUN health.yml. On 2026-07-25 a hypervisor reboot left the
+# sharepool ZFS pool unimported and it went unnoticed for ~24 h. Ordering does
+# not catch that; verification does.
+
+- name: Update forge-hypervisor (first — its reboot bounces all VMs)
+  hosts: forge-hypervisor
+  become: true
+  gather_facts: true
+  roles:
+    - os-update
+  tags: [update, hypervisor]
+
+- name: Update the Proxmox guest VMs
+  hosts: forge-ai,forge-erp,forge-brizza
+  become: true
+  gather_facts: true
+  serial: 1
+  roles:
+    - os-update
+  tags: [update, vms]
+
+- name: Update forge-ops (last — it is DNS + Traefik for the whole fleet)
+  hosts: forge-ops
+  become: true
+  gather_facts: true
+  roles:
+    - os-update
+  tags: [update, ops]
+
+- name: Summarise which hosts need a reboot
+  hosts: all
+  become: false
+  gather_facts: false
+  tasks:
+    - name: Reboot summary
+      ansible.builtin.debug:
+        msg: >-
+          {{ ansible_play_hosts_all
+             | map('extract', hostvars, 'osu_reboot_flag')
+             | selectattr('stat', 'defined')
+             | selectattr('stat.exists')
+             | list | length }} host(s) require a reboot.
+          Reboot order: forge-hypervisor -> forge-ai/forge-erp/forge-brizza -> forge-ops.
+          Then run:  ansible-playbook health.yml
+      run_once: true
+  tags: [update]

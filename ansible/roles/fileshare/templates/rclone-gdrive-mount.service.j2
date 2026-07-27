@@ -6,6 +6,13 @@ Description=rclone RW mount of Google Drive ({{ fileshare_drive_mountpoint }})
 Documentation=https://rclone.org/commands/rclone_mount/
 After=network-online.target
 Wants=network-online.target
+# Do not start until the sharepool ZFS dataset is actually mounted. Without
+# this, a missing/unimported pool leaves {{ fileshare_root }} as a plain
+# directory on the small root filesystem, and this unit would mount Drive +
+# write its VFS cache there — filling the boot disk. RequiresMountsFor turns
+# that silent misplacement into a clean dependency failure.
+# (Added after the 2026-07-25 reboot left sharepool unimported for ~24 h.)
+RequiresMountsFor={{ fileshare_root }} {{ fileshare_cache_dir }}
 AssertPathIsDirectory={{ fileshare_drive_mountpoint }}
 
 [Service]

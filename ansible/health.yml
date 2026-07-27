@@ -1,0 +1,36 @@
+---
+# ============================================================
+# health.yml — verify fleet state (read-only)
+# ============================================================
+#
+#   cd ~/Projects/bezaforge-infrastructure/ansible
+#   ansible-playbook health.yml --ask-become-pass --ask-vault-pass
+#
+# Run this after every reboot, after update.yml, and any time you want to
+# know the fleet is actually healthy rather than merely reachable.
+#
+# Checks per host: expected ZFS pools imported, expected mountpoints present
+# AND of the right filesystem type, expected containers running, and no
+# failed systemd units.
+#
+# Born from the 2026-07-25 incident — a hypervisor reboot left the sharepool
+# ZFS pool unimported. Ping said fine, SSH said fine, Samba was "active", and
+# the share was gone for ~24 h.
+
+# become mirrors site.yml: ansible_user is already root on forge-hypervisor,
+# so that play does not escalate.
+- name: Verify forge-hypervisor health
+  hosts: hypervisor_hosts
+  become: false
+  gather_facts: false
+  roles:
+    - health-check
+  tags: [health]
+
+- name: Verify health of the rest of the fleet
+  hosts: all:!hypervisor_hosts
+  become: true
+  gather_facts: false
+  roles:
+    - health-check
+  tags: [health]

@@ -38,10 +38,9 @@
       "pinDigests": true
     },
     {
-      "description": "Coordinated app stacks — images are version-locked as a unit and updated via their own runbooks (ERPNext = FORGE-84 frappe_docker + bench migrate; Plane = APP_RELEASE; LangFuse = the v3 stack). Renovate must not bump them piecemeal.",
+      "description": "Coordinated app stacks — images are version-locked as a unit and updated via their own runbooks (ERPNext = frappe_docker + bench migrate; LangFuse = the v3 stack). Renovate must not bump them piecemeal.",
       "matchFileNames": [
         "ansible/roles/erpnext/**",
-        "ansible/roles/plane/**",
         "ansible/roles/services/files/langfuse-compose.yml"
       ],
       "enabled": false
