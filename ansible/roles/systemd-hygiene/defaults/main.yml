@@ -1,0 +1,9 @@
+---
+# ============================================================
+# systemd-hygiene — mask units that can never succeed on a host
+# ============================================================
+# Empty by default, so the role is a no-op everywhere until a host opts in
+# via host_vars. Only list units that are IMPOSSIBLE on that host (absent
+# hardware, a service superseded by a container) — never units that are
+# merely broken, because those deserve a fix, not a silencer.
+systemd_masked_units: []

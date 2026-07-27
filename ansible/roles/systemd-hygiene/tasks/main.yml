@@ -1,0 +1,17 @@
+---
+# ============================================================
+# systemd-hygiene — mask units that can never succeed on a host
+# ============================================================
+# A permanently-failed unit is not harmless. It pins
+# node_systemd_unit_state{state="failed"} above zero forever, so the Grafana
+# failed-unit alert added with #552 would page on it every time and train us
+# to ignore the one generic signal that would have caught the sharepool
+# outage. Masking the impossible ones is what keeps "a unit failed" meaningful.
+
+- name: Mask units that cannot succeed on this host
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    masked: true
+    enabled: false
+    state: stopped
+  loop: "{{ systemd_masked_units }}"

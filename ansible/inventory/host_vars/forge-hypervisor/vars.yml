@@ -49,3 +49,16 @@ health_expected_mounts:
   - {path: /sharepool/files, fstype: zfs}
   - {path: /bezapool/vault, fstype: zfs}
   - {path: /bezapool/forge-ops-backup, fstype: zfs}
+
+# --- systemd-hygiene ---
+# openipmi.service can never start on this box. forge-hypervisor is an MSI
+# MS-7C84 consumer board with no BMC: `dmidecode --type 38` (IPMI Device
+# Information) is empty and there is no /dev/ipmi*, so the ipmi_si system
+# interface driver has nothing to bind to. It is installed only as a
+# transitive dependency of our own monitoring stack —
+# prometheus-node-exporter-collectors recommends ipmitool, which depends on
+# openipmi — and it has been in a failed state since the 2026-07-25 reboot.
+# Masking (not removing) because Recommends are reinstalled on upgrade, so
+# removal would not survive; masking is durable and idempotent.
+systemd_masked_units:
+  - openipmi.service
