@@ -15,3 +15,23 @@
     enabled: false
     state: stopped
   loop: "{{ systemd_masked_units }}"
+
+# Masking does NOT clear a unit that has already failed. It stays in
+# `systemctl --failed` -- and therefore in node_systemd_unit_state{state="failed"}
+# -- until its state is explicitly reset, so without this the mask silences
+# nothing and the #552 alert pages forever anyway. Caught by health.yml on the
+# first run after masking openipmi.service on forge-hypervisor.
+- name: Check whether a masked unit is still in the failed state  # noqa: command-instead-of-module
+  ansible.builtin.command: systemctl is-failed {{ item | quote }}
+  register: systemd_hygiene_failed
+  changed_when: false
+  failed_when: false
+  loop: "{{ systemd_masked_units }}"
+
+- name: Reset the failed state of masked units  # noqa: command-instead-of-module
+  ansible.builtin.command: systemctl reset-failed {{ item.item | quote }}
+  when: item.stdout | trim == 'failed'
+  changed_when: true
+  loop: "{{ systemd_hygiene_failed.results }}"
+  loop_control:
+    label: "{{ item.item }}"
