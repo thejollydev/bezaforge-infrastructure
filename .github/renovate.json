@@ -19,14 +19,15 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Container images in compose files, Jinja (.j2) templates, and Ansible *_image vars. Handles the FORGE-70 tag@sha256 form, tag-only images, and digest-only (no-tag) images. Skips values containing Jinja {{ }} or ${ } (unresolvable tags).",
+      "description": "Container images in compose files, Jinja (.j2) templates, and Ansible *_image vars. Handles the FORGE-70 tag@sha256 form, tag-only images, and digest-only (no-tag) images. Skips values containing Jinja {{ }} or ${ } (unresolvable tags). IMAGE VALUES MUST BE UNQUOTED: the regex is unanchored so it also matches `<something>_image: `, and the match would include an opening quote but not the closing one, so autoReplaceStringTemplate would emit a dangling quote and corrupt the YAML. Quote support was therefore removed from matchStrings on purpose -- a quoted value is now silently unmanaged (safe) rather than rewritten into broken YAML (unsafe). autoReplaceStringTemplate is what lets Renovate PIN a digest onto a tag-only image; without it the pin branch failed on every run for 3+ weeks with 'Digest is not updated / update failure' because currentDigest never participated in the match.",
       "managerFilePatterns": [
         "/^ansible/roles/.+\\.ya?ml(\\.j2)?$/",
         "/^docker/.+\\.ya?ml$/"
       ],
       "matchStrings": [
-        "image:\\s+[\"']?(?<depName>[^\\s:@\"'${}]+)(?::(?<currentValue>[^\\s@\"'${}]+))?(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?"
+        "image:\\s+(?<depName>[^\\s:@\"'${}]+)(?::(?<currentValue>[^\\s@\"'${}]+))?(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?"
       ],
+      "autoReplaceStringTemplate": "image: {{{depName}}}{{#if newValue}}:{{{newValue}}}{{/if}}{{#if newDigest}}@{{{newDigest}}}{{/if}}",
       "datasourceTemplate": "docker",
       "versioningTemplate": "docker"
     }
