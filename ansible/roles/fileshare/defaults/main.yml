@@ -38,9 +38,10 @@ fileshare_gid: 1500
 
 # --- storage layout ---
 fileshare_zpool: sharepool                     # the single-disk 2 TB Seagate pool
-# zfs-import-cache.service imports whatever is listed here at boot. It is
-# gated on ConditionFileNotEmpty, so an empty cache file = no import at all.
-fileshare_zpool_cachefile: /etc/zfs/zpool.cache
+# Boot import is via `zfs-import@sharepool.service` (see tasks/main.yml).
+# There is deliberately NO cachefile variable here: /etc/zfs/zpool.cache is
+# truncated to 0 bytes on every boot by PVE's own zfs-import@bezapool
+# import, so anything gated on it never fires (#560, 2026-07-30).
 fileshare_root: /sharepool/files               # ZFS dataset (Samba share path)
 fileshare_drive_mountpoint: /sharepool/files/GoogleDrive
 fileshare_cache_dir: /sharepool/rclone-cache   # off the small boot disk

@@ -42,22 +42,51 @@
   when: fileshare_pool.rc != 0
   changed_when: true
 
-# Putting the pool in the cache file is what actually makes it survive a
-# reboot: zfs-import-cache.service carries
-# ConditionFileNotEmpty=/etc/zfs/zpool.cache, so an EMPTY cache file makes
-# systemd skip the import entirely (which is exactly what happened here —
-# the file was 0 bytes and zfs-import-scan.service is disabled).
-- name: Ensure sharepool is recorded in the ZFS cache file (survives reboot)
-  ansible.builtin.command: zpool set cachefile={{ fileshare_zpool_cachefile }} {{ fileshare_zpool }}
-  register: fileshare_cachefile_set
-  changed_when: fileshare_cachefile_set.rc == 0
-  when: fileshare_pool.rc != 0
+# Boot persistence is owned by a PER-POOL `zfs-import@<pool>.service` — the
+# same mechanism PVE uses for bezapool — and explicitly NOT by
+# /etc/zfs/zpool.cache.
+#
+# The cache-file approach was tried first (#552) and is UNFIXABLE on a
+# Proxmox host. Proven against a real reboot on 2026-07-30 (#560):
+#
+#   zfs-import@.service carries `Before=zfs-import-cache.service` and runs
+#     zpool import -N -d /dev/disk/by-id -o cachefile=none <pool>
+#
+#   Importing bezapool that way makes the ZFS module rewrite
+#   /etc/zfs/zpool.cache from the set of imported pools using the DEFAULT
+#   cachefile. At that instant that set is EMPTY — bezapool is
+#   cachefile=none and sharepool is not imported yet — so the module writes
+#   a ZERO-BYTE cache. One second later zfs-import-cache.service fails its
+#   ConditionFileNotEmpty and skips. Timeline from that boot:
+#     20:51:52.147  zfs-import@bezapool.service starts
+#     20:51:54.743  /etc/zfs/zpool.cache truncated to 0 bytes
+#     20:51:55.293  zfs-import-cache.service SKIPPED, unmet condition
+#   `Before=` makes this deterministic, not a race. Every boot.
+#
+# The old tasks did `zpool set cachefile=` then asserted the file was
+# non-empty. That assertion passed on every single Ansible run — you had
+# just written the file — while the mechanism it claimed to prove had never
+# once worked. ASSERT THE MECHANISM, NOT THE ARTIFACT.
+- name: Enable boot-time import of the sharepool ZFS pool
+  ansible.builtin.systemd:
+    name: "zfs-import@{{ fileshare_zpool }}.service"
+    enabled: true
 
-- name: Assert the ZFS cache file is non-empty (else the pool will NOT auto-import)
-  ansible.builtin.stat:
-    path: "{{ fileshare_zpool_cachefile }}"
-  register: fileshare_cache_stat
-  failed_when: not fileshare_cache_stat.stat.exists or fileshare_cache_stat.stat.size == 0
+# Deliberately a separate read-back rather than trusting the task above:
+# this is the one property whose failure is invisible until a reboot, which
+# is exactly how #552 stayed hidden for a month.
+#
+# noqa justified: the systemd module's return value reports what it just
+# did; `systemctl is-enabled` interrogates the live unit-file state
+# independently. service_facts is unreliable for template instances
+# (zfs-import@<pool>). Given this role's history of asserting the wrong
+# thing, the independent read is the point of the task.
+- name: Assert boot-time import of sharepool is enabled (else it will NOT survive a reboot)  # noqa: command-instead-of-module
+  ansible.builtin.command: systemctl is-enabled zfs-import@{{ fileshare_zpool }}.service
+  register: fileshare_import_unit
+  changed_when: false
+  check_mode: false
+  failed_when: fileshare_import_unit.stdout | trim != 'enabled'
 
 - name: Assert sharepool/files dataset is mounted at the expected path
   ansible.builtin.command: zfs list -H -o mountpoint {{ fileshare_zpool }}/files

@@ -99,8 +99,11 @@
     fail_msg: >-
       ZFS pool(s) NOT imported on {{ inventory_hostname }}:
       {{ hc_missing_pools | default([]) | join(', ') }} — this is the
-      2026-07-25 failure mode. Import the pool, then confirm it is recorded
-      in /etc/zfs/zpool.cache so it survives the next reboot.
+      2026-07-25 failure mode. Recover with `zpool import <pool>`, then make
+      it boot-persistent with `systemctl enable zfs-import@<pool>.service`.
+      Do NOT rely on /etc/zfs/zpool.cache: PVE's own zfs-import@bezapool
+      truncates it to 0 bytes on every boot, before zfs-import-cache reads
+      it (#560, 2026-07-30).
     success_msg: "All expected ZFS pools are imported."
 
 - name: FAIL if an expected mountpoint is missing or on the wrong filesystem
