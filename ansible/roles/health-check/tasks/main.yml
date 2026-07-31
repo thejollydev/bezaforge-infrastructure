@@ -47,6 +47,34 @@
 # its mountpoint silently degrades to a plain directory on the root
 # filesystem, so "the path exists" is NOT sufficient — the filesystem type
 # has to be checked too.
+
+# An `x-systemd.automount` path is not mounted until something touches it,
+# and an UNTRIGGERED automount reports only "autofs" to findmnt — the real
+# fstype is absent entirely, so even the membership test below fails. Read
+# each expected path first: that both triggers the automount and makes the
+# check measure whether the mount CAN be established, which is the property
+# actually worth verifying after a reboot.
+#
+# Caught 2026-07-30 by #560's reboot: forge-ai and forge-brizza both
+# false-failed on a perfectly healthy /mnt/bezashare purely because nothing
+# had accessed it since boot. The earlier "test membership, not equality"
+# fix (see below) addressed a DIFFERENT autofs case — a mount that had
+# already been triggered, which reports both "autofs" and "cifs".
+#
+# This misfire only happens on a freshly-booted host, i.e. exactly the
+# situation health.yml exists for, so leaving it would train us to ignore
+# the one check meant to catch the next silent outage.
+- name: Trigger any on-demand (autofs) mounts so they can be checked
+  ansible.builtin.find:
+    paths: "{{ item.path }}"
+    file_type: any
+    recurse: false
+  register: hc_mount_trigger
+  failed_when: false
+  loop: "{{ health_expected_mounts }}"
+  loop_control:
+    label: "{{ item.path }}"
+
 - name: Check filesystem type at each expected mountpoint
   ansible.builtin.command: findmnt -no FSTYPE --target {{ item.path }}
   register: hc_mount_checks
