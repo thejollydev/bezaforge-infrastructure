@@ -20,7 +20,7 @@ The vault is canonical for design, but a few facts live alongside the code becau
 
 - **Service inventory + bezaforge.dev URL table** → `README.md` in this repo (top of file)
 - **Hardware spec + per-VM resource list** → `README.md` (Infrastructure section) and `terraform/vms.tf` (authoritative for VM definitions)
-- **VLAN ACLs + DNS** → not in repo; configured in the Omada controller UI. See vault `02_Knowledge-Base/Quick-References/Networking/` for snapshots. (Carryover #18 on the ROADMAP — community Omada Terraform provider exists but isn't worth adopting yet.)
+- **VLAN ACLs + DNS** → not in repo; configured in the Omada controller UI. The verified live matrix lives in vault `05_Projects/bezaforge-infrastructure/design/ip-allocation.md` ("Firewall Rules Summary" — checked against the live gateway 2026-06-26 — and "DNS Configuration"). Codifying this in Terraform was evaluated and **declined** (OpenProject #122, 2026-07-31): of three community Omada providers only one covers VLANs/ACLs/port-profiles, and it is four months old, feature-frozen, single-maintainer; none covers DNS rewrites. Omada stays hand-managed.
 - **Backups** → `README.md` (Backups section) summarizes the four-layer architecture. ADR 0001 in `05_Projects/bezaforge-infrastructure/design/decisions/0001-backup-architecture.md` (vault) has the full decision record.
 - **Per-service Docker Compose** → `ansible/roles/services/templates/*-compose.yml.j2`
 - **Per-role secrets schema** → `ansible/inventory/host_vars/*/vault.yml` (ansible-vault encrypted)
