@@ -15,6 +15,13 @@ resource "proxmox_virtual_environment_vm" "vm" {
   scsi_hardware       = var.scsi_hardware
   reboot_after_update = false
 
+  # All three default to bpg's own defaults, so declaring them is a no-op for the
+  # existing fleet. They exist for passthrough-contending / agentless guests — see
+  # each variable's description.
+  started         = var.started
+  on_boot         = var.on_boot
+  stop_on_destroy = var.stop_on_destroy
+
   dynamic "clone" {
     for_each = var.create_from_template ? [1] : []
     content {
@@ -33,7 +40,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
   }
 
   agent {
-    enabled = true
+    enabled = var.agent_enabled
   }
 
   bios    = var.bios_type
@@ -59,6 +66,9 @@ resource "proxmox_virtual_environment_vm" "vm" {
     file_format  = var.disk_format
     iothread     = var.disk_iothread
     cache        = var.disk_cache
+    # "" is the provider's own default and passes validation (validators.FileID
+    # skips empty), so this is a no-op for every VM that doesn't set it.
+    import_from = var.disk_import_from
   }
 
   network_device {
@@ -76,14 +86,25 @@ resource "proxmox_virtual_environment_vm" "vm" {
     type = "l26"
   }
 
+  dynamic "usb" {
+    for_each = var.usb_devices
+    content {
+      mapping = usb.value.mapping
+      usb3    = usb.value.usb3
+    }
+  }
+
   dynamic "hostpci" {
     for_each = var.hostpci_devices
     content {
       device = "hostpci${hostpci.key}"
-      id     = hostpci.value.id
-      pcie   = hostpci.value.pcie
-      rombar = hostpci.value.rombar
-      xvga   = hostpci.value.xvga
+      # Exactly one of these is set; the other is null and omitted. `id` only works
+      # for root+password auth, so token-authenticated creates must use `mapping`.
+      id      = hostpci.value.id
+      mapping = hostpci.value.mapping
+      pcie    = hostpci.value.pcie
+      rombar  = hostpci.value.rombar
+      xvga    = hostpci.value.xvga
     }
   }
 
@@ -111,6 +132,13 @@ resource "proxmox_virtual_environment_vm" "vm" {
     # and their attributes are force-replacement. Ignoring drift on both lets a
     # once-cloned VM (e.g. forge-brizza) be re-declared create_from_template=false
     # — and lets the template_id default move — without destroying the live VM.
-    ignore_changes = [initialization, clone]
+    # `started` is deliberately NOT reconciled after create. Power state here is an
+    # OPERATIONAL fact, not a declarative one: the RX 7900 XT is mutually exclusive
+    # between forge-ai and forge-arcade, so handing the card over means stopping one VM
+    # by hand. Without this, the next `apply` reads that stop as drift and powers the VM
+    # back on — which is exactly what happened 2026-08-02: an apply restarted forge-ai
+    # mid-handoff and VM 105 then failed to start because the GPU was taken.
+    # Terraform still sets the initial state at create (`started = false` for 105).
+    ignore_changes = [initialization, clone, started]
   }
 }

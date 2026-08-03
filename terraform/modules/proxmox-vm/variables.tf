@@ -114,12 +114,52 @@ variable "bios_type" {
 }
 
 variable "hostpci_devices" {
-  description = "List of PCI devices to pass through. Empty = no passthrough."
+  description = <<-EOT
+    List of PCI devices to pass through. Empty = no passthrough.
+
+    Supply EITHER `id` (raw PCI path, e.g. "0000:2f:00" — omit the function to hand over
+    every function of the device) OR `mapping` (the name of a Proxmox cluster resource
+    mapping, e.g. "rx7900xt"). Not both.
+
+    ⚠️ `id` CANNOT BE USED WITH AN API TOKEN. Proxmox rejects it with "only root can set
+    'hostpci0' config for non-mapped devices" — and it counts a `root@pam!token` as
+    not-root regardless of privilege separation, so this is not fixable by granting
+    privileges. bpg documents the same constraint: `id` "requires the root username and
+    password configured in the proxmox provider."
+
+    Since this provider authenticates with `var.proxmox_api_token`, any NEWLY CREATED
+    passthrough VM must use `mapping`. `id` survives here only because forge-ai predates
+    Terraform and is managed as an import — the provider reads its hostpci but never
+    creates it. Create mappings with:
+      pvesh create /cluster/mapping/pci --id <name> --map 'node=...,path=...,id=vendor:device'
+  EOT
   type = list(object({
-    id     = string
-    pcie   = bool
-    rombar = bool
-    xvga   = bool
+    id      = optional(string)
+    mapping = optional(string)
+    pcie    = bool
+    rombar  = bool
+    xvga    = bool
+  }))
+  default = []
+}
+
+variable "usb_devices" {
+  description = <<-EOT
+    List of USB devices to pass through. Empty (default) = none.
+
+    Only `mapping` (a cluster USB resource-mapping name) is supported — raw `host=`
+    values are NOT usable with token auth. `check_usb_perm` in PVE::API2::Qemu dies with
+    "only root can set 'usbN' config for real devices" unless the value is `spice` or a
+    mapping, exactly mirroring the hostpci restriction (see `hostpci_devices`).
+
+    Create mappings with:
+      pvesh create /cluster/mapping/usb --id <name> --map 'node=<node>,id=<vendor:product>'
+    Prefer id-only over a bus-port `path`: USB device enumeration shifts across reboots,
+    so an id follows the device to whatever port it lands in.
+  EOT
+  type = list(object({
+    mapping = string
+    usb3    = optional(bool, false)
   }))
   default = []
 }
@@ -183,4 +223,78 @@ variable "vga_memory" {
   description = "VGA memory in MB. 16 is the Proxmox default for std/qxl and works for a desktop session."
   type        = number
   default     = 16
+}
+
+variable "disk_import_from" {
+  description = <<-EOT
+    Proxmox volume ID of a pre-built disk image to import as the root disk, in the form
+    `<datastore>:import/<file>.qcow2` (the datastore must carry the `import` content type;
+    `local` does). Empty (default) = Proxmox creates a blank disk, the behaviour every
+    existing VM here relies on.
+
+    For VMs whose OS is built OUTSIDE Proxmox rather than cloned from the cloud-init
+    template — e.g. the Bazzite gaming VM (#103), whose qcow2 comes from
+    bootc-image-builder. Set `disk_format = "qcow2"` alongside it.
+
+    Create-time only, and safe: bpg declares it `ForceNew: false` with "changes after
+    creation are ignored", and the provider knows PVE never returns `import-from` on read
+    (see disk.go). So unlike the `clone` block, this needs NO `ignore_changes` guard and
+    will not silently schedule a destroy/recreate on a later apply.
+
+    `size` may be set alongside it to grow the disk past the image's native size — that is
+    the upstream-sanctioned pattern (see the provider's own centos-qcow2 example).
+  EOT
+  type        = string
+  default     = ""
+}
+
+variable "started" {
+  description = <<-EOT
+    Whether Terraform keeps this VM running. True (default) matches bpg's own default and
+    every VM here today.
+
+    Set FALSE for a VM that must not be powered on automatically — notably the gaming VM
+    (#103), which competes for the RX 7900 XT with forge-ai. With the default, `apply`
+    would try to start it the moment it is created, while forge-ai still holds the card.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "on_boot" {
+  description = <<-EOT
+    Whether Proxmox starts this VM when the hypervisor boots. True (default) matches bpg's
+    default and the always-on fleet.
+
+    Set FALSE for occasional-use VMs that contend for a passthrough device — otherwise the
+    gaming VM would race forge-ai for the GPU on every single host reboot.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "stop_on_destroy" {
+  description = <<-EOT
+    Whether `destroy` hard-stops the VM instead of requesting a graceful shutdown.
+    False (default) = graceful, which RELIES ON THE GUEST AGENT and will hang without it.
+
+    Set TRUE for any guest without qemu-guest-agent (bpg's own cloud-image example carries
+    exactly this caveat). Pairs with `agent_enabled = false`.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "agent_enabled" {
+  description = <<-EOT
+    Whether Proxmox should expect the QEMU guest agent in this VM. True (default) matches
+    every cloud-init VM here, which bakes the agent into template 9002.
+
+    Set FALSE for any guest that does not ship qemu-guest-agent. Terraform does not merely
+    lose the guest's IP — bpg BLOCKS waiting for an agent that never answers, which is the
+    documented ~15-minute `plan`/`apply` hang (see the ubuntu-26.04 template notes; the
+    agent must be baked before `qm template` for exactly this reason).
+  EOT
+  type        = bool
+  default     = true
 }
