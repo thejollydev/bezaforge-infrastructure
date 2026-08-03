@@ -121,3 +121,156 @@ module "forge_brizza" {
   create_from_template = false
 }
 
+# ---------------------------------------------------------------------------
+# forge-arcade — VMID 105
+# Bazzite (KDE desktop image) gaming VM, RX 7900 XT passthrough
+# VLAN 40 (Home), DHCP — same subnet as the living-room TV
+#
+# VARIANT DECISION (2026-08-02): plain `bazzite`, NOT `bazzite-deck`. The deck image is
+# documented as "intended for controller-oriented setups" and boots straight into Steam
+# Game Mode, whose first-run wizard cannot be driven without a controller — it deadlocked
+# setup here. Controller play does NOT depend on it: every Bazzite variant ships Steam +
+# Proton + Sunshine, and Moonlight forwards controller input over the network. If Game
+# Mode is ever wanted, rebasing is officially supported and reversible:
+#   rpm-ostree rebase ostree-image-signed:docker://ghcr.io/ublue-os/bazzite-deck:stable
+# (Don't rebase across desktop environments; both of these are KDE, so that's fine.)
+#
+# ⚠️ MUTUALLY EXCLUSIVE WITH forge-ai (101): both declare hostpci 0000:2f:00.
+# Proxmox happily holds both *configs*, but only one may RUN at a time. Hand the
+# card over by shutting forge-ai down first. Proven safe end-to-end 2026-07-31
+# (#103): forge-ai → release → another VM → release → forge-ai, no host reboot.
+# Proxmox logs "Inappropriate ioctl for device" on every start — BENIGN, vfio-pci
+# then does its own secondary-bus reset. Do not chase it.
+#
+# Provisioning shape differs from every other VM here: Bazzite is an atomic bootc
+# image with no cloud-init, so it is NOT cloned from template 9002. The root disk is
+# a qcow2 seed built by bootc-image-builder from ghcr.io/ublue-os/bazzite-deck:stable
+# and staged to local:import/. The disk is only a seed — the OS updates itself from
+# the registry via bootc, so this is not a hand-built pet.
+# ---------------------------------------------------------------------------
+
+module "forge_arcade" {
+  source = "./modules/proxmox-vm"
+
+  vm_id       = 105
+  name        = "forge-arcade"
+  description = "Bazzite gaming VM — RX 7900 XT (mutually exclusive with forge-ai); Sunshine → Moonlight on the living-room TV"
+  node_name   = var.proxmox_node
+  cores       = 8
+  cpu_type    = "host"
+  memory      = 16384
+  # balloon_minimum intentionally omitted → module default 0 = ballooning DISABLED.
+  # Required for PCI passthrough: the guest's RAM must be pinned for DMA.
+
+  disk_size      = 250
+  storage_pool   = "vm-fast"
+  disk_interface = "scsi0"
+  scsi_hardware  = "virtio-scsi-single"
+  disk_iothread  = true
+  disk_format    = "qcow2"
+  # Import the pre-built Bazzite seed instead of creating a blank disk. `size` above
+  # grows it past the image's native size in the same step — the upstream-sanctioned
+  # pattern (bpg's own centos-qcow2 example sets import_from + size together).
+  disk_import_from = "local:import/bazzite-stable-2026-08-02.qcow2"
+
+  bios_type    = "ovmf"
+  has_efi_disk = true
+
+  bridge  = "vmbr0"
+  vlan_id = 40
+  # ⚠️ INERT for this VM: the module only emits an `initialization` (cloud-init) block
+  # when create_from_template = true. Bazzite has no cloud-init, so these two values
+  # are documentation, not configuration — the guest takes DHCP from the VLAN 40 pool
+  # (10.10.40.100-250). Add an Omada reservation if a stable address is wanted.
+  # Source of truth for this subnet: design/ip-allocation.md.
+  ip_address     = "10.10.40.105/24"
+  gateway        = "10.10.40.1"
+  ssh_public_key = var.ssh_public_key # also inert without cloud-init; the key is baked
+  # into the image by bootc-image-builder's config.toml.
+
+  create_from_template = false
+
+  # ⚠️ TEMPORARY — SETUP MODE (2026-08-02). Flip both this and hostpci xvga back before
+  # this VM is considered done; see the marker on hostpci_devices below.
+  #
+  # Steady state is vga_type = "none": the passthrough GPU drives the real monitor, and
+  # the LG UltraFine keeps HPD + EDID asserted even while switched to another input
+  # (verified 2026-07-31), so the guest always sees a real 3840x2160 output.
+  #
+  # But "none" + x-vga=1 means there is NO Proxmox console, which made first-run setup
+  # depend entirely on USB passthrough — and the passed-through Logitech receivers reach
+  # QEMU (they appear in `info usb`) yet produce no input in the guest. Rather than debug
+  # that blind, with no shell, run setup on an emulated display so noVNC gives a reliable
+  # keyboard and mouse; then restore the steady state and debug USB with SSH available.
+  vga_type = "std"
+
+  tags = ["gaming", "gpu", "desktop"]
+
+  # Uses the cluster resource mapping, NOT a raw PCI id: Proxmox refuses raw hostpci for
+  # API-token auth ("only root can set 'hostpci0' config for non-mapped devices"), and a
+  # root@pam token still counts as not-root. The mapping's path is 0000:2f:00 with no
+  # function suffix, so both the GPU and its HDMI audio function come across — same as
+  # forge-ai's raw id. Create it with:
+  #   pvesh create /cluster/mapping/pci --id rx7900xt \
+  #     --map 'node=forge-hypervisor,path=0000:2f:00,id=1002:744c,subsystem-id=1eae:7905,iommugroup=32'
+  # ⚠️ TEMPORARY — SETUP MODE (2026-08-02): GPU fully detached.
+  # Demoting it (xvga = false) was not enough: with a real card present and a live EDID on
+  # the LG, the graphical session lands on the AMD GPU and noVNC shows only a bare VT.
+  # Removing it leaves exactly ONE display, so noVNC is guaranteed — and KDE runs fine on
+  # the emulated adapter, unlike gamescope, which needs Vulkan.
+  # It also means **forge-ai keeps the card and stays up** through the whole install.
+  # STEADY STATE (restore together with usb_devices above and vga_type = "none"):
+  #   hostpci_devices = [
+  #     {
+  #       mapping = "rx7900xt" # path 0000:2f:00 → GPU + its HDMI audio function
+  #       pcie    = true
+  #       rombar  = false
+  #       xvga    = true       # primary display; makes Proxmox ignore `vga` entirely
+  #     }
+  #   ]
+  hostpci_devices = []
+
+  # Keyboard + mouse for the guest. WITHOUT THIS THE VM HAS NO INPUT DEVICE AT ALL:
+  # x-vga=1 makes the passthrough card primary, which disables the Proxmox console, so
+  # there is no other way to type into the guest before Sunshine is configured.
+  #
+  # BOTH receivers are required — the peripherals are split across them:
+  #   logi-bolt     046d:c548  → MX Keys S keyboard
+  #   logi-unifying 046d:c52b  → M510 mouse
+  # Determined by raw event capture on 2026-08-02, NOT by device name: while typing and
+  # moving the mouse, event2 (Bolt kbd iface) took 1728 B and event6 (M510) 23952 B, while
+  # event7 — the node the kernel calls "Logitech K350" — took ZERO. hid-logitech-dj
+  # materialises an input node for every slot in a Unifying receiver's stored pairing
+  # table, so that K350 is a phantom for hardware no longer in use. Never identify these
+  # by name; capture events.
+  #
+  # This also removes a real hazard: on 2026-08-02 the keyboard was still bound to the
+  # HOST while the guest displayed Steam's "connect a keyboard" wizard, so a Ctrl+Alt+Del
+  # aimed at the guest hit the Proxmox console instead and rebooted the hypervisor.
+  # ⚠️ While VM 105 runs the host has NO local input; administer it over SSH.
+  # ⚠️ TEMPORARY — SETUP MODE (2026-08-02): detached. Setup runs entirely through noVNC,
+  # so passing these through would only take Joseph's desktop keyboard and mouse away
+  # from the host for no benefit. Whether USB passthrough delivers input to this guest at
+  # ALL is still unproven — the receivers appeared in `info usb` yet produced nothing —
+  # so that gets diagnosed over SSH once a shell exists, not before.
+  # STEADY STATE (restore together with hostpci/vga below):
+  #   usb_devices = [
+  #     { mapping = "logi-bolt" },    # usb0 — MX Keys S keyboard
+  #     { mapping = "logi-unifying" } # usb1 — M510 mouse
+  #   ]
+  usb_devices = []
+
+  # Occasional-use + contends for the GPU, so all three differ from the fleet default:
+  #   started         — do NOT power on at apply; forge-ai still holds the card.
+  #   on_boot         — do NOT autostart with the hypervisor, or it races forge-ai every reboot.
+  #   stop_on_destroy — graceful shutdown needs the guest agent, which this image lacks.
+  started         = false
+  on_boot         = false
+  stop_on_destroy = true
+
+  # Bazzite ships no qemu-guest-agent. Leaving this true makes bpg block waiting for an
+  # agent that never answers — the documented ~15-minute plan/apply hang. Flip to true
+  # only after `qm agent 105 ping` actually answers.
+  agent_enabled = false
+}
+
