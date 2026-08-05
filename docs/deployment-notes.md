@@ -7,16 +7,49 @@ This serves as a runbook for future rebuilds and as reference for common edge ca
 
 ## Proxmox
 
-### GPU Passthrough — Reset Bug
-**Symptom:** After stopping forge-ai VM, the RX 7900 XT enters a dirty state.
-On next VM start: `amdgpu: probe of 0000:01:00.0 failed with error -22` and no `/dev/dri/` devices appear in the VM.
+### GPU Passthrough — Reset Behaviour
 
-**Root cause:** AMD GPU reset bug — the GPU doesn't fully reset when the VM stops.
+> ❌ **CORRECTED 2026-08-04 (#617).** This section previously stated the RX 7900 XT could not
+> be reset without a full host reboot, and instructed: *"Always use `qm reboot 101` instead of
+> `qm stop 101`… Never use the Stop button."* **That is false on this board, and following it
+> would block the shared-GPU design entirely.** Superseded text retained below for the record.
 
-**Fix:** Reboot forge-hypervisor (full host reboot, not just VM restart).
+**Measured behaviour (proven end-to-end 2026-07-31):** the card can be handed **VM → VM with no
+host reboot**. Full cycle verified: forge-ai → release → a different VM (`amdgpu` bound, HDMI audio
+attached) → release → forge-ai, ending with a 16 GB model resident at **100% GPU**.
 
-**Prevention:** Always use `qm reboot 101` instead of `qm stop 101` followed by `qm start 101`.
-Never use the "Stop" button in Proxmox UI for forge-ai — use "Reboot" only.
+This was genuinely in doubt — `0000:2f:00.0` advertises **no FLR** (`reset_method` = `bus` only),
+`vendor-reset` does not support the 7000 series, and community reports for RDNA3 under VFIO are
+mostly negative. Reset behaviour is board/BIOS/kernel specific, and this board (MSI X570 Tomahawk /
+Ryzen 7 5800X / PVE 9.x) handles it: Proxmox's FLR attempt fails, then **vfio-pci performs its own
+secondary-bus reset**, which succeeds.
+
+⚠️ **Expect this on every start of every VM holding the card, including healthy ones — it is benign:**
+```
+error writing '1' to '/sys/bus/pci/devices/0000:2f:00.0/reset': Inappropriate ioctl for device
+failed to reset PCI device '0000:2f:00.0', but trying to continue as not all devices need a reset
+```
+Do not chase it. vfio-pci's `resetting → reset done` lines that follow are the real outcome.
+
+**The actual constraint is mutual exclusion, not reboots.** Only one VM may hold `0000:2f:00` at a
+time (forge-ai `101` / forge-arcade `105`). Stopping forge-ai to hand the card over is **correct and
+supported** — it is the intended workflow, not a hazard.
+
+<details>
+<summary>Superseded text (pre-2026-08-04) — do not follow</summary>
+
+> **Symptom:** After stopping forge-ai VM, the RX 7900 XT enters a dirty state.
+> On next VM start: `amdgpu: probe of 0000:01:00.0 failed with error -22` and no `/dev/dri/` devices appear in the VM.
+> *(Note: `0000:01:00.0` was itself wrong — the card is at `0000:2f:00.0`.)*
+>
+> **Root cause:** AMD GPU reset bug — the GPU doesn't fully reset when the VM stops.
+>
+> **Fix:** Reboot forge-hypervisor (full host reboot, not just VM restart).
+>
+> **Prevention:** Always use `qm reboot 101` instead of `qm stop 101` followed by `qm start 101`.
+> Never use the "Stop" button in Proxmox UI for forge-ai — use "Reboot" only.
+
+</details>
 
 ### IOMMU Configuration
 Required kernel parameters on forge-hypervisor (`/etc/default/grub`):
