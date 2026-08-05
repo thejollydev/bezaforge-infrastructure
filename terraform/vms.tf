@@ -248,17 +248,24 @@ module "forge_arcade" {
   # HOST while the guest displayed Steam's "connect a keyboard" wizard, so a Ctrl+Alt+Del
   # aimed at the guest hit the Proxmox console instead and rebooted the hypervisor.
   # ⚠️ While VM 105 runs the host has NO local input; administer it over SSH.
-  # ⚠️ TEMPORARY — SETUP MODE (2026-08-02): detached. Setup runs entirely through noVNC,
-  # so passing these through would only take Joseph's desktop keyboard and mouse away
-  # from the host for no benefit. Whether USB passthrough delivers input to this guest at
-  # ALL is still unproven — the receivers appeared in `info usb` yet produced nothing —
-  # so that gets diagnosed over SSH once a shell exists, not before.
-  # STEADY STATE (restore together with hostpci/vga below):
-  #   usb_devices = [
-  #     { mapping = "logi-bolt" },    # usb0 — MX Keys S keyboard
-  #     { mapping = "logi-unifying" } # usb1 — M510 mouse
-  #   ]
-  usb_devices = []
+  # ✅ RESTORED 2026-08-04 (#103) — phase 1 of 2, deliberately ahead of the GPU.
+  #
+  # These are restored while `hostpci_devices` stays empty and `vga_type` stays "std",
+  # which is the whole point: whether USB passthrough delivers input to this guest is the
+  # one genuinely UNPROVEN thing left (on 2026-08-02 both receivers reached QEMU — they
+  # appeared in `info usb` — yet produced nothing in the guest). The GPU half is already
+  # proven, so restoring both at once would change two variables against one symptom, and
+  # would do it in the exact configuration that has NO console.
+  #
+  # Restoring USB alone keeps three things true while that unknown is settled:
+  #   - noVNC still works (vga_type = "std")            → fallback input
+  #   - SSH still works (10.10.40.x, DHCP)              → fallback shell
+  #   - forge-ai keeps the card                         → NO Ollama outage while debugging
+  # Once input is confirmed in-guest, phase 2 restores hostpci + vga_type = "none".
+  usb_devices = [
+    { mapping = "logi-bolt" },    # usb0 — MX Keys S keyboard
+    { mapping = "logi-unifying" } # usb1 — M510 mouse
+  ]
 
   # Occasional-use + contends for the GPU, so all three differ from the fleet default:
   #   started         — do NOT power on at apply; forge-ai still holds the card.
