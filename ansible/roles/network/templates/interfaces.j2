@@ -1,3 +1,12 @@
+# {{ ansible_managed }} — roles/network/templates/interfaces.j2 (#628)
+#
+# ⚠️ Edits here are REVERTED by the next Ansible run. Change the template.
+# ⚠️ Edits also do NOT take effect until networking restarts or this host
+#    reboots — a mistake is SILENT until then. forge-ops is bare metal, so
+#    restarting networking drops SSH and takes AdGuard (fleet DNS) with it.
+#    Before rebooting, prove the file parses without applying it:
+#        /sbin/ifquery enp44s0 ; /sbin/ifquery enp44s0.20
+#
 # This file describes the network interfaces available on your system
 # and how to activate them. For more information, see interfaces(5).
 
