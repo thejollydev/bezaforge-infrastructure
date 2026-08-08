@@ -89,6 +89,7 @@ Ansible automates all post-provisioning configuration for forge-ops. A single co
 
 | Role | What It Manages |
 |------|----------------|
+| `network` | forge-ops `/etc/network/interfaces` (Debian ifupdown) — untagged VLAN 10 mgmt + tagged VLAN 20 production, plus the `vlan` package the subinterface needs. Opt-in via `network_manage_interfaces` (default `false`); **deliberately handler-free** — it restores config on a rebuild and never restarts networking, which would drop SSH and fleet DNS. Rebuild procedure: `docs/runbooks/rebuild-forge-ops-networking.md` |
 | `common` | Packages, locale, timezone, SSH hardening, UFW firewall, sysctl tuning, systemd-resolved DNS, NFS client mounts |
 | `docker` | Docker CE install (`deb822_repository`), `/opt/bezaforge/` directory tree, container UID ownership, `bezaforge-net` bridge network |
 | `traefik` | Reverse proxy, wildcard TLS via Let's Encrypt DNS-01 (Cloudflare), security headers middleware |
@@ -150,6 +151,7 @@ ansible-playbook site.yml -l forge-ops --check --diff --ask-become-pass --ask-va
 
 **Inter-VLAN firewall rules** isolate home/personal devices from infrastructure.
 **AdGuard Home** serves as authoritative DNS for all VLANs with wildcard rewrite for `*.bezaforge.dev`.
+**forge-ops NIC tagging:** `enp44s0` **untagged** = VLAN 10 management (`10.10.10.20`); `enp44s0.20` **tagged** = VLAN 20 production (`10.10.20.20`, holds the default route). There is **no `enp44s0.10`** — docs claimed the reverse until 2026-08-07. Codified in `roles/network` (#628); rebuild path in `docs/runbooks/rebuild-forge-ops-networking.md`.
 **Traefik v3** reverse proxy handles all HTTPS routing with automatic wildcard TLS via Let's Encrypt DNS-01 challenge (Cloudflare API).
 
 ---

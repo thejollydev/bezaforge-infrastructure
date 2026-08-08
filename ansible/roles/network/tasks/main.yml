@@ -1,0 +1,64 @@
+---
+# ============================================================
+# network role — /etc/network/interfaces for Debian ifupdown hosts
+# ============================================================
+# WHY THIS EXISTS (#628): forge-ops's network config was hand-written and
+# completely unmanaged — the repo contained zero `enp44s0` references. A
+# rebuild or reimage silently returned the host with no VLAN 20 interface
+# at all, which means no production IP and no AdGuard, i.e. no DNS for
+# every VLAN on the network. The failure would present as a network fault
+# rather than a config regression.
+#
+# Found 2026-08-07 while reconstructing the router port map for #61, which
+# also corrected six docs that had forge-ops's tagging BACKWARDS. Live and
+# correct is: `enp44s0` UNTAGGED = VLAN 10 management; `enp44s0.20` TAGGED
+# = VLAN 20 production, holding the default route. There is no
+# `enp44s0.10` — every documented command naming one was wrong.
+#
+# ------------------------------------------------------------
+# THIS ROLE DOES NOT RECONFIGURE A RUNNING HOST
+# ------------------------------------------------------------
+# It exists so a REBUILD restores the right arrangement. There is
+# deliberately NO handler that restarts networking or runs `ifreload`:
+# doing so would drop the NIC carrying the Ansible SSH session and take
+# fleet DNS down with it. The template is byte-identical to the live file,
+# so a normal deploy is a provable no-op.
+#
+# Changing this template in future is therefore a DELIBERATE operation:
+# apply it, then reboot or restart networking with console access
+# available (Proxmox is not an option here — forge-ops is bare metal, so
+# that means physical access or IPMI). A mistake is silent until the next
+# boot, which is the worst failure mode this host has. Prove the file
+# parses first, without applying it:
+#
+#     /sbin/ifquery enp44s0        # -> address / dns-nameservers / netmask
+#     /sbin/ifquery enp44s0.20     # -> address / gateway / vlan-raw-device
+#
+# That reads the file and prints the derived config without touching the
+# interfaces. Assert the MECHANISM, not just that a file got written.
+
+- name: Install ifupdown and 8021q VLAN support
+  ansible.builtin.apt:
+    name:
+      - ifupdown
+      - vlan
+    state: present
+    update_cache: true
+  when: network_manage_interfaces | bool
+  # `vlan` matters as much as the file: without it `enp44s0.20` never comes
+  # up, so templating interfaces alone would NOT actually restore a rebuilt
+  # host. Both are already present on forge-ops, so this is changed=0 today
+  # — it's here for the rebuild path, which is the whole point of the role.
+
+- name: Template /etc/network/interfaces
+  ansible.builtin.template:
+    src: interfaces.j2
+    dest: /etc/network/interfaces
+    owner: root
+    group: root
+    mode: '0644'
+    backup: true
+  when: network_manage_interfaces | bool
+  # NO `notify:` — see the header. backup: true means any future change
+  # leaves a timestamped copy alongside, so recovery is a single `mv` from
+  # a rescue shell rather than retyping the config from a doc.

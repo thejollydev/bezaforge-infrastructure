@@ -1,0 +1,32 @@
+# {{ ansible_managed }} — roles/network/templates/interfaces.j2 (#628)
+#
+# ⚠️ Edits here are REVERTED by the next Ansible run. Change the template.
+# ⚠️ Edits also do NOT take effect until networking restarts or this host
+#    reboots — a mistake is SILENT until then. forge-ops is bare metal, so
+#    restarting networking drops SSH and takes AdGuard (fleet DNS) with it.
+#    Before rebooting, prove the file parses without applying it:
+#        /sbin/ifquery enp44s0 ; /sbin/ifquery enp44s0.20
+#
+# This file describes the network interfaces available on your system
+# and how to activate them. For more information, see interfaces(5).
+
+source /etc/network/interfaces.d/*
+
+# The loopback network interface
+auto lo
+iface lo inet loopback
+
+# Management interface - VLAN {{ network_mgmt_vlan }} (untagged on trunk port)
+auto {{ network_mgmt_interface }}
+iface {{ network_mgmt_interface }} inet static
+	address {{ management_ip }}/24
+	dns-nameservers {{ network_mgmt_dns }}
+	dns-search {{ domain }}
+
+# Production interface - VLAN {{ network_prod_vlan }} (tagged on trunk port)
+auto {{ network_prod_interface }}
+iface {{ network_prod_interface }} inet static
+	address {{ production_ip }}/24
+	gateway {{ network_prod_gateway }}
+	vlan-raw-device {{ network_mgmt_interface }}
+

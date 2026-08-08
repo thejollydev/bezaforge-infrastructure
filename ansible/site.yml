@@ -48,6 +48,13 @@
     # so the #552 failed-unit alert only ever fires on real failures.
     - role: systemd-hygiene
       tags: systemd-hygiene
+    # /etc/network/interfaces (#628) — first, because it is the most
+    # foundational config on the host. Opt-in via network_manage_interfaces
+    # (default false), and deliberately handler-free: it restores config on a
+    # REBUILD and never restarts networking, which would drop this SSH session
+    # and fleet DNS. Byte-identical to live, so a normal deploy is a no-op.
+    - role: network
+      tags: network
     - role: common
       tags: common
     - role: fail2ban

@@ -299,9 +299,26 @@
 # same machine (forge-ops). This means forge-ops resolves
 # *.bezaforge.dev domains through its own AdGuard instance.
 #
-# FallbackDNS=1.1.1.1 — if AdGuard is down (e.g., during
-# a docker restart), fall back to Cloudflare so the host
-# doesn't lose all DNS resolution.
+# ⚠️ FallbackDNS=1.1.1.1 DOES NOT DO WHAT THIS COMMENT USED TO
+# CLAIM. It said "if AdGuard is down, fall back to Cloudflare so
+# the host doesn't lose all DNS resolution." That is false, and
+# was corrected 2026-08-08 (#628 scoping). resolved.conf(5),
+# verbatim: "Any per-link DNS servers ... take precedence over
+# this setting, as do any servers set via DNS= above or
+# /etc/resolv.conf. This setting is hence only used if no other
+# DNS server information is known."
+#
+# DNS= IS set above, so FallbackDNS= is NEVER consulted. It is
+# inert on every host running this role. Do not treat it as
+# outage protection, and do not "fix" it by appending 1.1.1.1 to
+# DNS= — two servers in one scope means Cloudflare can be asked
+# for *.bezaforge.dev, and NXDOMAIN is a VALID answer, so
+# resolved would not retry against AdGuard. That trades a
+# missing fallback for intermittent internal-name failures.
+#
+# Real DNS resilience (incl. forge-brizza/forge-erp, which do not
+# run this role, and a deliberate AdGuard-down test) is #638. The
+# line is left in place because removing it changes nothing.
 #
 # The symlink force-replaces /etc/resolv.conf. On Debian,
 # this file might be a static file from the installer —
