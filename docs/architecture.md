@@ -29,4 +29,6 @@ The vault is canonical for design, but a few facts live alongside the code becau
 
 This file was previously a partial architecture summary that drifted out of sync with the vault (last meaningful update Mar 2026; bypassed all of Phase 2). It was replaced with this stub on 2026-05-17 per ROADMAP carryover #20.
 
-Other stale files in this directory follow the same pattern — `hardware.md`, `services.md`, `deployment-notes.md` predate Phase 2 and may also be out of date. Trust the vault first; if a repo-local doc is needed for operational reasons, the README and `docs/runbooks/` are the right homes.
+Other stale files in this directory follow the same pattern — `services.md` and `deployment-notes.md` predate Phase 2 and may also be out of date. Trust the vault first; if a repo-local doc is needed for operational reasons, the README and `docs/runbooks/` are the right homes.
+
+`hardware.md` was **refreshed and verified against live hardware on 2026-08-07** and is no longer in that stale set. That pass corrected four wrong facts it had been carrying: the RX 7900 XT's VRAM (24GB → **20GB**, measured 21,458,059,264 B on forge-ai), the ER7412-M2's port count (*"5 VLAN-capable ports"* → **10× RJ45 + 2× SFP + USB**; the 5 was the number of VLAN *interfaces*), the EAP723's generation (WiFi 6 → **WiFi 7**), and forge-ops described as dual-NIC when only one port is active. It also gained forge-k3s-worker's Wake-on-LAN caveat and TINY-WIN.
