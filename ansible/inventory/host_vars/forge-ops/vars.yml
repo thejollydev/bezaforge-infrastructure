@@ -13,6 +13,26 @@ management_ip: 10.10.10.20
 production_ip: 10.10.20.20
 domain: bezaforge.dev
 
+# /etc/network/interfaces (roles/network, #628)
+# Codified 2026-08-08. Was hand-written and unmanaged — a rebuild returned
+# forge-ops with no VLAN 20 interface, i.e. no production IP and no AdGuard,
+# which is DNS for every VLAN.
+#
+# Live and correct (verified port-by-port 2026-08-07, #61): enp44s0 UNTAGGED
+# is VLAN 10 management; enp44s0.20 TAGGED is VLAN 20 production and holds
+# the default route. There is NO enp44s0.10 — six docs claimed the reverse
+# until 2026-08-07. Router side: port 2, Native VLAN Management(10).
+network_manage_interfaces: true
+network_mgmt_interface: enp44s0
+network_mgmt_vlan: 10
+network_prod_interface: enp44s0.20
+network_prod_vlan: 20
+network_prod_gateway: 10.10.20.1
+# Kept exactly as-built. Do NOT remove without reading #638 — this is
+# currently the only plausibly-working AdGuard-down DNS fallback on this
+# host, because roles/common's FallbackDNS= is provably inert.
+network_mgmt_dns: 1.1.1.1
+
 # NFS mounts
 # gdrive was previously mounted out-of-band during Cognee Phase A — added
 # here 2026-05-17 so it's Ansible-managed (audit drift fix).
