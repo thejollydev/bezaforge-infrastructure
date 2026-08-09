@@ -112,3 +112,16 @@ ollama_ufw_allow_from:
   - 10.10.50.0/24   # AI VLAN (forge-brizza)
   - 10.10.20.0/24   # Mgmt VLAN (forge-ops services)
   - 10.10.30.0/24   # Dev VLAN (jolly-LOQ-arch when on this VLAN)
+  # jolly-LOQ-arch on WIFI, which is where it actually lives (wlan0,
+  # 10.10.40.99). The Dev-VLAN entry above says "when on this VLAN" and that
+  # condition has not been true — so the workstation had never once reached
+  # this API, while forge-ops polled it happily the whole time. UFW's default
+  # deny DROPS rather than rejects, so it presented as a 5s timeout, which
+  # reads like a dead service rather than a closed door.
+  #
+  # Host, not /24, deliberately: 10.10.40.0/24 is a client WiFi VLAN carrying
+  # phones and whatever else, unlike the three server VLANs above. This
+  # matches the convention already applied to this machine on this host, where
+  # 22/tcp is allow-listed to 10.10.40.99 rather than to the subnet. It does
+  # depend on the DHCP reservation that the SSH rule already relies on.
+  - 10.10.40.99     # jolly-LOQ-arch over WiFi (workstation; matches the 22/tcp host rule)
