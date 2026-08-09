@@ -1,0 +1,46 @@
+---
+# ============================================================
+# admin-access role — read-only diagnosis for the admin user
+# ============================================================
+# WHY THIS EXISTS: `journalctl -u <unit>` silently returns "-- No entries --"
+# for SYSTEM units unless the calling user is in `adm` or `systemd-journal`.
+# It does not error, it does not warn that you lack access — it prints a
+# hint and an empty result, which reads as "nothing was logged" rather than
+# "you cannot see the log". That cost a round-trip during the #638 session
+# while diagnosing a backup-rsync failure on forge-ops.
+#
+# `systemd-journal` is READ-ONLY access to the journal. It grants no
+# privilege escalation, no write access, and no ability to alter logs — it
+# is strictly the ability to read what is already being recorded. The admin
+# user already has full sudo on these hosts, so this widens nothing; it
+# only removes a needless sudo prompt from routine diagnosis.
+#
+# ------------------------------------------------------------
+# WHY ITS OWN ROLE AND NOT `common`
+# ------------------------------------------------------------
+# Same reason roles/dns-client exists: `common` runs on forge-ops and
+# forge-ai only. forge-brizza and forge-erp deliberately do not run it
+# (site.yml — a first-touch UFW enable could lock admin out of forge-erp),
+# so putting this there would cover half the fleet and look complete.
+#
+# forge-hypervisor is deliberately NOT in scope: its ansible_user is root,
+# there is no `joseph` user on that host at all (`id joseph` -> no such
+# user), and root already reads the full journal. Adding it there would
+# fail on a nonexistent user.
+
+- name: Add the admin user to read-only diagnostic groups
+  ansible.builtin.user:
+    name: "{{ admin_access_user }}"
+    groups: "{{ admin_access_groups }}"
+    append: true
+  # append: true is load-bearing — without it this REPLACES the user's
+  # entire supplementary group list, which on forge-ops would drop `sudo`
+  # and `docker` and lock the account out of both.
+  #
+  # ⚠️ Group membership only takes effect for NEW logins. An existing SSH
+  # session (including the one Ansible is running over) keeps its old
+  # credentials until it reconnects, so verifying this in the same session
+  # will show it as not working. Reconnect first, then:
+  #     journalctl -u <unit> --no-pager | tail
+  # and confirm you get entries rather than the "Users in groups 'adm',
+  # 'systemd-journal' can see all messages" hint.

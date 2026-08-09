@@ -20,6 +20,25 @@ domain: bezaforge.dev
 zfs_pool: bezapool
 
 # ------------------------------------------------------------
+# Secondary internal resolver (roles/dnsmasq, #638)
+# ------------------------------------------------------------
+# Enabled 2026-08-08. AdGuard on forge-ops is primary DNS for the whole
+# fleet and is a CONTAINER — `docker compose restart` there takes DNS for
+# every VLAN with it. The fallback the repo claimed to have (roles/common's
+# FallbackDNS=1.1.1.1) was provably inert: resolved.conf(5) only consults
+# FallbackDNS when no other DNS server information is known, and DNS= is set.
+#
+# This host is the right home for the secondary because it is the only one
+# NOT downstream of the failure, and it already refuses to depend on AdGuard
+# for its own resolution (see roles/vault-sync's /etc/hosts pins).
+#
+# Reachability confirmed 2026-08-08 against the live Omada gateway ACL
+# (8 rules, read from the controller — the vault doc listed 7): nothing
+# denies Production(20) or AI(50) to Management(10), the gateway default is
+# Permit, and every rule is protocol "All", so UDP/53 is covered.
+dnsmasq_manage: true
+
+# ------------------------------------------------------------
 # restic-gcs role config (non-secret)
 # Secrets (vault_restic_password, vault_gcs_credentials_json)
 # live in vault.yml in this same directory, encrypted with

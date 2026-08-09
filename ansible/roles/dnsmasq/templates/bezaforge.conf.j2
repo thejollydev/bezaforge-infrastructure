@@ -1,0 +1,74 @@
+# {{ ansible_managed }} — roles/dnsmasq/templates/bezaforge.conf.j2 (#638)
+#
+# Secondary internal resolver. AdGuard on forge-ops (10.10.20.20) stays
+# primary; this answers when AdGuard does not. Edits here are REVERTED by
+# the next Ansible run — change the template.
+#
+# Verify after any change, WITHOUT restarting (dnsmasq --test parses the
+# full config and exits):
+#     dnsmasq --test
+# Then confirm it actually answers, from a client and not just locally:
+#     dig +short @{{ management_ip }} grafana.{{ dnsmasq_internal_domain }}
+#         -> {{ dnsmasq_internal_target }}
+#     dig +short @{{ management_ip }} example.com
+#         -> a public address
+
+# ------------------------------------------------------------
+# Listeners — see defaults/main.yml for why addresses, not interfaces
+# ------------------------------------------------------------
+{% for addr in dnsmasq_listen_addresses %}
+listen-address={{ addr }}
+{% endfor %}
+bind-interfaces
+
+# ⚠️ DO NOT ADD `local-service`. It is the obvious hardening line here and
+# it would silently break this role: local-service answers only clients on
+# a directly-attached subnet, and every client is on another VLAN
+# (10.10.20.x, 10.10.50.x) reached through the gateway. Exposure is bounded
+# by listen-address above, not by this.
+
+# ------------------------------------------------------------
+# Internal zone — mirrors AdGuard's rewrite table
+# ------------------------------------------------------------
+# Specific records FIRST, catch-all second. This RELIES on host-record
+# taking precedence over a matching address= wildcard. That precedence is
+# the load-bearing assumption in this file and it is not obvious from the
+# dnsmasq docs, so it must be confirmed by querying the running server —
+# never inferred from this ordering. The parity sweep in
+# defaults/main.yml is what confirms it; if a named host below comes back
+# as {{ dnsmasq_internal_target }}, the wildcard is winning and this
+# arrangement is wrong.
+{% for rec in dnsmasq_host_records %}
+host-record={{ rec.name }}.{{ dnsmasq_internal_domain }},{{ rec.ip }}
+{% endfor %}
+
+# Catch-all: every other *.bezaforge.dev name (and the bare apex) goes to
+# Traefik on forge-ops, matching AdGuard's `*.bezaforge.dev` rewrite.
+address=/{{ dnsmasq_internal_domain }}/{{ dnsmasq_internal_target }}
+
+# Do not read /etc/hosts. The hypervisor's /etc/hosts carries
+# forge-hypervisor.{{ dnsmasq_internal_domain }} -> {{ management_ip }}, but AdGuard's
+# wildcard answers that same name with {{ dnsmasq_internal_target }}. Serving
+# /etc/hosts here would make one name resolve differently depending on which
+# resolver answered — the exact class of bug this ticket exists to remove.
+# The pins still work for the HOST's own lookups: nsswitch consults files
+# before dns, so /etc/hosts is read before this resolver is ever consulted.
+no-hosts
+
+# ------------------------------------------------------------
+# Upstreams for everything else
+# ------------------------------------------------------------
+# no-resolv is load-bearing: without it dnsmasq reads /etc/resolv.conf,
+# which on this host points AT dnsmasq itself once #638 is applied — a
+# query loop. Upstreams must be stated explicitly.
+no-resolv
+{% for up in dnsmasq_upstreams %}
+server={{ up }}
+{% endfor %}
+
+# Never forward single-label names or private-range reverse lookups to a
+# public resolver. Both leak internal naming and neither can be answered.
+domain-needed
+bogus-priv
+
+cache-size={{ dnsmasq_cache_size }}

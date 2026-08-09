@@ -21,14 +21,11 @@ forge_brizza_base_packages:
   - ca-certificates
   - gnupg
 
-# --- DNS (netplan drop-in, FORGE-38) ---
-# Nameservers + search domain for the primary interface, codified as a
-# netplan drop-in (see tasks). DNS=10.10.20.20 is AdGuard on forge-ops.
-forge_brizza_netplan_iface: eth0
-forge_brizza_dns_servers:
-  - 10.10.20.20
-forge_brizza_dns_search:
-  - bezaforge.dev
+# --- DNS ---
+# Moved to roles/dns-client (#638, 2026-08-08). forge_brizza_netplan_iface
+# / _dns_servers / _dns_search removed with the tasks that read them —
+# leaving unread variables behind is how a future edit gets made in the
+# wrong place and silently does nothing.
 
 # --- Time sync ---
 # Cloud-init's systemd-timesyncd is already active and synchronized

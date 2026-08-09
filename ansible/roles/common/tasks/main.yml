@@ -288,70 +288,21 @@
     - fs.inotify.max_user_watches
 
 # ------------------------------------------------------------
-# systemd-resolved DNS
+# systemd-resolved DNS — MOVED OUT of this role (#638, 2026-08-08)
 # ------------------------------------------------------------
-# systemd-resolved manages /etc/resolv.conf via a symlink to
-# its stub resolver at 127.0.0.53. This gives us a single
-# place to configure DNS that survives reboots and network
-# restarts.
+# Resolver config now lives in roles/dns-client, which runs on EVERY host
+# that needs a resolver rather than only the ones that happen to run this
+# role. forge-brizza and forge-erp deliberately do not run `common`
+# (site.yml: a first-touch UFW enable could lock admin out of forge-erp),
+# so keeping DNS here left them outside the only place it was configured —
+# which is exactly how the #638 audit found them with no fallback and
+# nothing reporting it.
 #
-# DNS=10.10.20.20 — points at AdGuard Home running on this
-# same machine (forge-ops). This means forge-ops resolves
-# *.bezaforge.dev domains through its own AdGuard instance.
-#
-# ⚠️ FallbackDNS=1.1.1.1 DOES NOT DO WHAT THIS COMMENT USED TO
-# CLAIM. It said "if AdGuard is down, fall back to Cloudflare so
-# the host doesn't lose all DNS resolution." That is false, and
-# was corrected 2026-08-08 (#628 scoping). resolved.conf(5),
-# verbatim: "Any per-link DNS servers ... take precedence over
-# this setting, as do any servers set via DNS= above or
-# /etc/resolv.conf. This setting is hence only used if no other
-# DNS server information is known."
-#
-# DNS= IS set above, so FallbackDNS= is NEVER consulted. It is
-# inert on every host running this role. Do not treat it as
-# outage protection, and do not "fix" it by appending 1.1.1.1 to
-# DNS= — two servers in one scope means Cloudflare can be asked
-# for *.bezaforge.dev, and NXDOMAIN is a VALID answer, so
-# resolved would not retry against AdGuard. That trades a
-# missing fallback for intermittent internal-name failures.
-#
-# Real DNS resilience (incl. forge-brizza/forge-erp, which do not
-# run this role, and a deliberate AdGuard-down test) is #638. The
-# line is left in place because removing it changes nothing.
-#
-# The symlink force-replaces /etc/resolv.conf. On Debian,
-# this file might be a static file from the installer —
-# the symlink switches to the systemd-managed version.
-#
-# LLMNR=no (added 2026-06-04, FORGE-5 root-cause): resolved
-# routes SINGLE-LABEL names (e.g. a bare "forge-ai" from a
-# Docker container, forwarded via dockerd's 127.0.0.11) to
-# LLMNR multicast, which waits ~4s for silence before the
-# search domain resolves the name instantly via AdGuard.
-# Measured: 3.85s per bare-name lookup with LLMNR vs 28ms
-# direct — every container paid this tax on every request,
-# and Cognee's per-request sessions turned it into pipeline
-# timeouts. Nothing on this network speaks LLMNR; disable it.
-
-- name: Configure systemd-resolved
-  ansible.builtin.copy:
-    dest: /etc/systemd/resolved.conf
-    content: |
-      [Resolve]
-      DNS=10.10.20.20
-      FallbackDNS=1.1.1.1
-      Domains=bezaforge.dev
-      LLMNR=no
-    mode: '0644'
-  notify: restart systemd-resolved
-
-- name: Symlink resolv.conf to systemd-resolved
-  ansible.builtin.file:
-    src: /run/systemd/resolve/stub-resolv.conf
-    dest: /etc/resolv.conf
-    state: link
-    force: true
+# What used to be here also carried a FALSE CLAIM worth remembering:
+# FallbackDNS=1.1.1.1, commented as catching AdGuard being down. It never
+# did. resolved.conf(5): FallbackDNS is "only used if no other DNS server
+# information is known", and DNS= was set — so it was inert on every host
+# running this role, while the repo asserted coverage.
 
 # ------------------------------------------------------------
 # NFS client

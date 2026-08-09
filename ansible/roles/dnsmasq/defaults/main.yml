@@ -1,0 +1,112 @@
+---
+# ============================================================
+# dnsmasq role — secondary internal resolver (#638)
+# ============================================================
+# OFF by default and opt-in per host, same posture as roles/network.
+# This role binds :53 on a host; it must never fire somewhere it wasn't
+# deliberately enabled, even if someone later adds the role to another play.
+#
+# Currently enabled on forge-hypervisor only (host_vars/forge-hypervisor).
+#
+# WHY THE HYPERVISOR: it is the only host that is not downstream of the
+# thing being protected. AdGuard is a container on forge-ops, so any
+# secondary living on forge-ops dies with it. forge-hypervisor also
+# already refuses to depend on AdGuard for its own resolution (see
+# roles/vault-sync's /etc/hosts pins), so it is the natural home.
+
+dnsmasq_manage: false
+
+# ------------------------------------------------------------
+# Internal zone — the catch-all
+# ------------------------------------------------------------
+# Mirrors AdGuard's `*.bezaforge.dev -> 10.10.20.20` wildcard rewrite.
+# Everything not named explicitly below resolves to Traefik on forge-ops,
+# which is what AdGuard does.
+dnsmasq_internal_domain: bezaforge.dev
+dnsmasq_internal_target: 10.10.20.20
+
+# ------------------------------------------------------------
+# Per-host records — the exceptions to the wildcard
+# ------------------------------------------------------------
+# ⚠️ THIS LIST MIRRORS ADGUARD'S REWRITE TABLE. It is not derived from the
+# Ansible inventory, and that is deliberate: the thing we must agree with
+# is what the PRIMARY resolver answers. The inventory happens to match
+# AdGuard for the five managed hosts today, but generating from it would
+# mean mirroring a different source — and any future disagreement between
+# inventory and AdGuard would silently recreate the split-answer bug this
+# role exists to remove.
+#
+# HOW THIS WAS FOUND (worth remembering): the first version of this role
+# had only the wildcard above, because a probe of eleven service names,
+# the apex, and a nonsense name all returned 10.10.20.20. That sample
+# contained ZERO host names. A parity sweep after deploy caught four
+# divergences, and AdGuard's actual config then revealed three more names
+# no amount of guessing would have produced (forge-ops-mgmt, omada,
+# forge-dev). Sample shape, not sample size, was the problem.
+#
+# Source: /opt/bezaforge/adguard/conf/AdGuardHome.yaml on forge-ops, read
+# 2026-08-08. AdGuard's config is NOT Ansible-managed (see roles/adguard) —
+# it is set through the web UI, so BOTH sides of this mirror are hand-kept.
+#
+# Entries whose answer equals dnsmasq_internal_target are omitted: the
+# wildcard already covers them and listing them adds drift surface for no
+# behaviour. Those were forge-ops, netbox, docs, and the apex.
+#
+# RE-VERIFY after changing either side — this is a test that has already
+# gone red once, so a green result means something:
+#     for n in forge-hypervisor forge-ops-mgmt omada forge-ai forge-erp forge-brizza; do
+#       printf '%-32s adguard=%-14s dnsmasq=%s\n' "$n" \
+#         "$(dig +short @10.10.20.20 $n.bezaforge.dev)" \
+#         "$(dig +short @10.10.10.10 $n.bezaforge.dev)"
+#     done
+dnsmasq_host_records:
+  - {name: forge-hypervisor, ip: 10.10.10.10}
+  - {name: forge-ops-mgmt, ip: 10.10.10.20}    # forge-ops' VLAN 10 mgmt NIC
+  - {name: omada, ip: 10.10.10.5}              # OC220 controller, not an Ansible host
+  - {name: forge-ai, ip: 10.10.50.10}
+  - {name: forge-erp, ip: 10.10.20.50}
+  - {name: forge-brizza, ip: 10.10.50.20}
+  # forge-dev (VMID 102) does NOT currently exist — it was removed from the
+  # fleet and `qm list` shows only 101/103/104/105/9002. The record is
+  # mirrored anyway, on Joseph's call 2026-08-08: he intends to rebuild
+  # forge-dev, so AdGuard's rewrite is a placeholder rather than stale
+  # config. Mirroring keeps the two resolvers in agreement — which is this
+  # role's entire invariant — and means the record is already correct the
+  # day the host comes back. Both resolvers pointing at an address with
+  # nothing on it is honest; the two disagreeing about it is not.
+  - {name: forge-dev, ip: 10.10.30.10}
+
+# ------------------------------------------------------------
+# Upstreams for everything that is NOT the internal zone
+# ------------------------------------------------------------
+# Plain DNS, not DoH — dnsmasq has no native DoH and this is a failover
+# path only. Accepted degradation while AdGuard is down: no ad-blocking
+# and unencrypted upstream queries. Both are strictly better than the
+# current alternative, which is no resolution at all.
+dnsmasq_upstreams:
+  - 1.1.1.1
+  - 1.0.0.1
+
+# ------------------------------------------------------------
+# Listeners
+# ------------------------------------------------------------
+# Addresses, NOT interface names. `interface=` plus a VLAN-aware bridge
+# is ambiguous about which addresses actually get bound; listen-address
+# is explicit. 127.0.0.1 is required for the host's OWN resolution
+# (its resolv.conf points here), 10.10.10.10 serves the fleet.
+#
+# ⚠️ This binding is the ONLY thing scoping exposure. forge-hypervisor
+# has no host firewall: ufw is not installed, /etc/pve/firewall/*.fw do
+# not exist, and iptables INPUT is policy ACCEPT with an empty chain
+# (verified 2026-08-08). Containment is this list plus gateway ACL rule 4
+# (Deny The Bunker -> Management), nothing else.
+dnsmasq_listen_addresses:
+  - 127.0.0.1
+  - 10.10.10.10
+
+dnsmasq_cache_size: 1000
+
+# Path of the drop-in this role owns. The main /etc/dnsmasq.conf is left
+# as the distro shipped it (it is a dpkg conffile — owning it would mean
+# a conffile prompt on every package upgrade).
+dnsmasq_conf_file: /etc/dnsmasq.d/bezaforge.conf

@@ -271,8 +271,13 @@ groups:
         # CRITICAL every 15 minutes for ~24 h with nobody alerted. A failed
         # systemd unit is the earliest generic signal that a host is degraded.
         # Covers forge-hypervisor / forge-ai / forge-erp / forge-brizza, which
-        # run the NATIVE prometheus-node-exporter (systemd collector enabled).
-        # forge-ops uses the containerised exporter and is NOT covered yet.
+        # run the NATIVE prometheus-node-exporter (systemd collector enabled),
+        # AND forge-ops — corrected 2026-08-09. This comment used to say
+        # forge-ops was "NOT covered yet", which stopped being true the moment
+        # the same 2026-07-26 change added `user: root` + the private D-Bus
+        # socket + --collector.systemd to the containerised exporter. It is
+        # demonstrably covered: this rule fired for forge-ops on 2026-08-09
+        # (bezaforge-backup-rsync.service).
         - uid: bfg9sysunitfail01
           title: Systemd Unit Failed
           condition: C
@@ -322,6 +327,58 @@ groups:
           annotations:
             summary: 'systemd unit {{ $labels.name }} has FAILED on {{ $labels.instance }}'
             description: 'Check with: systemctl status {{ $labels.name }} --no-pager'
+          isPaused: false
+          notification_settings:
+            receiver: Discord
+        - uid: bfg9dnsprimary01
+          title: DNS Not Using Primary
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: dfdseqn41ybk0e
+              model:
+                editorMode: code
+                expr: bezaforge_dns_primary_in_use == 0
+                instant: true
+                intervalMs: 1000
+                legendFormat: '{{ $labels.instance }}'
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          noDataState: OK
+          execErrState: OK
+          for: 30m
+          annotations:
+            summary: '{{ $labels.instance }} is resolving via the SECONDARY DNS server, not AdGuard'
+            description: 'systemd-resolved failed over and does not fail back on its own, so this persists silently: the host loses ad-filtering and vanishes from AdGuard query logs while everything looks healthy. Any adguard container restart can cause it. Fix (about 1s of DNS interruption): ansible forge-ops,forge-ai,forge-brizza,forge-erp -i inventory/hosts.yml -m systemd -a "name=systemd-resolved state=restarted" --become --ask-become-pass --ask-vault-pass'
           isPaused: false
           notification_settings:
             receiver: Discord

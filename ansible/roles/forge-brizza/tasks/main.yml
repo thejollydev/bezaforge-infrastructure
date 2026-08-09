@@ -68,57 +68,19 @@
   when: forge_brizza_sudo_ws_bin.stat.exists
 
 # ------------------------------------------------------------
-# DNS nameservers via netplan drop-in (FORGE-38)
+# DNS — MOVED OUT of this role (#638, 2026-08-08)
 # ------------------------------------------------------------
-# forge-brizza is an IMPORTED VM, so Terraform doesn't manage its
-# cloud-init and cloud-init network config only applies at first boot
-# — DNS was previously hand-set in /etc/netplan/50-cloud-init.yaml.
-# We codify it as a separate drop-in netplan merges into the interface:
-# it adds nameservers without owning the address/routes/MAC in the
-# cloud-init file, and survives a cloud-init regeneration on rebuild
-# (which would otherwise leave the host with no DNS). See the template
-# header for the merge rationale.
-- name: Configure DNS nameservers via netplan drop-in
-  ansible.builtin.template:
-    src: netplan-dns.yaml.j2
-    dest: /etc/netplan/90-bezaforge-dns.yaml
-    owner: root
-    group: root
-    mode: '0600'
-  notify: netplan apply
-
-# ------------------------------------------------------------
-# systemd-resolved: disable LLMNR (container DNS latency)
-# ------------------------------------------------------------
-# resolved routes SINGLE-LABEL names (e.g. a bare "forge-ai"
-# from a Docker container via dockerd's 127.0.0.11) to LLMNR
-# multicast, which waits ~4s for silence before the search
-# domain resolves instantly via the configured resolver
-# (3.85s vs 28ms measured — FORGE-5 root-cause). Nothing on
-# this network speaks LLMNR. forge-brizza uses its own role
-# (not `common`), so it needs its own LLMNR=no (FORGE-45 — was
-# live-fixed by hand; this codifies it).
+# The netplan DNS drop-in (FORGE-38) and the LLMNR drop-in (FORGE-45) both
+# lived here because forge-brizza does not run `common`. They were correct,
+# and completely invisible to any fleet-wide DNS change — so when #638
+# added a second resolver, this host would have been missed exactly as it
+# was missed before. Both now live in roles/dns-client, which runs on every
+# host that needs a resolver.
 #
-# Drop-in, NOT a full resolved.conf rewrite: forge-brizza's DNS
-# servers are owned by netplan/cloud-init (FORGE-38), so we
-# override ONLY LLMNR here and leave DNS= alone — writing the
-# whole file (as `common` does for forge-ops) would hardcode
-# forge-ops' AdGuard address and fight netplan.
-- name: Ensure systemd-resolved drop-in dir exists
-  ansible.builtin.file:
-    path: /etc/systemd/resolved.conf.d
-    state: directory
-    mode: '0755'
-
-- name: Disable LLMNR via systemd-resolved drop-in
-  ansible.builtin.copy:
-    dest: /etc/systemd/resolved.conf.d/10-disable-llmnr.conf
-    content: |
-      # Managed by Ansible (forge-brizza role, FORGE-45)
-      [Resolve]
-      LLMNR=no
-    mode: '0644'
-  notify: restart systemd-resolved
+# The netplan ID key stays `eth0` (the mapping name in 50-cloud-init.yaml,
+# which matches by MAC and renames via set-name — the key is what netplan
+# merges on, not the device name). That is roles/dns-client's default, so
+# forge-brizza needs no override.
 
 # ------------------------------------------------------------
 # Locale + timezone

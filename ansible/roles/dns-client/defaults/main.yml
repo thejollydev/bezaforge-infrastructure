@@ -1,0 +1,113 @@
+---
+# ============================================================
+# dns-client role — fleet DNS resolver configuration (#638)
+# ============================================================
+# WHY THIS IS ITS OWN ROLE AND NOT PART OF `common`:
+# DNS config used to live inside roles/common. But "runs common" and
+# "needs DNS" are different sets of hosts — forge-brizza and forge-erp
+# deliberately do NOT run common (site.yml: a first-touch UFW enable could
+# lock admin out of forge-erp), so they were silently outside the only
+# place DNS was configured. That is why the #638 audit found them with no
+# fallback and nobody noticing. A rule enforced in one reader is not a rule.
+#
+# This role therefore applies to EVERY host that needs a resolver, and
+# owns the whole picture for that host.
+
+# ------------------------------------------------------------
+# The server set — identical everywhere, deliberately
+# ------------------------------------------------------------
+# Both entries KNOW the internal zone. That is the whole design:
+#   10.10.20.20 — AdGuard on forge-ops. Primary. Ad-blocking + DoH upstream.
+#   10.10.10.10 — dnsmasq on forge-hypervisor (roles/dnsmasq). Secondary,
+#                 serves the same bezaforge.dev wildcard.
+#
+# ⚠️ NEVER add a public resolver to this list. Two servers in one scope
+# means the public one can be asked for *.bezaforge.dev, and NXDOMAIN is a
+# VALID answer — resolved accepts it and does not retry AdGuard. Verified
+# 2026-08-08: public 1.1.1.1 returns NXDOMAIN for grafana.bezaforge.dev.
+# That trades a missing fallback for intermittent internal-name failures,
+# which is worse than the problem. Every server in this list must be
+# internal-aware.
+dns_client_servers:
+  - 10.10.20.20
+  - 10.10.10.10
+
+dns_client_search_domains:
+  - bezaforge.dev
+
+# ------------------------------------------------------------
+# How this host's resolver is configured — `netplan` or `resolved`
+# ------------------------------------------------------------
+# Match the host's NATIVE mechanism rather than imposing one, for the same
+# reason #628 refused to template PVE's /etc/network/interfaces: fighting
+# the thing that owns the file loses.
+#
+#   netplan  — Ubuntu VMs (forge-ai, forge-brizza, forge-erp). Netplan owns
+#              the link, so nameservers go in a netplan drop-in and end up
+#              LINK-scoped. This role then leaves DNS= out of resolved.conf
+#              entirely, so the host has exactly ONE scope.
+#   resolved — Debian bare metal (forge-ops). No netplan; systemd-resolved's
+#              global config is the native place, so DNS= goes there.
+#
+# Either way the invariant is the same and it is the point of the ticket:
+# ONE scope per host, holding BOTH internal-aware servers. Mixed scopes
+# with different server sets are what made forge-ops's behaviour
+# unexplainable.
+dns_client_method: netplan
+
+# netplan method only. This is the netplan ID KEY (the mapping name under
+# `ethernets:`), which is what netplan deep-merges on.
+#
+# ⚠️ EVERY NETPLAN HOST MUST DECLARE THIS EXPLICITLY IN host_vars. The
+# fleet has no single right answer, so this default is a placeholder, not
+# a fleet convention — inheriting it is always a bug:
+#   forge-brizza   eth0       (real rename: matched by MAC + set-name)
+#   forge-ai       enp6s18    (kernel ALTNAME; presents as ens18)
+#   forge-erp      enp6s18    (kernel ALTNAME; presents as ens18)
+#
+# ⚠️ The key is NOT necessarily what any tool shows you. On forge-ai and
+# forge-erp every diagnostic (`ip -br link`, `networkctl list`,
+# `resolvectl status`) says `ens18`, while the netplan key that has always
+# configured them is the altname `enp6s18` — systemd-networkd matches
+# altnames. A drop-in keyed `ens18` would not merge; it would emit a second
+# unit matching the same device, leaving two competing configs resolved by
+# filename sort order. Get the key from the host, not from a link listing:
+#     sudo netplan get ethernets     # authoritative
+#     ip -d link show                # reveals "altname ..."
+dns_client_netplan_id: eth0
+dns_client_netplan_path: /etc/netplan/90-bezaforge-dns.yaml
+
+# ------------------------------------------------------------
+# LLMNR
+# ------------------------------------------------------------
+# Off everywhere. resolved routes SINGLE-LABEL names (a bare "forge-ai"
+# from a Docker container via dockerd's 127.0.0.11) to LLMNR multicast,
+# which waits ~4s for silence before the search domain resolves the name
+# instantly. Measured 3.85s vs 28ms (FORGE-5). Nothing on this network
+# speaks LLMNR.
+dns_client_llmnr: false
+
+# ------------------------------------------------------------
+# Primary-in-use monitoring (#638)
+# ------------------------------------------------------------
+# resolved does NOT fail back to the primary after an outage — measured
+# 2026-08-09, the entire fleet plus the workstation were left on the
+# secondary by one AdGuard restart, silently and indefinitely. The failover
+# is correct; the lingering state is the problem, because dnsmasq does no
+# ad-filtering and AdGuard's query log goes blind for that host.
+#
+# This exports a node_exporter textfile metric so the state is detected
+# rather than discovered. Grafana rule: "DNS Not Using Primary".
+dns_client_monitor: true
+
+# Debian/Ubuntu's prometheus-node-exporter enables the textfile collector
+# by default and already ships apt.prom / smartmon.prom here — we are
+# joining an existing mechanism, not building one.
+dns_client_monitor_metric_file: /var/lib/prometheus/node-exporter/bezaforge_dns.prom
+
+# The name the check resolves to force resolved to pick a server. The bare
+# apex is deliberate: AdGuard's wildcard and dnsmasq's `address=` both
+# answer it, so the probe never depends on a particular service existing.
+dns_client_monitor_probe_name: "{{ dns_client_search_domains[0] }}"
+
+dns_client_monitor_interval: 2min

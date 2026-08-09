@@ -17,6 +17,12 @@
     # so the #552 failed-unit alert only ever fires on real failures.
     - role: systemd-hygiene
       tags: systemd-hygiene
+    # Secondary internal resolver (#638). Opt-in via dnsmasq_manage. Early
+    # in the play because everything after it may need to resolve a name,
+    # and because this host is the fleet's DNS backstop when AdGuard (a
+    # container on forge-ops) is down.
+    - role: dnsmasq
+      tags: dnsmasq
     - role: sanoid
       tags: sanoid
     - role: restic-gcs
@@ -55,6 +61,17 @@
     # and fleet DNS. Byte-identical to live, so a normal deploy is a no-op.
     - role: network
       tags: network
+    # Resolver config (#638). Before `common` and everything after it,
+    # since any later role may need to resolve a name. Extracted OUT of
+    # `common` because forge-brizza and forge-erp need DNS and deliberately
+    # do not run `common` — they were silently unconfigured.
+    - role: dns-client
+      tags: dns-client
+    # Read-only journal/log access for the admin user (#638 session). Same
+    # four plays as dns-client because that is exactly the set of hosts with
+    # a `joseph` account — forge-hypervisor is root-only.
+    - role: admin-access
+      tags: admin-access
     - role: common
       tags: common
     - role: fail2ban
@@ -99,6 +116,15 @@
     # (currently the cloud-init logrotate duplicate, LP#2152107).
     - role: conffile-cleanup
       tags: conffile-cleanup
+    # Resolver config (#638) — see the docker_hosts play for why this is
+    # no longer inside `common`.
+    - role: dns-client
+      tags: dns-client
+    # Read-only journal/log access for the admin user (#638 session). Same
+    # four plays as dns-client because that is exactly the set of hosts with
+    # a `joseph` account — forge-hypervisor is root-only.
+    - role: admin-access
+      tags: admin-access
     - role: common
       tags: common
     - role: guest-agent
@@ -129,6 +155,17 @@
     # (currently the cloud-init logrotate duplicate, LP#2152107).
     - role: conffile-cleanup
       tags: conffile-cleanup
+    # Resolver config (#638). forge-brizza does NOT run `common`, so before
+    # this role its DNS was configured only by roles/forge-brizza's own
+    # netplan drop-in — correct, but invisible to every fleet-wide DNS
+    # change. That ownership now lives here.
+    - role: dns-client
+      tags: dns-client
+    # Read-only journal/log access for the admin user (#638 session). Same
+    # four plays as dns-client because that is exactly the set of hosts with
+    # a `joseph` account — forge-hypervisor is root-only.
+    - role: admin-access
+      tags: admin-access
     - role: fail2ban
       tags: fail2ban
     - role: forge-brizza
@@ -162,6 +199,17 @@
     # (currently the cloud-init logrotate duplicate, LP#2152107).
     - role: conffile-cleanup
       tags: conffile-cleanup
+    # Resolver config (#638). forge-erp runs no `common` BY DESIGN (a
+    # first-touch UFW enable could lock admin out — see the play comment
+    # above), which is exactly why it had no DNS management at all until
+    # now. This role touches no firewall, so it is safe here.
+    - role: dns-client
+      tags: dns-client
+    # Read-only journal/log access for the admin user (#638 session). Same
+    # four plays as dns-client because that is exactly the set of hosts with
+    # a `joseph` account — forge-hypervisor is root-only.
+    - role: admin-access
+      tags: admin-access
     - role: erpnext
       tags: erpnext
     - role: forge-erp

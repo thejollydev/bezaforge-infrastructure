@@ -19,7 +19,7 @@ There is **no `enp44s0.10`**. Six docs claimed the reverse arrangement until 202
 
 Run `roles/network` (and reboot) **before** `common`, `docker`, `traefik`, `adguard`, or `services`:
 
-- `roles/common`'s UFW rules and `resolved.conf` reference `10.10.20.20`.
+- `roles/common`'s UFW rules and `roles/dns-client`'s `resolved.conf` both reference `10.10.20.20`. (Resolver config moved out of `common` into `dns-client` on 2026-08-08, #638 — `site.yml` orders `dns-client` immediately after `network` and before `common`.)
 - AdGuard binds and serves DNS on `10.10.20.20`; the whole fleet points at it.
 - Traefik and every compose service assume the production IP is up.
 
@@ -46,7 +46,6 @@ network_manage_interfaces: true
 network_mgmt_interface: enp44s0
 network_prod_interface: enp44s0.20
 network_prod_gateway: 10.10.20.1
-network_mgmt_dns: 1.1.1.1     # see #638 before removing
 management_ip: 10.10.10.20
 production_ip: 10.10.20.20
 ```
@@ -86,7 +85,6 @@ Expected:
 ```
 # enp44s0
 address: 10.10.10.20
-dns-nameservers: 1.1.1.1
 dns-search: bezaforge.dev
 broadcast: 10.10.10.255
 netmask: 255.255.255.0
@@ -145,7 +143,9 @@ ansible-playbook site.yml -l forge-ops --ask-become-pass --ask-vault-pass
 - **The file is Ansible-managed and its header says so.** Hand-edits are reverted on the next run. Change `roles/network/templates/interfaces.j2` instead.
 - **No handler restarts networking.** This is deliberate — see the role header. Applying a change to the template does *not* activate it; step 4 does.
 - **`backup: true`** means every change leaves a timestamped copy in `/etc/network/`, so recovery from a rescue shell is a single `mv`.
-- **DNS on this host has a subtlety.** `roles/common` sets `DNS=10.10.20.20` (AdGuard) with `FallbackDNS=1.1.1.1`, but `FallbackDNS` is **inert** whenever `DNS=` is set — see `resolved.conf(5)`. The `dns-nameservers 1.1.1.1` line in this template is currently the only plausibly-working AdGuard-down fallback. Do not remove it as "cleanup"; **#638** owns the real design.
+- **DNS on this host has a subtlety.** *(Updated 2026-08-08, #638.)* Resolver config now lives in `roles/dns-client`, which sets `DNS=10.10.20.20 10.10.10.10` — AdGuard on forge-ops plus dnsmasq on forge-hypervisor, **both internal-aware**, which is what makes a second server safe here. The old `FallbackDNS=1.1.1.1` is gone: it was **inert** whenever `DNS=` is set (see `resolved.conf(5)`) while the repo claimed it caught AdGuard outages.
+
+  The `dns-nameservers 1.1.1.1` line **was removed 2026-08-09** (#638, Piece 4), after the failover test in `dns-failover-test.md` proved the replacement. It had been the *pre-#638* accidental fallback and #628 deliberately kept it; it is gone now because the real secondary is proven, and because that line gave forge-ops a **second DNS scope** claiming `bezaforge.dev` while holding a public resolver that answers NXDOMAIN for internal names. One scope with two internal-aware servers is the invariant. Do not reinstate it.
 - **forge-hypervisor is deliberately NOT covered.** Proxmox owns its `/etc/network/interfaces` (its own banner says so) and stages changes through `interfaces.new`. Codifying it would fight PVE, and `vmbr0` is what every VM hangs off. If the hypervisor is ever rebuilt, recreate `vmbr0` through the Proxmox UI — vault `design/architecture.md` carries the values.
 
 ## Related

@@ -78,9 +78,25 @@ vault_sync_user: vaultsync
 vault_sync_user_uid: 1000
 
 # Internal *.bezaforge.dev names the hypervisor must resolve WITHOUT
-# AdGuard: AdGuard runs in a VM this host supervises, so pointing the
-# hypervisor's resolver at it is a boot-order circular dependency. Pin the
-# names in /etc/hosts → forge-ops (Traefik) instead.
+# AdGuard.
+#
+# ⚠️ CORRECTED 2026-08-08 (#638). This comment used to say "AdGuard runs in
+# a VM this host supervises, so pointing the hypervisor's resolver at it is
+# a boot-order circular dependency." That is FALSE: forge-ops is a separate
+# BARE-METAL box (a BOSGAME i9), not a guest — `qm list` on forge-hypervisor
+# returns only 101/103/104/105/9002. There is no boot-order cycle.
+#
+# The pins are still right, for a different and better reason: forge-ops is
+# what this host BACKS UP, and a backup host that cannot resolve its own
+# git origin while its backup target is down is no backup host at all.
+# Independence from forge-ops is the requirement — supervision was never
+# the issue.
+#
+# As of #638 the hypervisor also runs its own dnsmasq (roles/dnsmasq) and
+# can resolve the whole internal zone unaided, so these pins are now
+# belt-and-braces rather than the only mechanism. Keep them: they cost
+# nothing and they still answer if dnsmasq is down, because nsswitch reads
+# files before dns.
 #   git    — Gitea origin (always needed)
 #   uptime — Kuma heartbeat target (needed when vault_sync_heartbeat_url set)
 vault_sync_etc_hosts_ip: 10.10.20.20

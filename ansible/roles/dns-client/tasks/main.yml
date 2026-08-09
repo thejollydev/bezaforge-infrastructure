@@ -1,0 +1,130 @@
+---
+# ============================================================
+# dns-client role — resolver config for every host that needs one (#638)
+# ============================================================
+# Replaces the systemd-resolved block that used to live in roles/common,
+# and absorbs the netplan DNS drop-in + LLMNR drop-in that lived in
+# roles/forge-brizza. Both were correct for the host they covered and
+# invisible to every host they did not — see defaults/main.yml.
+#
+# THE INVARIANT THIS ROLE MAINTAINS:
+#   every scope that can answer bezaforge.dev holds the SAME
+#   internal-aware server set.
+# Get that right and scope ambiguity stops mattering. Get it wrong — two
+# scopes with different server sets, which is what forge-ops had — and the
+# host's behaviour depends on a race nobody can explain from the config.
+
+- name: Ensure systemd-resolved is installed
+  ansible.builtin.package:
+    name: systemd-resolved
+    state: present
+  # `package`, not `apt`: this role runs on Debian bare metal and Ubuntu
+  # VMs. On Debian 13 / Ubuntu 26.04 systemd-resolved is a separate binary
+  # package, not part of systemd itself.
+
+# ------------------------------------------------------------
+# Nameservers — netplan hosts (link scope)
+# ------------------------------------------------------------
+- name: Configure DNS nameservers via netplan drop-in
+  ansible.builtin.template:
+    src: netplan-dns.yaml.j2
+    dest: "{{ dns_client_netplan_path }}"
+    owner: root
+    group: root
+    mode: '0600'
+    backup: true
+  when: dns_client_method == 'netplan'
+  notify: netplan apply
+  # 0600 because netplan refuses to read world-readable configs and warns
+  # loudly about permissions on every invocation otherwise.
+
+# ------------------------------------------------------------
+# Resolver config — all hosts
+# ------------------------------------------------------------
+# On `resolved` hosts this carries the server list. On `netplan` hosts it
+# deliberately carries only LLMNR, leaving the servers to netplan. Owning
+# the file either way is what removes the stale global `DNS=10.10.20.20`
+# that roles/common left on netplan hosts — a drop-in would have layered
+# over it and left a second, differently-populated scope behind.
+- name: Configure systemd-resolved
+  ansible.builtin.template:
+    src: resolved.conf.j2
+    dest: /etc/systemd/resolved.conf
+    owner: root
+    group: root
+    mode: '0644'
+    backup: true
+  notify: restart systemd-resolved
+
+- name: Remove superseded per-host LLMNR drop-in
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d/10-disable-llmnr.conf
+    state: absent
+  notify: restart systemd-resolved
+  # forge-brizza carried its own LLMNR drop-in (FORGE-45) because it does
+  # not run `common`. This role now sets LLMNR on every host, so the drop-in
+  # is redundant. Removed rather than left in place: a second file setting
+  # the same key is how "which one is authoritative?" starts, and drop-ins
+  # override the main config, so the next person changing the template here
+  # would find it silently ignored on exactly one host.
+
+- name: Point resolv.conf at the systemd-resolved stub
+  ansible.builtin.file:
+    src: /run/systemd/resolve/stub-resolv.conf
+    dest: /etc/resolv.conf
+    state: link
+    force: true
+
+# ------------------------------------------------------------
+# Primary-in-use monitoring (#638)
+# ------------------------------------------------------------
+# See defaults/main.yml. Detects the lingering-on-secondary state that the
+# failover test surfaced; the failover itself is proven and correct.
+- name: Configure primary-DNS monitoring
+  when: dns_client_monitor | bool
+  block:
+
+    - name: Ensure the node_exporter textfile directory exists
+      ansible.builtin.file:
+        path: "{{ dns_client_monitor_metric_file | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy the primary-DNS check script
+      ansible.builtin.template:
+        src: dns-primary-check.sh.j2
+        dest: /usr/local/bin/bezaforge-dns-primary-check.sh
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy the primary-DNS check service and timer
+      ansible.builtin.template:
+        src: "dns-primary-check.{{ item }}.j2"
+        dest: "/etc/systemd/system/bezaforge-dns-primary-check.{{ item }}"
+        owner: root
+        group: root
+        mode: '0644'
+      loop:
+        - service
+        - timer
+      notify: dns-client reload systemd
+
+    - name: Flush handlers so the unit exists before the timer is enabled
+      ansible.builtin.meta: flush_handlers
+
+    - name: Enable and start the primary-DNS check timer
+      ansible.builtin.systemd:
+        name: bezaforge-dns-primary-check.timer
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Run the check once now so the metric exists immediately
+      ansible.builtin.command: /usr/local/bin/bezaforge-dns-primary-check.sh
+      changed_when: false
+      # Without this the metric is absent until the first timer fire, and an
+      # absent series is indistinguishable from a healthy one in Grafana —
+      # the alert would be silently unarmed on a freshly-deployed host.

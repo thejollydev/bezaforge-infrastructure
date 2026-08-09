@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }} — roles/dns-client/templates/dns-primary-check.sh.j2 (#638)
+#
+# Exports whether this host is currently resolving through the PRIMARY DNS
+# server (AdGuard) or has silently fallen through to the secondary.
+#
+# WHY THIS EXISTS
+# ---------------
+# systemd-resolved rotates to the next server when the current one fails,
+# and then STAYS THERE. It does not fail back when the primary recovers.
+# Measured 2026-08-09: after a single `docker compose stop` of AdGuard,
+# all four fleet hosts AND the workstation were left on the secondary —
+# with AdGuard healthy again and nothing reporting it.
+#
+# That state is invisible and harmful in two ways:
+#   * dnsmasq does no ad-filtering, so the workstation silently loses
+#     ad-blocking — the machine where it actually matters;
+#   * AdGuard's query log goes blind for that host, so DNS visibility is
+#     gone while every dashboard still looks green.
+#
+# It also triggers on routine work: ANY deploy that restarts the adguard
+# container does this. It had already happened before the test that found
+# it, which is precisely the problem — nothing said so.
+#
+# The failover itself is correct and proven. This metric exists so the
+# LINGERING state is detected instead of discovered months later.
+#
+# Remediation when this alerts (safe, ~1s of DNS interruption):
+#     ansible forge-ops,forge-ai,forge-brizza,forge-erp -i inventory/hosts.yml \
+#       -m systemd -a "name=systemd-resolved state=restarted" \
+#       --become --ask-become-pass --ask-vault-pass
+
+set -uo pipefail
+
+PRIMARY="{{ dns_client_servers[0] }}"
+PROBE="{{ dns_client_monitor_probe_name }}"
+OUT="{{ dns_client_monitor_metric_file }}"
+TMP="${OUT}.$$"
+
+# resolved reports no "Current DNS Server" until it has actually resolved
+# something — immediately after a restart the field is simply absent. Issue
+# one query first so a freshly-restarted, perfectly healthy host does not
+# read as "not on primary" and fire a false alert.
+resolvectl query --cache=no "${PROBE}" >/dev/null 2>&1 || true
+
+# ⚠️ `grep -m1` takes the FIRST "Current DNS Server" line, which differs by
+# host and is correct in both cases: on forge-ops (method=resolved) the
+# Global scope is listed first and carries the server list; on the netplan
+# hosts the Global scope has no servers, so the first match is the link
+# scope. Either way this is the server actually answering.
+cur="$(resolvectl status 2>/dev/null | grep -m1 'Current DNS Server' | awk '{print $4}')"
+
+if [ "${cur}" = "${PRIMARY}" ]; then
+    value=1
+else
+    # Covers both "on the secondary" and "no server at all" (empty). A host
+    # that cannot name its resolver is not a healthy host, so 0 is right.
+    value=0
+fi
+
+# Write-then-rename: node_exporter reads this directory continuously, and a
+# partially-written file would be scraped as truncated garbage. rename(2) on
+# the same filesystem is atomic, so a scrape sees either the old file or the
+# new one, never half of one.
+cat > "${TMP}" <<EOF
+# HELP bezaforge_dns_primary_in_use 1 if systemd-resolved is using the primary DNS server (AdGuard), 0 if it has fallen through to the secondary or has none.
+# TYPE bezaforge_dns_primary_in_use gauge
+bezaforge_dns_primary_in_use ${value}
+EOF
+chmod 0644 "${TMP}"
+mv -f "${TMP}" "${OUT}"

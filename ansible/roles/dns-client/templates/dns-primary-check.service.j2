@@ -1,0 +1,13 @@
+# {{ ansible_managed }} — roles/dns-client (#638)
+[Unit]
+Description=BezaForge — export whether this host is using the primary DNS server
+Documentation=https://github.com/thejollydev/bezaforge-infrastructure
+After=systemd-resolved.service
+Wants=systemd-resolved.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/bezaforge-dns-primary-check.sh
+# Deliberately NOT alerting-worthy on its own: this unit failing would fire
+# the existing "Systemd Unit Failed" alert, which is the correct signal —
+# a broken exporter must not masquerade as a healthy "primary in use".

@@ -8,6 +8,20 @@ hostname: forge-brizza
 timezone: America/Detroit
 locale: en_US.UTF-8
 
+# ------------------------------------------------------------
+# Resolver config (roles/dns-client, #638)
+# ------------------------------------------------------------
+# Declared explicitly even though these currently match the role defaults.
+# forge-brizza's netplan key is `eth0` while its two siblings use the
+# `enp6s18` altname — so the fleet has no single right answer, and a future
+# edit to the role default would silently move this host onto the wrong
+# key. Every netplan host states its own.
+#
+# `eth0` is a genuine rename here, not an altname: 50-cloud-init.yaml
+# matches by MAC (bc:24:11:bd:4b:e4) and applies `set-name: eth0`.
+dns_client_method: netplan
+dns_client_netplan_id: eth0
+
 # Feature flags
 # nfs_client: keeps the bezapool/gdrive NFS mount (LAN access to the
 # Drive replica). Insync retired 2026-06-06 (ADR 0002) + purged

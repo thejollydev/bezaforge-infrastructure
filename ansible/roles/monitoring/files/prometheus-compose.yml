@@ -47,6 +47,16 @@ services:
       - '--path.sysfs=/host/sys'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
       - '--collector.systemd'
+      # Textfile collector (#638, 2026-08-09). SAME GAP AS --collector.systemd
+      # above, one collector later: the other four hosts run the native
+      # prometheus-node-exporter package, which enables textfile by default at
+      # /var/lib/prometheus/node-exporter. This container had it off entirely,
+      # so roles/dns-client's bezaforge_dns_primary_in_use metric was written
+      # to disk on forge-ops and scraped from nowhere — leaving the "DNS Not
+      # Using Primary" alert blind on the one host that RUNS AdGuard.
+      # The path is under /rootfs because / is bind-mounted there read-only;
+      # the collector only ever reads, so ro is sufficient.
+      - '--collector.textfile.directory=/rootfs/var/lib/prometheus/node-exporter'
     networks:
       - bezaforge-net
 

@@ -1,0 +1,26 @@
+---
+# Handlers only run when notified by a task that made a change.
+
+- name: restart systemd-resolved
+  ansible.builtin.systemd:
+    name: systemd-resolved
+    state: restarted
+
+# Re-applies netplan so new nameservers reach systemd-resolved. Safe for a
+# DNS-ONLY change: the address, routes and MAC are untouched, so the link
+# (and this SSH session) stay up. That safety does NOT extend to a netplan
+# change that touches addressing — if this drop-in ever grows beyond
+# nameservers, revisit whether it should still auto-apply.
+- name: netplan apply
+  ansible.builtin.command: netplan apply
+  changed_when: false
+
+# Named with the role prefix on purpose. Handler names are GLOBAL across a
+# play, not role-scoped: a bare `reload systemd` here collided with the
+# identically-named handlers in roles/ollama, roles/forge-erp and
+# roles/forge-ops-backup-rsync, and the deploy on 2026-08-09 visibly fired
+# THEIR handler instead of this one. It was harmless only because all of
+# them happen to run daemon_reload — a coincidence, not a guarantee.
+- name: dns-client reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true

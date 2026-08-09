@@ -28,10 +28,49 @@ network_mgmt_vlan: 10
 network_prod_interface: enp44s0.20
 network_prod_vlan: 20
 network_prod_gateway: 10.10.20.1
-# Kept exactly as-built. Do NOT remove without reading #638 — this is
-# currently the only plausibly-working AdGuard-down DNS fallback on this
-# host, because roles/common's FallbackDNS= is provably inert.
-network_mgmt_dns: 1.1.1.1
+# network_mgmt_dns REMOVED 2026-08-09 (#638, Piece 4).
+#
+# This host used to carry `dns-nameservers 1.1.1.1` on enp44s0, applied via
+# ifupdown's if-up.d/resolved hook. It was never codified deliberately — it
+# came from the installer — and until #638 it was the only *plausibly*
+# working AdGuard-down fallback anywhere on the fleet, so #628 kept it.
+#
+# It is removed now because the real fallback exists and is PROVEN: the
+# failover test (docs/runbooks/dns-failover-test.md) took AdGuard away twice
+# on this host and every internal name still resolved correctly via dnsmasq
+# on 10.10.10.10. The link-scoped 1.1.1.1 never answered a single query in
+# any test — it was latent, not protective.
+#
+# Removing it also fixes a real defect: it gave forge-ops a SECOND scope
+# that claimed `bezaforge.dev` while holding a public resolver that returns
+# NXDOMAIN for internal names. That scope winning a race would have broken
+# internal resolution intermittently. One scope, two internal-aware servers,
+# is the invariant roles/dns-client maintains.
+
+# ------------------------------------------------------------
+# Resolver config (roles/dns-client, #638)
+# ------------------------------------------------------------
+# `resolved`, not `netplan`: forge-ops is Debian bare metal running
+# ifupdown — there is no netplan here, so systemd-resolved's global config
+# is the native place for the server list.
+#
+# This host HAD two DNS scopes until 2026-08-09: the global one this sets,
+# plus a link scope on enp44s0 carrying 1.1.1.1 from the installer-era
+# `dns-nameservers` line. Both claimed `bezaforge.dev` while holding
+# DIFFERENT servers, which is why forge-ops's behaviour could not be
+# explained from its config — AdGuard won every measured trial, but that
+# was unexplained safety, not established safety.
+#
+# That line is now removed (see the block above), so this host has ONE
+# scope holding both internal-aware servers, matching the rest of the fleet.
+#
+# ⚠️ The removal is INERT until networking restarts or the host reboots —
+# roles/network is deliberately handler-free. To retire the live link scope
+# without a reboot (safe; the global scope keeps answering throughout):
+#     sudo resolvectl revert enp44s0
+# Confirm afterwards that `resolvectl domain` shows bezaforge.dev on Global
+# ONLY, and that `resolvectl status` shows no servers on Link 3.
+dns_client_method: resolved
 
 # NFS mounts
 # gdrive was previously mounted out-of-band during Cognee Phase A — added

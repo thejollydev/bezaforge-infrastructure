@@ -9,7 +9,6 @@
     name: sshd
     state: restarted
 
-- name: restart systemd-resolved
-  ansible.builtin.systemd:
-    name: systemd-resolved
-    state: restarted
+# The `restart systemd-resolved` handler moved to roles/dns-client with the
+# resolver config it served (#638). Nothing in this role notifies it any
+# more; leaving it would be a handler that can never fire.
