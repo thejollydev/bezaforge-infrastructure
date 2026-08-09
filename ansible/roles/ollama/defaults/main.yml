@@ -110,8 +110,9 @@ ollama_models_fail_on_error: false
 # allow rules. Empty list → no UFW changes.
 ollama_ufw_allow_from:
   - 10.10.50.0/24   # AI VLAN (forge-brizza)
-  - 10.10.20.0/24   # Mgmt VLAN (forge-ops services)
-  - 10.10.30.0/24   # Dev VLAN (jolly-LOQ-arch when on this VLAN)
+  - 10.10.20.0/24   # Production VLAN (forge-ops services)
+  - 10.10.30.0/24   # Dev VLAN — currently has no hosts; forge-dev (10.10.30.10)
+                    # is planned, so this is kept rather than pruned.
   # jolly-LOQ-arch on WIFI, which is where it actually lives (wlan0,
   # 10.10.40.99). The Dev-VLAN entry above says "when on this VLAN" and that
   # condition has not been true — so the workstation had never once reached
@@ -125,3 +126,11 @@ ollama_ufw_allow_from:
   # 22/tcp is allow-listed to 10.10.40.99 rather than to the subnet. It does
   # depend on the DHCP reservation that the SSH rule already relies on.
   - 10.10.40.99     # jolly-LOQ-arch over WiFi (workstation; matches the 22/tcp host rule)
+  # Same workstation over WireGuard. Rare but wanted (Joseph, 2026-08-09):
+  # without it, Ollama is reachable from the laptop at home and silently not
+  # reachable while away — and the failure mode is UFW's DROP, i.e. a ~5s
+  # timeout that reads as "the AI host is down" rather than "you are on the
+  # wrong address". Both laptop addresses are already paired this way in
+  # group_vars/all's common_admin_ssh_sources; this brings Ollama in line
+  # with SSH instead of covering only half the cases.
+  - 10.10.99.99     # jolly-LOQ-arch over WireGuard (same host, remote)
