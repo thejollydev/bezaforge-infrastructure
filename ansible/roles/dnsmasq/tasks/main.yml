@@ -1,0 +1,130 @@
+---
+# ============================================================
+# dnsmasq role — secondary internal resolver on forge-hypervisor (#638)
+# ============================================================
+# WHY THIS EXISTS: scoping #628 proved that the DNS fallback the repo
+# claimed to have does not exist. roles/common set FallbackDNS=1.1.1.1 and
+# commented that it catches AdGuard being down; resolved.conf(5) is explicit
+# that FallbackDNS is "only used if no other DNS server information is
+# known", and DNS= IS set — so it was never once consulted, on any host
+# running the role. The only working fallback anywhere was an accidental,
+# uncodified `dns-nameservers 1.1.1.1` line on forge-ops.
+#
+# AdGuard is a container on forge-ops. `docker compose restart` there takes
+# DNS for every VLAN with it. This role puts a second internal-aware
+# resolver on the one host that is not downstream of that failure.
+#
+# ------------------------------------------------------------
+# WHY NOT THE "OBVIOUS" FIX
+# ------------------------------------------------------------
+# Appending a public resolver to the client list — DNS=10.10.20.20 1.1.1.1
+# — is worse than doing nothing. Both servers land in ONE scope, so
+# Cloudflare can be asked for *.bezaforge.dev, and NXDOMAIN is a VALID
+# answer: resolved accepts it and does not retry AdGuard. That trades a
+# missing fallback for intermittent "internal name does not exist".
+# Verified 2026-08-08: public 1.1.1.1 returns NXDOMAIN for
+# grafana.bezaforge.dev and pm.bezaforge.dev.
+#
+# The fix is a second server that KNOWS the internal zone, which is what
+# this role provides. Then every scope answering bezaforge.dev holds an
+# internal-aware server set and scope ambiguity stops mattering.
+#
+# ------------------------------------------------------------
+# TASK ORDER: INSTALL BEFORE TEMPLATE, DELIBERATELY
+# ------------------------------------------------------------
+# An earlier draft wrote the config FIRST, to close the window where the
+# Debian postinst starts dnsmasq with an all-commented default config and
+# it briefly answers recursive queries for anything on the LAN.
+#
+# That ordering was wrong, and the first --check run found it: the template
+# task validates with `dnsmasq --test`, and the dnsmasq binary does not
+# exist until the package is installed. Check mode skips validate, so the
+# bug was invisible there and would only have appeared on a real apply.
+#
+# The window is accepted instead, because it is far smaller than it looks:
+#   * it lasts the seconds between this task and the restart below;
+#   * there is no WAN exposure — nothing forwards :53 inbound;
+#   * gateway ACL rule 4 denies The Bunker (40) -> Management (10);
+#   * and above all, NOTHING POINTS AT 10.10.10.10 FOR DNS when this role
+#     first runs. roles/dns-client is what aims the fleet here, and it
+#     deploys afterwards. Until then this resolver is not load-bearing.
+# Validation of the config we actually serve is worth more than closing a
+# window that only matters to an attacker already on a trusted VLAN.
+
+- name: Install dnsmasq
+  ansible.builtin.apt:
+    name: dnsmasq
+    state: present
+    update_cache: true
+  when: dnsmasq_manage | bool
+
+- name: Create dnsmasq drop-in directory
+  ansible.builtin.file:
+    path: "{{ dnsmasq_conf_file | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: dnsmasq_manage | bool
+
+- name: Template dnsmasq configuration
+  ansible.builtin.template:
+    src: bezaforge.conf.j2
+    dest: "{{ dnsmasq_conf_file }}"
+    owner: root
+    group: root
+    mode: '0644'
+    backup: true
+    validate: dnsmasq --test --conf-file=%s
+  when: dnsmasq_manage | bool
+  notify: restart dnsmasq
+  # `validate` is the mechanism assertion: dnsmasq --test parses the
+  # candidate file and exits non-zero on a syntax error, so a bad template
+  # fails the task instead of landing on disk and killing DNS at restart.
+  # ⚠️ Ansible SKIPS validate in check mode, so a --check run cannot prove
+  # the config parses. Only a real apply does.
+
+# ------------------------------------------------------------
+# Everything below needs the package to REALLY be installed
+# ------------------------------------------------------------
+# ⚠️ READ THIS BEFORE TRUSTING A `--check` RUN OF THIS ROLE.
+# Check mode only pretends to install dnsmasq, so neither of these tasks
+# can run: /etc/dnsmasq.conf does not exist yet, and there is no
+# dnsmasq.service for systemd to find. Both failed exactly that way on the
+# first two --check attempts (2026-08-08).
+#
+# The honest consequence, stated so nobody mistakes green for proven: on a
+# host that does not already have dnsmasq, `--check` exercises almost
+# nothing here. Template `validate:` is skipped by check mode too. A clean
+# --check of this role is NOT evidence the role works — it is evidence the
+# play parses and the file diff is what you expected.
+#
+# What actually proves it works is querying the running server, which is
+# the precondition step of docs/runbooks/dns-failover-test.md:
+#     dig +short @10.10.10.10 grafana.bezaforge.dev   # -> 10.10.20.20
+#     dig +short @10.10.10.10 example.com             # -> a public address
+- name: Configure and start dnsmasq
+  when:
+    - dnsmasq_manage | bool
+    - not ansible_check_mode
+  block:
+
+    - name: Ensure the drop-in directory is actually read
+      ansible.builtin.lineinfile:
+        path: /etc/dnsmasq.conf
+        regexp: '^\s*#?\s*conf-dir\s*=\s*{{ dnsmasq_conf_file | dirname }}'
+        line: "conf-dir={{ dnsmasq_conf_file | dirname }},*.conf"
+        state: present
+      notify: restart dnsmasq
+      # Assert the MECHANISM, not the artifact. Templating a file into
+      # /etc/dnsmasq.d/ proves nothing unless something reads that
+      # directory — if conf-dir were absent or commented, our config would
+      # sit on disk, ignored, while dnsmasq served defaults, and every
+      # check that only looked at the file would pass. Debian does ship
+      # this enabled; this makes the dependency explicit, not inherited.
+
+    - name: Enable and start dnsmasq
+      ansible.builtin.systemd:
+        name: dnsmasq
+        enabled: true
+        state: started

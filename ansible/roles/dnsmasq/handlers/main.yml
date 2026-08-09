@@ -1,0 +1,13 @@
+---
+# Handlers only run when notified by a task that made a change.
+
+# Restarting dnsmasq is safe in a way that restarting networking is not:
+# this host does not resolve through dnsmasq for anything on the critical
+# path (its /etc/hosts pins cover git + uptime, and nsswitch reads files
+# first), and clients keep AdGuard as primary throughout. A brief gap here
+# costs nothing; the same cannot be said for roles/network, which is
+# deliberately handler-free.
+- name: restart dnsmasq
+  ansible.builtin.systemd:
+    name: dnsmasq
+    state: restarted

@@ -1,0 +1,21 @@
+---
+# ============================================================
+# admin-access role defaults
+# ============================================================
+
+# The interactive admin account. Matches ansible_user on every host this
+# role runs against; forge-hypervisor is out of scope (root, no such user).
+admin_access_user: joseph
+
+# Read-only diagnostic groups.
+#   systemd-journal — read the system journal. Without it, `journalctl -u`
+#                     on a system unit returns an EMPTY result plus a hint,
+#                     not an error, so missing access looks like missing logs.
+#   adm             — read /var/log/* files that are group-adm readable
+#                     (auth.log, syslog, and friends on Debian/Ubuntu).
+# Neither grants write access or privilege escalation. The account already
+# has full sudo on these hosts, so this narrows friction, not the trust
+# boundary.
+admin_access_groups:
+  - systemd-journal
+  - adm

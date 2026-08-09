@@ -1,0 +1,44 @@
+# {{ ansible_managed }} — roles/dns-client/templates/netplan-dns.yaml.j2 (#638)
+#
+# DNS-only netplan drop-in. netplan deep-merges this into the interface
+# defined in 50-cloud-init.yaml — it adds nameservers WITHOUT owning the
+# address/routes/MAC there, and supplies DNS even if a cloud-init rebuild
+# regenerates 50-cloud-init.yaml without it (Proxmox cloud-init does not
+# set DNS).
+#
+# ⚠️ The key below is the netplan ID, which netplan merges on. It is NOT
+# always the kernel interface name — forge-brizza's key is `eth0` while the
+# device is matched by MAC and renamed with set-name. A wrong key does not
+# error: netplan simply defines a new interface that matches nothing, the
+# merge never happens, and the host keeps its old DNS while this file sits
+# on disk looking correct.
+#
+# Verify the merge actually took effect, on the host:
+#     netplan get ethernets
+#     resolvectl status        # the link should list BOTH servers
+#
+# ⚠️ THE RENDERER IS NOT THE SAME ON EVERY HOST, so do not verify by looking
+# for a generated networkd file. Measured 2026-08-09:
+#     forge-ai, forge-erp  -> systemd-networkd
+#                             /run/systemd/network/10-netplan-enp6s18.network
+#     forge-brizza         -> NetworkManager
+#                             /run/NetworkManager/system-connections/netplan-eth0.nmconnection
+#                             (networkctl reports eth0 as "unmanaged", Network File: n/a
+#                              — that is CORRECT here, not a failure)
+# Both paths end at systemd-resolved and both are regenerated at boot from
+# /etc/netplan, so both are durable. Verify by the OUTCOME (`resolvectl
+# status` showing both servers on the link), never by hunting for a file —
+# on forge-brizza the file you would look for does not exist by design.
+network:
+  version: 2
+  ethernets:
+    {{ dns_client_netplan_id }}:
+      nameservers:
+        addresses:
+{% for server in dns_client_servers %}
+          - {{ server }}
+{% endfor %}
+        search:
+{% for domain in dns_client_search_domains %}
+          - {{ domain }}
+{% endfor %}

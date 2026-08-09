@@ -20,7 +20,6 @@ iface lo inet loopback
 auto {{ network_mgmt_interface }}
 iface {{ network_mgmt_interface }} inet static
 	address {{ management_ip }}/24
-	dns-nameservers {{ network_mgmt_dns }}
 	dns-search {{ domain }}
 
 # Production interface - VLAN {{ network_prod_vlan }} (tagged on trunk port)

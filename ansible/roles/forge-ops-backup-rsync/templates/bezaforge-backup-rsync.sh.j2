@@ -48,7 +48,27 @@ RSYNC_FLAGS=(
 )
 
 failed=0
+warned=0
 
+# ------------------------------------------------------------
+# rsync exit 24 is a WARNING, not a failure
+# ------------------------------------------------------------
+# 24 = "some files vanished before they could be transferred". Every
+# service here is LIVE while this runs, and some rewrite their own files
+# constantly — loki compacts and rotates chunks, prometheus churns its WAL.
+# A file disappearing mid-transfer is normal operation, not data loss: the
+# files that were copied were copied correctly, and --delete means the
+# mirror tracks the source anyway.
+#
+# Treating 24 as failure produced a nightly "backup FAILED" alert on a
+# backup that had succeeded (loki, 2026-08-09 02:52 — 637 MB transferred,
+# every other service OK). That is worse than no alert: a channel that
+# cries wolf is one you stop reading, and it costs you the next REAL
+# backup failure. Warnings are surfaced loudly but do not fail the unit.
+#
+# Any OTHER non-zero code still fails: 23 (partial transfer / permissions),
+# 12 (protocol error), 30 (timeout) and friends all mean something is
+# genuinely wrong and the alert should fire.
 {% for svc in backup_services %}
 # --- {{ svc.name }} ---
 {
@@ -59,22 +79,34 @@ failed=0
     else
         mkdir -p "${dest}"
         echo "==> {{ svc.name }}"
-        if rsync "${RSYNC_FLAGS[@]}" "${BASE_EXCLUDES[@]}" \
+        rsync "${RSYNC_FLAGS[@]}" "${BASE_EXCLUDES[@]}" \
 {% for excl in svc.excludes | default([]) %}
             --exclude='{{ excl }}' \
 {% endfor %}
-            "${src}" "${dest}"; then
-            echo "OK   {{ svc.name }}"
-        else
-            echo "FAIL {{ svc.name }} (rsync exit $?)" >&2
-            failed=1
-        fi
+            "${src}" "${dest}"
+        rc=$?
+        case "${rc}" in
+            0)
+                echo "OK   {{ svc.name }}"
+                ;;
+            24)
+                echo "WARN {{ svc.name }} — files vanished mid-transfer (rsync 24); copied data is intact, not a failure"
+                warned=$((warned + 1))
+                ;;
+            *)
+                echo "FAIL {{ svc.name }} (rsync exit ${rc})" >&2
+                failed=$((failed + 1))
+                ;;
+        esac
     fi
 }
 {% endfor %}
 
 if [[ ${failed} -ne 0 ]]; then
-    echo "One or more rsyncs failed — see above." >&2
+    echo "${failed} rsync(s) FAILED — see above." >&2
     exit 1
+fi
+if [[ ${warned} -ne 0 ]]; then
+    echo "${warned} rsync(s) warned about vanished files (rsync 24) — expected for live services, not a failure."
 fi
 echo "All rsyncs completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)."

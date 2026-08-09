@@ -2,3 +2,18 @@
 # Connection
 ansible_host: 10.10.20.50
 ansible_user: joseph
+
+# ------------------------------------------------------------
+# Resolver config (roles/dns-client, #638)
+# ------------------------------------------------------------
+# Until 2026-08-08 this host had NO managed DNS at all — it runs no
+# `common` by design (a first-touch UFW enable could lock admin out, see
+# site.yml), and `common` was the only place DNS was configured. Its
+# resolved.conf is a bare `[Resolve]`; everything came from the link via
+# 50-cloud-init.yaml. That is precisely the gap #638 exists to close.
+#
+# ⚠️ The netplan ID key is `enp6s18`, an ALTNAME — the interface presents
+# as `ens18` everywhere you would look for it. See the identical note in
+# host_vars/forge-ai.yml for why keying it `ens18` fails silently.
+dns_client_method: netplan
+dns_client_netplan_id: enp6s18

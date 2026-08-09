@@ -1,0 +1,37 @@
+{# Rendered to /etc/systemd/resolved.conf — see roles/dns-client/tasks/main.yml #}
+# {{ ansible_managed }} — roles/dns-client/templates/resolved.conf.j2 (#638)
+#
+# Edits here are REVERTED by the next Ansible run — change the template.
+# Check what resolved actually ended up with (the file is the input, the
+# scopes are the outcome, and they are not the same thing):
+#     resolvectl status
+#     resolvectl domain
+#
+# ⚠️ There is NO FallbackDNS= line here, and that is deliberate. It used to
+# be set to 1.1.1.1 with a comment claiming it caught AdGuard being down.
+# resolved.conf(5) is explicit: FallbackDNS is "only used if no other DNS
+# server information is known", and DNS information IS known on every host
+# — so it never fired, anywhere, while the repo claimed coverage. Real
+# resilience is the second internal-aware server, not this setting.
+
+[Resolve]
+{% if dns_client_method == 'resolved' %}
+{#
+  Debian bare metal (forge-ops): no netplan, so the global scope is the
+  native place for the server list.
+#}
+DNS={{ dns_client_servers | join(' ') }}
+Domains={{ dns_client_search_domains | join(' ') }}
+{% else %}
+{#
+  Netplan hosts: DNS= is deliberately OMITTED. Netplan owns the link scope
+  and puts the servers there. Setting a global list as well would give the
+  host two scopes both claiming bezaforge.dev — exactly the unexplainable
+  arrangement on forge-ops that this ticket exists to remove. The
+  forge-brizza role warned about this before #638 existed: writing the
+  whole file "would hardcode forge-ops' AdGuard address and fight netplan".
+  This file does not; it only carries LLMNR.
+#}
+# DNS=/Domains= intentionally absent — owned by {{ dns_client_netplan_path }}.
+{% endif %}
+LLMNR={{ 'yes' if dns_client_llmnr | bool else 'no' }}

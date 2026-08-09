@@ -1,0 +1,14 @@
+# {{ ansible_managed }} — roles/dns-client (#638)
+[Unit]
+Description=BezaForge — periodic primary-DNS check
+
+[Timer]
+# Every {{ dns_client_monitor_interval }}. Frequent enough that the Grafana
+# rule's `for:` window is what governs alert latency, not the sample rate.
+OnBootSec=2min
+OnUnitActiveSec={{ dns_client_monitor_interval }}
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -12,6 +12,25 @@ locale: en_US.UTF-8
 nfs_client: false
 
 # ------------------------------------------------------------
+# Resolver config (roles/dns-client, #638)
+# ------------------------------------------------------------
+# ⚠️ THE KEY IS AN ALTNAME, AND IT IS NOT WHAT ANY TOOL SHOWS YOU.
+# The netplan ID key is `enp6s18`; the interface presents as `ens18` in
+# `ip -br link`, `networkctl list`, and `resolvectl status`. `enp6s18` is a
+# kernel ALTERNATIVE name (`ip -d link show` -> "altname enp6s18"), and
+# systemd-networkd matches altnames — which is how 50-cloud-init.yaml's
+# `enp6s18:` mapping has always configured this host. Verified 2026-08-08.
+#
+# Keying a drop-in `ens18` would NOT merge into that mapping. It would
+# generate a SECOND unit (10-netplan-ens18.network) matching the same
+# device, leaving two competing configs resolved by filename sort order.
+# That is worse than a no-op and it fails silently. Confirm before changing:
+#     sudo netplan get ethernets     # authoritative key
+#     ip -d link show                # shows the altname
+dns_client_method: netplan
+dns_client_netplan_id: enp6s18
+
+# ------------------------------------------------------------
 # ollama role (see ansible/roles/ollama/defaults/main.yml for
 # all knobs + commentary)
 # ------------------------------------------------------------
