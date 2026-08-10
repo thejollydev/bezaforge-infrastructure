@@ -22,19 +22,36 @@ dnsmasq_manage: false
 # Mirrors AdGuard's `*.bezaforge.dev -> 10.10.20.20` wildcard rewrite.
 # Everything not named explicitly below resolves to Traefik on forge-ops,
 # which is what AdGuard does.
-dnsmasq_internal_domain: bezaforge.dev
-dnsmasq_internal_target: 10.10.20.20
+#
+# Derived from group_vars/all since #649 — see dnsmasq_host_records below
+# for why this role no longer owns the zone data.
+dnsmasq_internal_domain: "{{ bezaforge_dns_domain }}"
+dnsmasq_internal_target: "{{ bezaforge_dns_default_target }}"
 
 # ------------------------------------------------------------
 # Per-host records — the exceptions to the wildcard
 # ------------------------------------------------------------
-# ⚠️ THIS LIST MIRRORS ADGUARD'S REWRITE TABLE. It is not derived from the
-# Ansible inventory, and that is deliberate: the thing we must agree with
-# is what the PRIMARY resolver answers. The inventory happens to match
-# AdGuard for the five managed hosts today, but generating from it would
-# mean mirroring a different source — and any future disagreement between
-# inventory and AdGuard would silently recreate the split-answer bug this
-# role exists to remove.
+# ⚠️ DERIVED FROM group_vars/all's `bezaforge_dns_rewrites` SINCE #649.
+# Do not add records here — add them to that list and they reach BOTH
+# resolvers. This used to be a hand-kept copy of AdGuard's table, which
+# meant the two sides could drift with nothing detecting it.
+#
+# It is still NOT derived from the Ansible inventory, and that remains
+# deliberate: the thing we must agree with is what the PRIMARY resolver
+# answers. The inventory happens to match AdGuard for the managed hosts
+# today, but generating from it would mean mirroring a different source —
+# and any future disagreement between inventory and AdGuard would silently
+# recreate the split-answer bug this role exists to remove. (It also holds
+# records for things that are not Ansible hosts at all: `omada` is the
+# OC220 controller, `forge-dev` does not currently exist.)
+#
+# THE FILTER: drop every record whose answer is already the wildcard's
+# answer. Those are covered by the `address=/domain/target` catch-all at the
+# bottom of the template, so listing them would add drift surface for no
+# behaviour. This is semantic, not a coincidence — "answers with the default
+# target" and "is covered by the catch-all" are the same statement. Today it
+# removes 5 of 12 (the wildcard itself, the apex, forge-ops, netbox, docs),
+# leaving exactly the 7 host records this file used to carry by hand.
 #
 # HOW THIS WAS FOUND (worth remembering): the first version of this role
 # had only the wildcard above, because a probe of eleven service names,
@@ -52,29 +69,33 @@ dnsmasq_internal_target: 10.10.20.20
 # wildcard already covers them and listing them adds drift surface for no
 # behaviour. Those were forge-ops, netbox, docs, and the apex.
 #
-# RE-VERIFY after changing either side — this is a test that has already
-# gone red once, so a green result means something:
-#     for n in forge-hypervisor forge-ops-mgmt omada forge-ai forge-erp forge-brizza; do
-#       printf '%-32s adguard=%-14s dnsmasq=%s\n' "$n" \
-#         "$(dig +short @10.10.20.20 $n.bezaforge.dev)" \
-#         "$(dig +short @10.10.10.10 $n.bezaforge.dev)"
-#     done
-dnsmasq_host_records:
-  - {name: forge-hypervisor, ip: 10.10.10.10}
-  - {name: forge-ops-mgmt, ip: 10.10.10.20}    # forge-ops' VLAN 10 mgmt NIC
-  - {name: omada, ip: 10.10.10.5}              # OC220 controller, not an Ansible host
-  - {name: forge-ai, ip: 10.10.50.10}
-  - {name: forge-erp, ip: 10.10.20.50}
-  - {name: forge-brizza, ip: 10.10.50.20}
-  # forge-dev (VMID 102) does NOT currently exist — it was removed from the
-  # fleet and `qm list` shows only 101/103/104/105/9002. The record is
-  # mirrored anyway, on Joseph's call 2026-08-08: he intends to rebuild
-  # forge-dev, so AdGuard's rewrite is a placeholder rather than stale
-  # config. Mirroring keeps the two resolvers in agreement — which is this
-  # role's entire invariant — and means the record is already correct the
-  # day the host comes back. Both resolvers pointing at an address with
-  # nothing on it is honest; the two disagreeing about it is not.
-  - {name: forge-dev, ip: 10.10.30.10}
+# RE-VERIFY after changing the source list — this is a test that has
+# already gone red once, so a green result means something:
+#     scripts/dns-parity-check.sh
+# (The inline dig loop that used to live here was superseded by that
+# script, which retries, prints both answers, and distinguishes a silent
+# resolver from a disagreeing one.)
+# Records carry AdGuard's exact FQDN in `domain`, so the template emits
+# `host-record={{ rec.domain }},{{ rec.answer }}` with nothing reassembled
+# from a label plus a domain. One less transformation between the two
+# resolvers is one less place for them to disagree.
+#
+# ⚠️ DO NOT PUT A JINJA COMMENT IN bezaforge.conf.j2. Two attempts on
+# 2026-08-09 each produced a silently-broken config, and neither would have
+# been caught by `dnsmasq --test`, because both were valid dnsmasq syntax:
+#   1. `{#- ... -#}` — the leading dash strips the newline BEFORE the tag,
+#      which glued the first host-record onto the end of the preceding
+#      comment line. The record was commented out; forge-hypervisor would
+#      have fallen through to the wildcard and answered 10.10.20.20.
+#   2. Plain braces, but the comment TEXT quoted Jinja comment syntax —
+#      and Jinja comments do not nest, so the inner closing brace ended the
+#      comment early and dumped the rest into the rendered file.
+# Both were caught only by the byte-identical `--check --diff`. Explanations
+# belong here, in a file that is never rendered.
+dnsmasq_host_records: >-
+  {{ bezaforge_dns_rewrites
+     | rejectattr('answer', 'equalto', bezaforge_dns_default_target)
+     | list }}
 
 # ------------------------------------------------------------
 # Upstreams for everything that is NOT the internal zone

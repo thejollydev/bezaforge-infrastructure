@@ -39,7 +39,7 @@ bind-interfaces
 # as {{ dnsmasq_internal_target }}, the wildcard is winning and this
 # arrangement is wrong.
 {% for rec in dnsmasq_host_records %}
-host-record={{ rec.name }}.{{ dnsmasq_internal_domain }},{{ rec.ip }}
+host-record={{ rec.domain }},{{ rec.answer }}
 {% endfor %}
 
 # Catch-all: every other *.bezaforge.dev name (and the bare apex) goes to
