@@ -110,12 +110,20 @@ chown -R 10001:10001 /opt/bezaforge/loki/data          # loki
 ```
 Containers will fail silently or with misleading errors without this.
 
-### AdGuard Home — Port 53 Conflict
-`systemd-resolved` listens on port 53 by default. Must disable before AdGuard:
-```bash
-systemctl stop systemd-resolved
-systemctl disable systemd-resolved
+### AdGuard Home — Port 53 is NOT a conflict ⛔
+
+**Corrected 2026-08-09.** This section used to say `systemd-resolved` must be stopped and disabled before deploying AdGuard. That is wrong, and acting on it would break forge-ops.
+
+The two coexist because each binds a *specific* address, not `0.0.0.0` — verified live on forge-ops:
+
 ```
+AdGuard   10.10.20.20:53      (tcp + udp)   <- compose binds this IP explicitly
+resolved  127.0.0.53:53, 127.0.0.54:53      <- stub listeners only
+```
+
+`systemd-resolved` is `active` and `enabled` on forge-ops and must stay that way. `roles/dns-client` configures resolved there to give the host its own resolution (primary AdGuard `10.10.20.20`, secondary dnsmasq `10.10.10.10`) and to emit the `bezaforge_dns_primary_in_use` metric behind the "DNS Not Using Primary" alert. Disabling it removes both.
+
+If something *does* fail to bind :53, the cause is a listener on `0.0.0.0:53`, not resolved. Check with `ss -lntup | grep ':53 '`.
 
 ### Homepage — Allowed Hosts
 Requires explicit env var or it refuses connections:

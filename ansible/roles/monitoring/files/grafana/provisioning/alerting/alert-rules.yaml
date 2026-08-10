@@ -378,7 +378,59 @@ groups:
           for: 30m
           annotations:
             summary: '{{ $labels.instance }} is resolving via the SECONDARY DNS server, not AdGuard'
-            description: 'systemd-resolved failed over and does not fail back on its own, so this persists silently: the host loses ad-filtering and vanishes from AdGuard query logs while everything looks healthy. Any adguard container restart can cause it. Fix (about 1s of DNS interruption): ansible forge-ops,forge-ai,forge-brizza,forge-erp -i inventory/hosts.yml -m systemd -a "name=systemd-resolved state=restarted" --become --ask-become-pass --ask-vault-pass'
+            description: 'systemd-resolved failed over and does not fail back on its own, so this persists silently: the host loses ad-filtering and vanishes from AdGuard query logs while everything looks healthy. Any adguard container restart can cause it. Fix (about 1s of DNS interruption): ansible forge-ops,forge-ai,forge-brizza,forge-erp -i inventory/hosts.yml -m systemd -a "name=systemd-resolved state=restarted" --become --ask-become-pass --ask-vault-pass — ALSO run "sudo systemctl restart systemd-resolved" on the workstation, which parks identically but is not in the inventory and runs no dns-client role, so it emits no metric and THIS ALERT CANNOT SEE IT. On 2026-08-09 the workstation was parked three separate times in one session and a human caught it every time.'
+          isPaused: false
+          notification_settings:
+            receiver: Discord
+        - uid: bfg9dnsparity01
+          title: DNS Resolvers Disagree
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 3600
+                to: 0
+              datasourceUid: dfdseqn41ybk0e
+              model:
+                editorMode: code
+                expr: bezaforge_dns_parity_exit_code > 0
+                instant: true
+                intervalMs: 1000
+                legendFormat: '{{ $labels.instance }}'
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          noDataState: OK
+          execErrState: OK
+          for: 30m
+          annotations:
+            summary: 'AdGuard and dnsmasq are answering internal names differently (exit code {{ $values.A }})'
+            description: 'The primary (AdGuard 10.10.20.20) and secondary (dnsmasq 10.10.10.10) resolvers no longer agree. This is invisible in normal operation because AdGuard answers everything — it only bites during an AdGuard outage, when nobody is placed to debug DNS. Exit code 1 = the resolvers DISAGREE; check bezaforge_dns_parity_mismatches. Exit code 2 = a resolver went SILENT so the comparison is INVALID (not a pass, not a parity failure — fix the resolver first); check bezaforge_dns_parity_unanswered. Diagnose with: scripts/dns-parity-check.sh -v. Both sides derive from bezaforge_dns_rewrites in group_vars/all (#649), so a real disagreement usually means a rewrite was added in the AdGuard web UI instead of in code — put it in the list and run site.yml --tags adguard,dnsmasq.'
           isPaused: false
           notification_settings:
             receiver: Discord

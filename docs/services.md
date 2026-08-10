@@ -22,10 +22,10 @@ Base path: `/opt/bezaforge/{service}/docker-compose.yml`
 ## DNS & Network Services
 
 ### AdGuard Home
-- **Port:** 53 (DNS), 3000 (web UI, internal)
-- **Role:** Authoritative DNS for all VLANs
-- **Key config:** Wildcard rewrite `*.bezaforge.dev → 10.10.20.20`
-- **Notes:** Must disable `systemd-resolved` before deployment (conflicts on port 53)
+- **Port:** 53 (DNS) on `10.10.20.20` only, 3053 → container 3000 (web UI, internal)
+- **Role:** **Primary** DNS for all VLANs. Since #638 there is a **secondary**: dnsmasq on forge-hypervisor (`10.10.10.10`, `roles/dnsmasq`).
+- **Key config:** wildcard rewrite `*.bezaforge.dev → 10.10.20.20` plus per-host overrides. Since #649 the rewrite table is **codified** in `bezaforge_dns_rewrites` (`group_vars/all`) and reconciled into AdGuard through its control API — add records there, not in the web UI.
+- **Notes:** ⛔ **Do NOT disable `systemd-resolved`.** This line previously said the opposite; it was wrong and following it would break things. Verified live 2026-08-09: resolved is `active` + `enabled` on forge-ops and the two coexist on different addresses — AdGuard binds `10.10.20.20:53`, resolved binds only the stubs `127.0.0.53:53` / `127.0.0.54:53`. There is no conflict, and the compose file binds AdGuard to the specific IP precisely so there isn't. Disabling resolved on forge-ops would also remove what `roles/dns-client` configures there: the host's own resolution and the `bezaforge_dns_primary_in_use` metric.
 
 ---
 
