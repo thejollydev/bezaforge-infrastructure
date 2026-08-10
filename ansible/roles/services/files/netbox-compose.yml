@@ -4,7 +4,7 @@ networks:
 
 services:
   netbox:
-    image: netboxcommunity/netbox:v4.6.7@sha256:1f1f98f1e649f66ff01e2d2751da5a6d4da73a2d47d89ff74d2087e98f823a6d
+    image: netboxcommunity/netbox:v4.6.7@sha256:7ad3a287d38829c98799c4a03d874d3d309738d1f42987dfd8037ec0e80587ce
     container_name: netbox
     restart: unless-stopped
     depends_on:
@@ -43,7 +43,7 @@ services:
       - "traefik.http.services.netbox.loadbalancer.server.port=8080"
 
   netbox-worker:
-    image: netboxcommunity/netbox:v4.6.7@sha256:1f1f98f1e649f66ff01e2d2751da5a6d4da73a2d47d89ff74d2087e98f823a6d
+    image: netboxcommunity/netbox:v4.6.7@sha256:7ad3a287d38829c98799c4a03d874d3d309738d1f42987dfd8037ec0e80587ce
     container_name: netbox-worker
     restart: unless-stopped
     command: /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py rqworker
