@@ -131,3 +131,61 @@ dnsmasq_cache_size: 1000
 # as the distro shipped it (it is a dpkg conffile — owning it would mean
 # a conffile prompt on every package upgrade).
 dnsmasq_conf_file: /etc/dnsmasq.d/bezaforge.conf
+
+# ------------------------------------------------------------
+# Parity monitoring (#649)
+# ------------------------------------------------------------
+# #638 gave the fleet a second resolver; #649 made one list drive both. This
+# is the part that makes a DIVERGENCE REPORT ITSELF rather than wait to be
+# discovered during an outage.
+#
+# WHY ON THE HYPERVISOR: same reasoning as the resolver itself. The check
+# must survive the failure it watches for, and it needs no AdGuard
+# credential — it compares ANSWERS, from outside both config systems.
+#
+# ⚠️ WHAT THIS DOES AND DOES NOT CATCH — state it plainly, because a check
+# whose blind spot is undocumented gets trusted past its evidence:
+#   CAUGHT  — the two resolvers answering a codified name differently, and
+#             either resolver going silent (a distinct, louder failure).
+#   MISSED  — a rewrite added in the AdGuard UI under a name nobody
+#             codified. This check never asks about names it doesn't know.
+#             That gap is covered by roles/adguard's reconciliation report,
+#             which set-compares AdGuard's whole live table against
+#             bezaforge_dns_rewrites and prints "unmanaged extras" — but
+#             only when Ansible runs. Closing it here would mean putting an
+#             AdGuard credential on the hypervisor, coupling the watchdog to
+#             the auth of the thing it watches. Not worth it.
+dnsmasq_parity_monitor: true
+
+# Joins the existing mechanism — Debian's prometheus-node-exporter enables
+# the textfile collector by default and already ships apt.prom here.
+dnsmasq_parity_metric_file: /var/lib/prometheus/node-exporter/bezaforge_dns_parity.prom
+
+# Every codified host name is checked automatically (derived from
+# bezaforge_dns_rewrites), so adding a record extends the check for free —
+# the fixed list in scripts/dns-parity-check.sh could go stale, this cannot.
+#
+# These extras exist because the ORIGINAL bug was a sample SHAPE problem,
+# not a sample size one: eleven service names all agreed while every host
+# name disagreed. So the sweep must contain all three shapes — codified
+# hosts (expected to differ from the wildcard), service names (expected to
+# equal it), and a control nobody has defined (proves the wildcard still
+# catches the general case rather than the list having replaced it).
+dnsmasq_parity_extra_names:
+  - home
+  - traefik
+  - grafana
+  - git
+  - pm
+  - uptime
+  - langfuse
+  - nope-not-real-control
+
+dnsmasq_parity_interval: 15min
+
+# Deployed paths. The comparison script is the repo's own
+# scripts/dns-parity-check.sh copied verbatim — ONE implementation, so the
+# metric and a hand-run check can never disagree. The wrapper templates the
+# name list and turns the exit code into metrics.
+dnsmasq_parity_check_script: /usr/local/bin/bezaforge-dns-parity-check.sh
+dnsmasq_parity_metric_script: /usr/local/bin/bezaforge-dns-parity-metric.sh

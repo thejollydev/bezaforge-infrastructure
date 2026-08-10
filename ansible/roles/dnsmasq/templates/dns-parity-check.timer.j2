@@ -1,0 +1,18 @@
+# {{ ansible_managed }} — roles/dnsmasq (#649)
+[Unit]
+Description=BezaForge — periodic DNS parity check
+
+[Timer]
+# Every {{ dnsmasq_parity_interval }}. Slower than the primary-in-use check
+# (2min) on purpose: that one watches a state which flips on any AdGuard
+# restart, this one watches CONFIG drift, which only changes when a human
+# edits a resolver. Each run issues two queries per name, so a tight interval
+# would add steady load to both resolvers to detect something that moves on
+# a scale of days.
+OnBootSec=5min
+OnUnitActiveSec={{ dnsmasq_parity_interval }}
+AccuracySec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

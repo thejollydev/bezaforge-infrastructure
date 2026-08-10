@@ -1,0 +1,15 @@
+# {{ ansible_managed }} — roles/dnsmasq (#649)
+[Unit]
+Description=BezaForge — export DNS parity between the primary and secondary resolvers
+Documentation=https://github.com/thejollydev/bezaforge-infrastructure
+After=dnsmasq.service network-online.target
+Wants=dnsmasq.service
+
+[Service]
+Type=oneshot
+ExecStart={{ dnsmasq_parity_metric_script }}
+# The script always exits 0 and carries its result in the metric, so a
+# failure of THIS unit means the exporter itself broke — which the existing
+# "Systemd Unit Failed" alert is the right signal for. Parity problems are
+# reported by the metric, not by failing here; a broken exporter must not be
+# indistinguishable from a parity failure.

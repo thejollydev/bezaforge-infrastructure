@@ -11,3 +11,7 @@
   ansible.builtin.systemd:
     name: dnsmasq
     state: restarted
+
+- name: dnsmasq reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true

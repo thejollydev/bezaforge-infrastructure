@@ -67,14 +67,36 @@ The following secret variable names appear in templates under `ansible/roles/*/t
 | `seedbox_protonvpn_wireguard_private_key` | External-scope API | `host_vars/forge-ops/vault.yml` | Seedbox Gluetun ProtonVPN WireGuard key | Removed 2026-07-18 (media stack retired — #485) |
 | `grafana_admin_password` | Admin UI | `host_vars/forge-ops/vault.yml` | Grafana initial admin password | — (initial) |
 | `cloudflare_dns_api_token` | External-scope API | `host_vars/forge-ops/vault.yml` | Traefik DNS-01 challenge | — (initial) |
+| `vault_adguard_admin_user` | Admin UI | `host_vars/forge-ops/vault.yml` | AdGuard control API (DNS rewrite reconciliation) — **⚠️ SECOND COPY, see below** | — (added 2026-08-09, #649) |
+| `vault_adguard_admin_password` | Admin UI | `host_vars/forge-ops/vault.yml` | AdGuard control API (DNS rewrite reconciliation) — **⚠️ SECOND COPY, see below** | — (added 2026-08-09, #649) |
 | `vault_restic_password` | Backup encryption | `host_vars/forge-hypervisor/vault.yml` | restic repo encryption | — (initial 2026-05-17) |
 | `vault_gcs_credentials_json` | External-scope API | `host_vars/forge-hypervisor/vault.yml` | restic GCS service account | — (initial 2026-05-17) |
 
 > **"— (initial)"** means the value has been in place since the variable was first defined and has never been rotated. **All Phase 1 / early Phase 2 secrets share this status as of 2026-05-17.** First annual rotation pass is due 2027-02 (one year after Phase 1 service deployment 2026-02-23) for internal DBs + admin UIs.
 
+### ⚠️ AdGuard Home admin — the one secret that exists in TWO places
+
+**Changed 2026-08-09 (#649). This entry used to sit in the "Not in vault" list below; that is no longer true, and rotating it the old way now breaks Ansible.**
+
+The credential is **set in the AdGuard web UI** and **mirrored into ansible-vault**, because `roles/adguard` needs it to reach the control API and reconcile the DNS rewrite table. Three copies, with a clear hierarchy:
+
+| Where | Role |
+|---|---|
+| **Bitwarden** `adguard-admin-bezaforge` | Human source of truth. Deliberately records raw IPs (`http://10.10.20.20:3053`, DNS `10.10.20.20:53`) rather than a `*.bezaforge.dev` name — AdGuard *is* the DNS, so during an AdGuard outage no name-based path to it resolves. |
+| **AdGuard UI** (Settings → Users) | Where the value is actually set and enforced. |
+| **ansible-vault** `host_vars/forge-ops/vault.yml` | A derived machine copy. Exists only so `roles/adguard` can authenticate to the control API. |
+
+**Rotation procedure — all three, in this order:**
+
+1. Change it in the **AdGuard web UI** (Settings → Users).
+2. Update **Bitwarden**.
+3. `ansible-vault edit inventory/host_vars/forge-ops/vault.yml` → update `vault_adguard_admin_user` / `vault_adguard_admin_password`.
+4. **Prove it took:** `ansible-playbook site.yml --tags adguard --ask-become-pass --ask-vault-pass`. The "Read AdGuard's live rewrite table" task must succeed.
+
+⚠️ **Step 4 is not optional.** Skipping steps 3–4 does not fail at rotation time — nothing breaks, nothing warns. It surfaces later as a `401` on the next `--tags adguard` run, and whoever hits it will not connect it to a password change weeks earlier. The failure is silent and time-delayed, which is exactly the shape that makes it expensive.
+
 **Not in vault — UI-managed (rotate via the service's own UI):**
 
-- AdGuard Home admin password (web UI → Settings → Users)
 - ERPNext admin password
 - NetBox superuser is `netbox_superuser_password` above *for initial seed only* — subsequent rotation is done in the NetBox UI.
 - **Outline:** sign-in is Google Workspace OIDC only — no local admin accounts to rotate. Outline OIDC client config (`outline_oidc_client_id` + `outline_oidc_client_secret`) IS in ansible-vault (see inventory above) and is rotated via Google Cloud Console + ansible-vault edit.

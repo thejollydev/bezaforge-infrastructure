@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }} — roles/dnsmasq/templates/dns-parity-metric.sh.j2 (#649)
+#
+# Runs the repo's dns-parity-check.sh and exports its RESULT as node_exporter
+# textfile metrics, so a divergence between the two resolvers is reported
+# instead of waiting to be discovered during an AdGuard outage.
+#
+# WHY THIS WRAPPER EXISTS RATHER THAN A SECOND COPY OF THE CHECK
+# --------------------------------------------------------------
+# The comparison logic lives in exactly one place — scripts/dns-parity-check.sh
+# in the repo, deployed verbatim next to this file. Reimplementing it here
+# would recreate, in the monitoring for a two-copy drift bug, the very
+# two-copy drift bug it monitors for.
+#
+# WHAT IS EXPORTED
+# ----------------
+# The exit code, not just a boolean, because the script draws a distinction
+# that matters and a pass/fail gauge would erase it:
+#   0  every name agrees
+#   1  the resolvers DISAGREE — during an AdGuard outage these names would
+#      resolve differently than they do today
+#   2  a resolver did not answer at all — the test is INVALID. Not a pass and
+#      not a parity failure; fix the resolver before reading anything into it.
+# The counts are exported alongside so the metric carries its own evidence.
+
+set -uo pipefail
+
+CHECK="{{ dnsmasq_parity_check_script }}"
+OUT="{{ dnsmasq_parity_metric_file }}"
+TMP="${OUT}.$$"
+
+# Codified host names, derived from bezaforge_dns_rewrites so this sweep
+# extends itself whenever a record is added. The wildcard and the apex are
+# excluded: the script tests the bare apex on its own, and "*" is not a
+# queryable name.
+{% set codified = [] %}
+{% for r in bezaforge_dns_rewrites %}
+{% if not r.domain.startswith('*') and r.domain != bezaforge_dns_domain %}
+{% set _ = codified.append(r.domain | regex_replace('\.' ~ bezaforge_dns_domain ~ '$', '')) %}
+{% endif %}
+{% endfor %}
+NAMES="{{ (codified + dnsmasq_parity_extra_names) | join(' ') }}"
+
+out="$(NAMES_OVERRIDE="${NAMES}" "${CHECK}" 2>&1)"
+rc=$?
+
+# The script's own summary line: "checked=N  mismatches=N  unanswered=N".
+# Parsed rather than recomputed, so the metric can never disagree with the
+# text a human reads when they run the same script by hand.
+summary="$(printf '%s\n' "${out}" | grep -m1 '^checked=')"
+checked="$(printf '%s' "${summary}"  | sed -n 's/.*checked=\([0-9]*\).*/\1/p')"
+mismatch="$(printf '%s' "${summary}" | sed -n 's/.*mismatches=\([0-9]*\).*/\1/p')"
+unanswered="$(printf '%s' "${summary}" | sed -n 's/.*unanswered=\([0-9]*\).*/\1/p')"
+
+# If the summary line is missing the script itself failed to run (not found,
+# not executable, killed). Report that as INVALID rather than as agreement —
+# an exporter that cannot measure must never emit a healthy value.
+: "${checked:=0}"
+: "${mismatch:=0}"
+: "${unanswered:=0}"
+if [ -z "${summary}" ]; then
+    rc=2
+fi
+
+# Write-then-rename: node_exporter reads this directory continuously and a
+# partially-written file scrapes as truncated garbage. rename(2) on the same
+# filesystem is atomic — a scrape sees the old file or the new one, never half.
+cat > "${TMP}" <<EOF
+# HELP bezaforge_dns_parity_exit_code 0 = the two resolvers agree on every name, 1 = they disagree, 2 = a resolver went silent so the test is invalid.
+# TYPE bezaforge_dns_parity_exit_code gauge
+bezaforge_dns_parity_exit_code ${rc}
+# HELP bezaforge_dns_parity_names_checked Number of names compared across both resolvers.
+# TYPE bezaforge_dns_parity_names_checked gauge
+bezaforge_dns_parity_names_checked ${checked}
+# HELP bezaforge_dns_parity_mismatches Names where the primary and secondary returned different answers.
+# TYPE bezaforge_dns_parity_mismatches gauge
+bezaforge_dns_parity_mismatches ${mismatch}
+# HELP bezaforge_dns_parity_unanswered Names where a resolver returned nothing, which invalidates the comparison.
+# TYPE bezaforge_dns_parity_unanswered gauge
+bezaforge_dns_parity_unanswered ${unanswered}
+EOF
+chmod 0644 "${TMP}"
+mv -f "${TMP}" "${OUT}"
+
+exit 0
+# Always exit 0: this unit failing would fire the existing "Systemd Unit
+# Failed" alert as well as the parity alert, reporting one problem twice.
+# The parity RESULT is carried by the metric, which is the thing being
+# alerted on — the job of this script is to publish it, and it did.

@@ -128,3 +128,81 @@
         name: dnsmasq
         enabled: true
         state: started
+
+# ------------------------------------------------------------
+# Parity monitoring (#649)
+# ------------------------------------------------------------
+# See defaults/main.yml for what this catches and — importantly — what it
+# does not. Makes a resolver divergence report itself instead of waiting to
+# be found during the outage it would matter in.
+- name: Configure DNS parity monitoring
+  when:
+    - dnsmasq_manage | bool
+    - dnsmasq_parity_monitor | bool
+    - not ansible_check_mode
+  block:
+
+    # dig is present on forge-hypervisor today, but the check is worthless
+    # without it and would fail in the confusing direction — every name
+    # "unanswered", which reads as both resolvers being down. Declare the
+    # dependency rather than inherit it.
+    - name: Ensure dig is installed (the parity check is built on it)
+      ansible.builtin.apt:
+        name: bind9-dnsutils
+        state: present
+
+    - name: Ensure the node_exporter textfile directory exists
+      ansible.builtin.file:
+        path: "{{ dnsmasq_parity_metric_file | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    # Copied from the repo's scripts/ rather than duplicated into files/.
+    # Two copies of a drift checker is the same bug it exists to catch.
+    - name: Deploy the parity check script (verbatim from scripts/)
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../scripts/dns-parity-check.sh"
+        dest: "{{ dnsmasq_parity_check_script }}"
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy the parity metric wrapper
+      ansible.builtin.template:
+        src: dns-parity-metric.sh.j2
+        dest: "{{ dnsmasq_parity_metric_script }}"
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy the parity check service and timer
+      ansible.builtin.template:
+        src: "dns-parity-check.{{ item }}.j2"
+        dest: "/etc/systemd/system/bezaforge-dns-parity-check.{{ item }}"
+        owner: root
+        group: root
+        mode: '0644'
+      loop:
+        - service
+        - timer
+      notify: dnsmasq reload systemd
+
+    - name: Flush handlers so the unit exists before the timer is enabled
+      ansible.builtin.meta: flush_handlers
+
+    - name: Enable and start the parity check timer
+      ansible.builtin.systemd:
+        name: bezaforge-dns-parity-check.timer
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    # Without this the metric is absent until the first timer fire, and an
+    # absent series is indistinguishable from a healthy one in Grafana — the
+    # alert would be silently unarmed on a freshly-deployed host. Same
+    # reasoning as roles/dns-client's equivalent step.
+    - name: Run the parity check once now so the metric exists immediately
+      ansible.builtin.command: "{{ dnsmasq_parity_metric_script }}"
+      changed_when: false
