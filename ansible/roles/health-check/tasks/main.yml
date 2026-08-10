@@ -111,6 +111,40 @@
          | difference(hc_containers.stdout_lines | default([]) | map('trim') | list) }}
   when: health_expected_containers | length > 0
 
+# --- pending reboot ---------------------------------------------------
+# Added 2026-08-09. On that day's fleet update forge-brizza reported
+# `reboot required : YES` (gnome-shell, 61 packages), the reboot was missed,
+# and health.yml then came back GREEN on all five hosts — 0 failed units,
+# every pool imported, every mount right, every container up. A host running
+# a superseded kernel or a half-replaced userspace is not "healthy", and this
+# was the one check positioned to say so.
+#
+# Reported and warned, never fatal: running health.yml between update.yml and
+# the reboot is a legitimate flow, and failing there would fire on a condition
+# the operator is on their way to fix — which is how a check teaches people to
+# ignore it.
+- name: Check whether a reboot is pending
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: hc_reboot_flag
+
+# The .pkgs companion file is not guaranteed to exist even when the flag does,
+# so a miss must not fail the play — the flag alone is the finding.
+- name: Read which packages triggered the pending reboot
+  ansible.builtin.slurp:
+    src: /var/run/reboot-required.pkgs
+  register: hc_reboot_pkgs
+  when: hc_reboot_flag.stat.exists
+  failed_when: false
+
+- name: Determine which packages triggered the pending reboot
+  ansible.builtin.set_fact:
+    hc_reboot_reason: >-
+      {{ (hc_reboot_pkgs.content | b64decode).split() | unique | join(', ') }}
+  when:
+    - hc_reboot_flag.stat.exists
+    - hc_reboot_pkgs.content is defined
+
 # --- report + assert --------------------------------------------------
 - name: Health summary
   ansible.builtin.debug:
@@ -120,6 +154,7 @@
       - "missing zpools      : {{ hc_missing_pools | default([]) | join(', ') if (hc_missing_pools | default([]) | length) else 'none' }}"
       - "bad/missing mounts  : {{ hc_bad_mounts | default([]) | join(', ') if (hc_bad_mounts | default([]) | length) else 'none' }}"
       - "missing containers  : {{ hc_missing_containers | default([]) | join(', ') if (hc_missing_containers | default([]) | length) else 'none' }}"
+      - "reboot pending      : {{ hc_reboot_flag.stat.exists | ternary('YES -> ' ~ (hc_reboot_reason | default('reason unknown', true) | trim), 'no') }}"
 
 - name: FAIL if an expected ZFS pool is not imported
   ansible.builtin.assert:
@@ -170,3 +205,12 @@
   when:
     - hc_failed_names | length > 0
     - not (health_units_warn_only | bool)
+
+- name: WARN about a pending reboot
+  ansible.builtin.debug:
+    msg: >-
+      WARNING — {{ inventory_hostname }} has a PENDING REBOOT
+      ({{ hc_reboot_reason | default('reason unknown', true) | trim }}).
+      Every other check on this host passed, which is exactly how the
+      2026-08-09 miss happened. Reboot it, then re-run health.yml.
+  when: hc_reboot_flag.stat.exists
