@@ -9,17 +9,30 @@
 #
 # Dependencies: docker role (bezaforge-net must exist)
 #
-# NOTE: AdGuard's application config (DNS rewrites, upstream
-# servers, ad block lists, admin credentials) is stored in
-# conf/AdGuardHome.yaml inside the Docker volume. This role
-# does NOT manage that config — it was set up via the web UI
-# during Phase 1 and persists across container restarts.
+# NOTE: AdGuard's application config lives in conf/AdGuardHome.yaml
+# inside the Docker volume, set up via the web UI during Phase 1.
+# This role manages that config only in PART — know which part:
 #
-# On a fresh rebuild, you would need to:
+#   MANAGED   DNS rewrites — reconciled from group_vars/all's
+#             `bezaforge_dns_rewrites` through the control API (#649).
+#             They are managed because they are the one piece with a
+#             correctness invariant shared with a SECOND machine:
+#             dnsmasq on forge-hypervisor must answer identically (#638).
+#   MANAGED   Query log retention (adguard_querylog_interval).
+#   UNMANAGED Upstream servers, ad block lists, admin credentials,
+#             client settings. AdGuard-only, no mirror, no parity risk —
+#             a DR-rebuild concern rather than a drift concern. Excluded
+#             from #649 deliberately, to keep the change surface on a live
+#             DNS server small. Codifying them is unfiled follow-on work.
+#
+# On a fresh rebuild you would need to:
 # 1. Run this role to deploy the container
 # 2. Open http://10.10.20.20:3053 to complete the setup wizard
-# 3. Re-add DNS rewrites (*.bezaforge.dev → 10.10.20.20, etc.)
-# See 04-adguard-home.md for the full list.
+# 3. Set the admin credentials to match vault_adguard_admin_user /
+#    vault_adguard_admin_password in host_vars/forge-ops/vault.yml —
+#    without them this role cannot reach the control API at all
+# 4. Re-run this role; it restores the DNS rewrites by itself
+# 5. Re-add upstreams + block lists by hand (see 04-adguard-home.md)
 # ============================================================
 
 # ------------------------------------------------------------
@@ -104,3 +117,130 @@
     regexp: '(?s)(querylog:.*?\n  interval:)[ \t]+\S+'
     replace: '\1 {{ adguard_querylog_interval }}'
   notify: restart adguard
+
+# ------------------------------------------------------------
+# DNS rewrite reconciliation (#649)
+# ------------------------------------------------------------
+# Makes group_vars/all's `bezaforge_dns_rewrites` the single source of truth
+# for BOTH resolvers: this reconciles it into AdGuard, roles/dnsmasq renders
+# the subset the wildcard does not cover. Before #649 the table was hand-kept
+# on both sides and nothing detected them drifting.
+#
+# Idempotent by construction: the add/prune loops iterate the DIFF, so a
+# converged fleet performs zero API calls and reports changed=0.
+#
+# ⚠️ Compared on domain+answer ONLY. RewriteEntry also carries `enabled`
+# (v0.107.78 schema, confirmed against the openapi for that exact tag), and
+# including it would make every converged run look like a diff — the source
+# list does not express it and AdGuard defaults it to true on add.
+
+- name: Read AdGuard's live rewrite table
+  ansible.builtin.uri:
+    url: "{{ adguard_api_url }}/control/rewrite/list"
+    method: GET
+    user: "{{ vault_adguard_admin_user }}"
+    password: "{{ vault_adguard_admin_password }}"
+    force_basic_auth: true
+    return_content: true
+  register: adguard_live_rewrites
+  changed_when: false
+  # Runs even under --check. The uri module has no check-mode support, so it
+  # would otherwise be skipped and leave every fact below undefined — which
+  # means a dry run could not show you the plan, the one thing a dry run of
+  # this is for. Reading a rewrite table changes nothing.
+  check_mode: false
+  no_log: true          # the request carries the admin password
+  when: adguard_rewrites_manage | bool
+
+# Reduce both sides to [domain, answer] pairs so they can be set-differenced.
+# Deliberately NOT json_query — that filter needs the jmespath library on the
+# target, and this runs on forge-ops where nothing else requires it.
+- name: Reduce both rewrite tables to comparable domain/answer pairs
+  ansible.builtin.set_fact:
+    adguard_live_pairs: >-
+      {{ adguard_live_rewrites.json | map(attribute='domain')
+         | zip(adguard_live_rewrites.json | map(attribute='answer'))
+         | map('list') | list }}
+    adguard_desired_pairs: >-
+      {{ bezaforge_dns_rewrites | map(attribute='domain')
+         | zip(bezaforge_dns_rewrites | map(attribute='answer'))
+         | map('list') | list }}
+  when: adguard_rewrites_manage | bool
+
+- name: Determine the rewrite differences
+  ansible.builtin.set_fact:
+    adguard_pairs_to_add: "{{ adguard_desired_pairs | difference(adguard_live_pairs) }}"
+    adguard_pairs_to_prune: "{{ adguard_live_pairs | difference(adguard_desired_pairs) }}"
+  when: adguard_rewrites_manage | bool
+
+# Printed BEFORE acting, and safe to print — pairs contain no secrets. On the
+# very first run after #649 both lists must be empty: the source list was
+# transcribed from this API, so a non-empty diff means the transcription is
+# wrong, and that property is the migration's test.
+- name: Report the rewrite reconciliation plan
+  ansible.builtin.debug:
+    msg:
+      - "codified records : {{ bezaforge_dns_rewrites | length }}"
+      - "live in AdGuard  : {{ adguard_live_pairs | length }}"
+      - "to add           : {{ adguard_pairs_to_add | length }}"
+      - "  {{ adguard_pairs_to_add | map('join', '=') | join(', ') | default('(none)', true) }}"
+      - "unmanaged extras : {{ adguard_pairs_to_prune | length }}"
+      - "  {{ adguard_pairs_to_prune | map('join', '=') | join(', ') | default('(none)', true) }}"
+      - "prune enabled    : {{ adguard_rewrites_prune | bool | ternary('YES - extras above will be DELETED', 'no - extras left in place') }}"
+  when: adguard_rewrites_manage | bool
+
+- name: Add codified rewrites that AdGuard is missing
+  ansible.builtin.uri:
+    url: "{{ adguard_api_url }}/control/rewrite/add"
+    method: POST
+    user: "{{ vault_adguard_admin_user }}"
+    password: "{{ vault_adguard_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      domain: "{{ item[0] }}"
+      answer: "{{ item[1] }}"
+    status_code: [200]
+  loop: "{{ adguard_pairs_to_add | default([]) }}"
+  loop_control:
+    label: "{{ item[0] }} -> {{ item[1] }}"
+  no_log: true          # the request carries the admin password
+  when: adguard_rewrites_manage | bool
+
+- name: Remove rewrites AdGuard holds that are not codified
+  ansible.builtin.uri:
+    url: "{{ adguard_api_url }}/control/rewrite/delete"
+    method: POST
+    user: "{{ vault_adguard_admin_user }}"
+    password: "{{ vault_adguard_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      domain: "{{ item[0] }}"
+      answer: "{{ item[1] }}"
+    status_code: [200]
+  loop: "{{ adguard_pairs_to_prune | default([]) }}"
+  loop_control:
+    label: "{{ item[0] }} -> {{ item[1] }}"
+  no_log: true          # the request carries the admin password
+  when:
+    - adguard_rewrites_manage | bool
+    - adguard_rewrites_prune | bool
+
+# Warn rather than fail. An extra rewrite is not broken DNS — AdGuard will
+# happily answer it — but it IS a name dnsmasq does not know, so it would
+# resolve differently the moment AdGuard went away. That is worth a loud
+# line every run until someone either codifies it or prunes it.
+- name: WARN about unmanaged rewrites left in place
+  ansible.builtin.debug:
+    msg: >-
+      WARNING — AdGuard holds {{ adguard_pairs_to_prune | length }} rewrite(s)
+      not in bezaforge_dns_rewrites:
+      {{ adguard_pairs_to_prune | map('join', '=') | join(', ') }}.
+      dnsmasq does NOT know these names, so they would resolve differently
+      during an AdGuard outage. Either add them to group_vars/all/vars.yml or
+      re-run with -e adguard_rewrites_prune=true to delete them.
+  when:
+    - adguard_rewrites_manage | bool
+    - adguard_pairs_to_prune | default([]) | length > 0
+    - not (adguard_rewrites_prune | bool)

@@ -68,3 +68,59 @@ common_admin_ssh_sources:
 # non-`common` host carries the rule forward.
 common_monitoring_sources:
   - 10.10.20.20   # forge-ops (Prometheus) VLAN-20 scrape source
+
+# ------------------------------------------------------------
+# Internal DNS zone — THE single source of truth (#649)
+# ------------------------------------------------------------
+# BezaForge has TWO resolvers that must answer identically: AdGuard on
+# forge-ops (primary, 10.10.20.20) and dnsmasq on forge-hypervisor
+# (secondary, 10.10.10.10 — roles/dnsmasq, added by #638). Until #649
+# this table existed TWICE, hand-kept on both sides: AdGuard's in its web
+# UI, dnsmasq's in roles/dnsmasq/defaults. Nothing detected them drifting.
+#
+# Now both derive from this list:
+#   - roles/adguard   reconciles it into AdGuard via the control API
+#   - roles/dnsmasq   renders the subset the wildcard does not already cover
+#
+# A drift is invisible in normal operation because AdGuard answers
+# everything; it surfaces only during an AdGuard outage — exactly when
+# nobody is placed to debug DNS. That is the whole reason this is one list.
+#
+# ⚠️ THESE ARE ADGUARD'S EXACT STRINGS, read from its control API on
+# 2026-08-09 and reproduced verbatim — full FQDNs, not bare labels.
+# #649's own description tabulated them as bare labels ("forge-hypervisor"),
+# which would have matched nothing: AdGuard rewrites match the queried name,
+# so a label without the domain never fires. Mirror the thing you are
+# mirroring, not a tidied-up rendering of it.
+#
+# ADDING A RECORD: add it here, run site.yml --tags adguard,dnsmasq. It
+# reaches both resolvers. Do NOT add it in the AdGuard web UI — a UI-added
+# record is invisible to dnsmasq and will be reported as unmanaged drift.
+bezaforge_dns_domain: bezaforge.dev
+
+# The catch-all answer: Traefik on forge-ops. Any record below whose answer
+# equals this is ALREADY covered by the wildcard, and roles/dnsmasq omits it
+# for that reason — not as an oversight. Keeping them here anyway is what
+# makes this list a faithful mirror of AdGuard rather than a summary of it.
+bezaforge_dns_default_target: "10.10.20.20"
+
+bezaforge_dns_rewrites:
+  # --- the catch-all + apex --------------------------------------------
+  - {domain: "*.bezaforge.dev", answer: "10.10.20.20"}
+  - {domain: "bezaforge.dev", answer: "10.10.20.20"}
+  # --- names the wildcard already covers (explicit in AdGuard anyway) ---
+  - {domain: "forge-ops.bezaforge.dev", answer: "10.10.20.20"}
+  - {domain: "netbox.bezaforge.dev", answer: "10.10.20.20"}
+  - {domain: "docs.bezaforge.dev", answer: "10.10.20.20"}
+  # --- real exceptions: these MUST differ from the wildcard -------------
+  - {domain: "forge-hypervisor.bezaforge.dev", answer: "10.10.10.10"}
+  - {domain: "forge-ops-mgmt.bezaforge.dev", answer: "10.10.10.20"}
+  - {domain: "omada.bezaforge.dev", answer: "10.10.10.5"}
+  - {domain: "forge-ai.bezaforge.dev", answer: "10.10.50.10"}
+  - {domain: "forge-erp.bezaforge.dev", answer: "10.10.20.50"}
+  - {domain: "forge-brizza.bezaforge.dev", answer: "10.10.50.20"}
+  # forge-dev (VMID 102) does not currently exist — removed from the fleet.
+  # Mirrored deliberately on Joseph's call 2026-08-08: he intends to rebuild
+  # it, so this is a placeholder rather than stale config, and the two
+  # resolvers agreeing matters more than the record being live.
+  - {domain: "forge-dev.bezaforge.dev", answer: "10.10.30.10"}

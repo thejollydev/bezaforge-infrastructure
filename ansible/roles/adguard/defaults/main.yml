@@ -27,3 +27,38 @@
 # AdGuard prunes existing entries on the next maintenance pass
 # when this value is decreased.
 adguard_querylog_interval: "7d"
+
+# ------------------------------------------------------------
+# DNS rewrite reconciliation (#649)
+# ------------------------------------------------------------
+# The rewrite table is the ONE piece of AdGuard's app config that has a
+# correctness invariant shared with another machine: dnsmasq on
+# forge-hypervisor must answer identically (#638). Everything else here
+# (upstreams, block lists, admin credentials) is AdGuard-only — no mirror,
+# no parity risk — and is deliberately still hand-managed. That was a scope
+# decision, not an oversight; see the role header.
+#
+# Reconciled through AdGuard's control API rather than by editing
+# AdGuardHome.yaml. AdGuard owns that file and rewrites it on every UI
+# change and on shutdown, so an Ansible edit made while the container runs
+# can be silently overwritten before the restart handler lands. The API has
+# no such race, needs no restart, and is idempotent by construction here
+# because the tasks loop over the DIFF rather than over the whole table.
+adguard_rewrites_manage: true
+
+# Where the control API lives. production_ip is forge-ops' VLAN-20 address,
+# which is also the address AdGuard binds (hardcoded in docker-compose.yml
+# for the systemd-resolved-on-127.0.0.53 reason documented in tasks).
+adguard_api_url: "http://{{ production_ip }}:3053"
+
+# ⚠️ DELETION IS OPT-IN AND OFF BY DEFAULT.
+# Pruning means removing rewrites from the fleet's PRIMARY resolver based on
+# a list being complete — and if it is not complete, the failure lands on
+# internal name resolution for everything. With this false, unmanaged extras
+# are reported loudly and left alone, which is enough to satisfy #649's
+# "drift is detected rather than discovered during an outage" without
+# handing a list file the power to break DNS.
+#
+# Turn it on deliberately, once a run has shown you exactly what it would
+# remove:  --tags adguard -e adguard_rewrites_prune=true
+adguard_rewrites_prune: false
