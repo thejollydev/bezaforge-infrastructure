@@ -298,6 +298,21 @@ Failover times are the deliverable. Fill this in and paste it into #638:
 
 **The two numbers that matter.** A *stopped container* refuses immediately → failover in **under 100 ms**, which is the case you actually hit on every `--tags adguard` deploy. A *dead or unreachable host* has to time out → **~10.2 s** on the first query, then normal. Both are recoveries, not outages.
 
-⚠️ **Phase B leaves every host on the secondary and they do not fail back.** See the "DNS Not Using Primary" Grafana alert; remediate with a fleet-wide `systemctl restart systemd-resolved`.
+⚠️ **Phase B leaves every host on the secondary and they do not fail back.** The same is true after *any* AdGuard bounce — a `--tags adguard` deploy, a forge-ops reboot, an `update.yml` pass. The "DNS Not Using Primary" Grafana alert catches the fleet; remediate with:
+
+```bash
+cd ~/Projects/bezaforge-infrastructure/ansible
+ansible forge-ops,forge-ai,forge-brizza,forge-erp -i inventory/hosts.yml \
+  -m systemd -a "name=systemd-resolved state=restarted" \
+  --become --ask-become-pass --ask-vault-pass
+```
+
+⚠️ **The workstation needs a second, manual step — and nothing will remind you.** It carries the same resolver pair (`ansible-arch` `roles/networking`) and parks on the secondary identically, but it is **not in this inventory**, so the command above skips it; and it does **not** run `roles/dns-client`, so it emits no `bezaforge_dns_primary_in_use` textfile metric and the alert is blind to it. On the workstation:
+
+```bash
+sudo systemctl restart systemd-resolved
+```
+
+Confirm both with `resolvectl status | grep 'Current DNS Server'` — expect `10.10.20.20`. Caught for real on the 2026-08-09 fleet update: all four fleet hosts came back on the primary and the workstation sat on `10.10.10.10` unnoticed, because the only remediation written down was the four-host one.
 
 **Then close the loop:** whatever the result, #638's "done when" requires that no doc or comment claims protection that is not there. If failover did **not** work on some host, that outcome gets written down as an accepted, documented dependency — a known gap is a pass for this ticket; an *unknown* one is not.

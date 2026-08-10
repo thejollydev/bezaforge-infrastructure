@@ -12,8 +12,15 @@
 # WHY THIS ORDER (it is not arbitrary):
 #
 #   1. forge-hypervisor — rebooting it bounces every VM, so it goes first,
-#      while nothing else is mid-dpkg. forge-ops is bare metal, so DNS is
-#      unaffected by a hypervisor reboot.
+#      while nothing else is mid-dpkg. AdGuard, the PRIMARY resolver, is a
+#      container on bare-metal forge-ops, so name resolution survives this
+#      reboot. What does go away is dnsmasq, the SECONDARY resolver added by
+#      #638 (roles/dnsmasq, on the hypervisor) — so from here until the
+#      hypervisor is back the fleet is running on a primary with no fallback.
+#      Acceptable inside a chosen window; not a reason to reorder.
+#      (This block said "DNS is unaffected by a hypervisor reboot" until
+#      2026-08-09. That was true when written, and stopped being the whole
+#      story the day the hypervisor started serving DNS.)
 #
 #   2. the VMs (forge-ai, forge-erp, forge-brizza) — freshly booted after
 #      step 1. forge-erp wants a clean container stop for ERPNext/MariaDB.
@@ -21,6 +28,28 @@
 #   3. forge-ops LAST — it runs AdGuard, which is DNS for EVERY VLAN. While
 #      forge-ops is down nothing else can resolve deb.debian.org, so no other
 #      host may be mid-apt. It also carries Traefik and every service.
+#
+# AFTER REBOOTING FORGE-OPS, PUT THE FLEET BACK ON THE PRIMARY RESOLVER.
+# Bouncing forge-ops bounces AdGuard, and systemd-resolved does NOT fail back
+# (#638): every host silently stays on the secondary, 10.10.10.10, until
+# something restarts the resolver. DNS keeps working, so nothing looks wrong
+# — but AdGuard's query log goes blind for that host and its filtering stops.
+#
+#   ansible forge-ops,forge-ai,forge-brizza,forge-erp -i inventory/hosts.yml \
+#     -m systemd -a "name=systemd-resolved state=restarted" \
+#     --become --ask-become-pass --ask-vault-pass
+#
+# ⚠️ That command covers the FLEET ONLY. The workstation carries the same
+# two-resolver pair (ansible-arch roles/networking) and gets parked exactly
+# the same way, but it is not in this inventory — and because it does not run
+# roles/dns-client, it emits no textfile metric, so the "DNS Not Using
+# Primary" alert cannot see it either. Nothing anywhere will report it.
+# Restart it by hand, on the workstation:
+#
+#   sudo systemctl restart systemd-resolved
+#
+# Measured on the 2026-08-09 update pass: the four fleet hosts came back on
+# 10.10.20.20 and the workstation was still sitting on 10.10.10.10.
 #
 # AFTER REBOOTING, RUN health.yml. On 2026-07-25 a hypervisor reboot left the
 # sharepool ZFS pool unimported and it went unnoticed for ~24 h. Ordering does
