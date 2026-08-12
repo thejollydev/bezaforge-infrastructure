@@ -42,6 +42,14 @@
     # services host — avoids the FUSE-in-unprivileged-LXC unknown).
     - role: fileshare
       tags: fileshare
+    # ⚠️ MUST STAY LAST IN EVERY PLAY, and `tags: always` so a tag-scoped
+    # run still reaches it (#671). It records which commit each role that
+    # actually ran was deployed from — placed anywhere but last, it would
+    # stamp roles before they had run. scripts/deploy-drift-check.py and
+    # the "Deploy Drift" alert turn those stamps into a merged-but-never-
+    # deployed warning, so that "merged" stops standing in for "shipped".
+    - role: deploy-stamp
+      tags: always
 
 - name: Configure BezaForge Docker hosts
   hosts: docker_hosts
@@ -100,6 +108,10 @@
       tags: backups
     - role: forge-ops-backup-rsync
       tags: backups
+    # Deploy stamp — must stay LAST, `tags: always` (#671). See the
+    # hypervisor play above for why.
+    - role: deploy-stamp
+      tags: always
 
 - name: Configure BezaForge GPU hosts
   hosts: gpu_hosts
@@ -139,6 +151,10 @@
     # share (docs + live two-way Google Drive) at /mnt/bezashare.
     - role: fileshare-client
       tags: fileshare-client
+    # Deploy stamp — must stay LAST, `tags: always` (#671). See the
+    # hypervisor play above for why.
+    - role: deploy-stamp
+      tags: always
 
 - name: Configure BezaForge assistant hosts
   hosts: assistant_hosts
@@ -179,6 +195,10 @@
     # share (docs + live two-way Google Drive) at /mnt/bezashare.
     - role: fileshare-client
       tags: fileshare-client
+    # Deploy stamp — must stay LAST, `tags: always` (#671). See the
+    # hypervisor play above for why.
+    - role: deploy-stamp
+      tags: always
 
 - name: Configure BezaForge ERP host
   hosts: erp_hosts
@@ -214,3 +234,7 @@
       tags: erpnext
     - role: forge-erp
       tags: forge-erp
+    # Deploy stamp — must stay LAST, `tags: always` (#671). See the
+    # hypervisor play above for why.
+    - role: deploy-stamp
+      tags: always

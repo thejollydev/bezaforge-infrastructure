@@ -1,0 +1,46 @@
+---
+# ============================================================
+# roles/monitoring — deploy-drift watcher (#671)
+# ============================================================
+#
+# roles/deploy-stamp writes the per-role stamps on every host. This is the
+# other half: the thing that reads them back, compares them against main,
+# and publishes a number Grafana can alert on.
+#
+# WHY IT LIVES HERE AND RUNS ON forge-ops: it needs Prometheus (to read
+# every host's stamps in one query) and Gitea (to learn what main says).
+# Both are on forge-ops, so the watcher sits next to its two data sources
+# and needs no credentials and no git clone — which matters, because no
+# forge-* host carries a repo checkout and this must not be the first.
+monitoring_deploy_drift_monitor: true
+
+# Joins the existing mechanism — the textfile collector is already enabled
+# and already carries apt.prom here.
+monitoring_deploy_drift_metric_file: /var/lib/prometheus/node-exporter/bezaforge_deploy_drift.prom
+
+# The comparison script is the repo's own scripts/deploy-drift-check.py,
+# copied verbatim rather than duplicated into files/. ONE implementation,
+# so the metric and a hand-run check can never disagree — the same reason
+# roles/dnsmasq copies scripts/dns-parity-check.sh instead of reimplementing
+# it. Two copies of a drift checker is the same bug it exists to catch.
+monitoring_deploy_drift_check_script: /usr/local/bin/bezaforge-deploy-drift-check.py
+monitoring_deploy_drift_metric_script: /usr/local/bin/bezaforge-deploy-drift-metric.sh
+
+# Both reached over HTTPS through Traefik, which is how they are reachable
+# from the forge-ops HOST (Prometheus publishes no host port — it is
+# container-network + Traefik only) and identically from the workstation.
+# One set of defaults that works in both places, no container-networking
+# special case.
+#
+# ⚠️ This does mean the check depends on Traefik and DNS being up. That is
+# deliberate: if either is down the check reports INVALID (exit 2) rather
+# than a pass. A watcher that cannot measure must never report healthy.
+monitoring_deploy_drift_gitea_url: https://git.bezaforge.dev
+monitoring_deploy_drift_gitea_repo: joseph/bezaforge-infrastructure
+monitoring_deploy_drift_prom_url: https://prometheus.bezaforge.dev
+monitoring_deploy_drift_branch: main
+
+# Drift is not a fast-moving signal — a role cannot go stale between two
+# ticks. The window between "merged" and "fairly called drift" is the
+# Grafana rule's `for:`, not this.
+monitoring_deploy_drift_interval: 30min

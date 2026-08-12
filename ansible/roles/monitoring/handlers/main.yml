@@ -16,3 +16,7 @@
     project_src: "{{ bezaforge_root }}/loki"
     state: present
     recreate: always
+
+- name: monitoring reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true

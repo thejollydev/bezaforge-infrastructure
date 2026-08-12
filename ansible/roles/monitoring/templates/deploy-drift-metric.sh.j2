@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }} — roles/monitoring/templates/deploy-drift-metric.sh.j2 (#671)
+#
+# Runs the repo's deploy-drift-check.py and exports its RESULT as
+# node_exporter textfile metrics, so a merged-but-undeployed change is
+# reported on a timer instead of waiting to be discovered by a hand-run
+# --check sweep during the next session.
+#
+# WHY A WRAPPER RATHER THAN A SECOND COPY OF THE CHECK
+# ----------------------------------------------------
+# The comparison logic lives in exactly one place — scripts/deploy-drift-
+# check.py in the repo, deployed verbatim next to this file. Reimplementing
+# it here would recreate, in the monitoring for a two-copy drift bug, the
+# very two-copy drift bug it monitors for.
+#
+# WHAT IS EXPORTED
+# ----------------
+# The exit code, not just a boolean, because the script draws a distinction
+# that matters and a pass/fail gauge would erase it:
+#   0  every stamped host/role pair matches main
+#   1  at least one host is BEHIND main on at least one role
+#   2  the check is INVALID — Gitea or Prometheus unreachable, a host
+#      deployed from a dirty tree, or no host stamped at all. Not a pass
+#      and not a drift result.
+# The counts are exported alongside so the metric carries its own evidence.
+
+set -uo pipefail
+
+CHECK="{{ monitoring_deploy_drift_check_script }}"
+OUT="{{ monitoring_deploy_drift_metric_file }}"
+TMP="${OUT}.$$"
+
+export GITEA_URL="{{ monitoring_deploy_drift_gitea_url }}"
+export GITEA_REPO="{{ monitoring_deploy_drift_gitea_repo }}"
+export PROM_URL="{{ monitoring_deploy_drift_prom_url }}"
+export BRANCH="{{ monitoring_deploy_drift_branch }}"
+
+out="$("${CHECK}" 2>&1)"
+rc=$?
+
+# The script's own summary line:
+#   "checked=N  behind=N  dirty=N  unstamped=N"
+# Parsed rather than recomputed, so the metric can never disagree with the
+# text a human reads when they run the same script by hand.
+summary="$(printf '%s\n' "${out}" | grep -m1 '^checked=')"
+checked="$(printf '%s' "${summary}"    | sed -n 's/.*checked=\([0-9]*\).*/\1/p')"
+behind="$(printf '%s' "${summary}"     | sed -n 's/.*behind=\([0-9]*\).*/\1/p')"
+dirty="$(printf '%s' "${summary}"      | sed -n 's/.*dirty=\([0-9]*\).*/\1/p')"
+unstamped="$(printf '%s' "${summary}"  | sed -n 's/.*unstamped=\([0-9]*\).*/\1/p')"
+
+: "${checked:=0}"
+: "${behind:=0}"
+: "${dirty:=0}"
+: "${unstamped:=0}"
+
+# A missing summary line means the script itself failed to run (not found,
+# not executable, interpreter missing, killed). Report INVALID rather than
+# agreement — an exporter that cannot measure must never emit a healthy
+# value, and "0 roles behind" is exactly the reading a silent failure would
+# otherwise produce.
+if [ -z "${summary}" ]; then
+    rc=2
+fi
+
+# Write-then-rename: node_exporter reads this directory continuously and a
+# partially-written file scrapes as truncated garbage. rename(2) on the same
+# filesystem is atomic — a scrape sees the old file or the new one, never half.
+cat > "${TMP}" <<EOF
+# HELP bezaforge_deploy_drift_exit_code 0 = every stamped host matches main, 1 = at least one host is behind, 2 = the check is invalid (unreachable source, dirty tree, or nothing stamped).
+# TYPE bezaforge_deploy_drift_exit_code gauge
+bezaforge_deploy_drift_exit_code ${rc}
+# HELP bezaforge_deploy_drift_roles Host/role pairs running an older commit than main.
+# TYPE bezaforge_deploy_drift_roles gauge
+bezaforge_deploy_drift_roles ${behind}
+# HELP bezaforge_deploy_drift_checked Host/role pairs compared against main.
+# TYPE bezaforge_deploy_drift_checked gauge
+bezaforge_deploy_drift_checked ${checked}
+# HELP bezaforge_deploy_drift_dirty Host/role pairs whose stamp came from a dirty working tree and cannot be trusted.
+# TYPE bezaforge_deploy_drift_dirty gauge
+bezaforge_deploy_drift_dirty ${dirty}
+EOF
+chmod 0644 "${TMP}"
+mv -f "${TMP}" "${OUT}"
+
+exit 0
+# Always exit 0: this unit failing would fire the existing "Systemd Unit
+# Failed" alert as well as the drift alert, reporting one problem twice.
+# The drift RESULT is carried by the metric, which is the thing being
+# alerted on — the job of this script is to publish it, and it did.

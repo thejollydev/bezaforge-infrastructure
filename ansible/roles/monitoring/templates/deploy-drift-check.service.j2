@@ -1,0 +1,16 @@
+# {{ ansible_managed }} — roles/monitoring (#671)
+[Unit]
+Description=BezaForge — export whether any host is running an older commit than main
+Documentation=https://github.com/thejollydev/bezaforge-infrastructure
+# Needs name resolution and a route to Traefik before it can reach either
+# Gitea or Prometheus. Without this it would run at boot, fail to reach
+# both, and publish exit_code=2 until the next timer fire.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart={{ monitoring_deploy_drift_metric_script }}
+# Deliberately NOT alerting-worthy on its own: this unit failing would fire
+# the existing "Systemd Unit Failed" alert, which is the correct signal —
+# a broken watcher must not masquerade as "nothing is behind".

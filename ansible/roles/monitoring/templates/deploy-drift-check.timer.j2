@@ -1,0 +1,20 @@
+# {{ ansible_managed }} — roles/monitoring (#671)
+[Unit]
+Description=BezaForge — periodic deploy-drift check
+
+[Timer]
+# Every {{ monitoring_deploy_drift_interval }}. Drift is not a fast-moving signal — a
+# role cannot go stale between two ticks, and the merge that causes it is a
+# human action minutes apart at worst. The window that governs alert
+# latency is the Grafana rule's `for:`, not this interval.
+#
+# OnBootSec is generous because the check reaches Gitea and Prometheus over
+# Traefik: at boot those containers may not be up yet, and a run that fails
+# to reach them publishes exit_code=2, which reads as a real problem.
+OnBootSec=10min
+OnUnitActiveSec={{ monitoring_deploy_drift_interval }}
+AccuracySec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

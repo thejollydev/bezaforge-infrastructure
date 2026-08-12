@@ -1,0 +1,142 @@
+---
+# roles/deploy-stamp (#671) — see defaults/main.yml for why this exists.
+
+- name: Stamp the deployed commit onto this host
+  when: deploy_stamp_enabled | bool
+  block:
+
+    # ------------------------------------------------------------
+    # What is the control node actually deploying FROM?
+    # ------------------------------------------------------------
+    # run_once + delegate_to: localhost — one probe per play, and the
+    # result is shared with every host in it. become: false because these
+    # read the operator's own checkout; sudo on the control node would be
+    # both unnecessary and wrong.
+    # noqa on all three: ansible-lint suggests ansible.builtin.git, which
+    # clones and checks out. It cannot run log/rev-parse/status, and these
+    # only ever READ the operator's existing checkout — nothing is fetched,
+    # written, or moved. The module genuinely does not cover this case.
+    - name: Read the commit the control node is deploying from # noqa: command-instead-of-module
+      ansible.builtin.command:
+        cmd: git -C {{ playbook_dir }}/.. log -1 --format=%H %ct
+      register: deploy_stamp_head
+      changed_when: false
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Read the branch the control node is on # noqa: command-instead-of-module
+      ansible.builtin.command:
+        cmd: git -C {{ playbook_dir }}/.. rev-parse --abbrev-ref HEAD
+      register: deploy_stamp_branch
+      changed_when: false
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    # ⚠️ THE FALSE-GREEN GUARD.
+    # If tracked files are modified, the SHA below does not describe what
+    # is about to be applied — the host would be stamped with a commit it
+    # is not running, which is precisely the lie this whole ticket exists
+    # to prevent. So dirtiness is recorded and exported as a metric, and
+    # scripts/deploy-drift-check.py reports it as INVALID rather than
+    # treating the stamp as trustworthy.
+    #
+    # --untracked-files=no is deliberate: an untracked file is not part of
+    # any role Ansible is about to apply, so blocking on one would make the
+    # stamp fail on a stray scratch file and leave the alert permanently
+    # red. Modified TRACKED files are the case that actually matters.
+    - name: Check whether the control node's working tree is dirty # noqa: command-instead-of-module
+      ansible.builtin.command:
+        cmd: git -C {{ playbook_dir }}/.. status --porcelain --untracked-files=no
+      register: deploy_stamp_dirty
+      changed_when: false
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Read the control node's clock for the deploy timestamp
+      ansible.builtin.command:
+        cmd: date +%s
+      register: deploy_stamp_now
+      changed_when: false
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    # ------------------------------------------------------------
+    # Write one stamp per role that this pass actually applied
+    # ------------------------------------------------------------
+    - name: Ensure the stamp directory exists
+      ansible.builtin.file:
+        path: "{{ deploy_stamp_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Ensure the node_exporter textfile directory exists
+      ansible.builtin.file:
+        path: "{{ deploy_stamp_metric_file | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    # The `when` below is the whole mechanism, so it is worth reading
+    # slowly. ansible_play_role_names is every role in THIS play, which is
+    # exactly the set that applies to this host. ansible_run_tags is
+    # ['all'] on an unscoped run and the requested tags otherwise
+    # (verified empirically, ansible-core 2.21.2). So:
+    #
+    #   unscoped run   -> every role in the play is stamped
+    #   --tags adguard -> only adguard is stamped
+    #
+    # A tag-scoped run therefore cannot claim credit for roles it skipped.
+    # deploy_stamp_role_tags covers the three roles whose tag is not their
+    # own name; ansible_skip_tags covers --skip-tags.
+    - name: Stamp each role applied in this pass
+      ansible.builtin.copy:
+        dest: "{{ deploy_stamp_dir }}/{{ item }}"
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          # Written by roles/deploy-stamp (#671). Do not edit by hand —
+          # this file is evidence about what ran, not configuration.
+          role={{ item }}
+          sha={{ deploy_stamp_head.stdout.split()[0] }}
+          commit_ts={{ deploy_stamp_head.stdout.split()[1] }}
+          deployed_ts={{ deploy_stamp_now.stdout | trim }}
+          branch={{ deploy_stamp_branch.stdout | trim }}
+          dirty={{ 1 if deploy_stamp_dirty.stdout | trim | length > 0 else 0 }}
+      loop: "{{ ansible_play_role_names | difference(deploy_stamp_exclude_roles) }}"
+      when:
+        - ('all' in ansible_run_tags)
+          or ((deploy_stamp_role_tags[item] | default(item)) in ansible_run_tags)
+        - (deploy_stamp_role_tags[item] | default(item)) not in ansible_skip_tags
+
+    # ------------------------------------------------------------
+    # Publish the stamps as metrics
+    # ------------------------------------------------------------
+    # A script rather than a template, because the .prom must describe
+    # EVERY stamp on the host — including ones written by earlier,
+    # differently-scoped runs — and only the host knows what those are.
+    - name: Deploy the stamp metric generator
+      ansible.builtin.template:
+        src: deploy-stamp-metric.sh.j2
+        dest: "{{ deploy_stamp_metric_script }}"
+        owner: root
+        group: root
+        mode: '0755'
+
+    # Not gated on `changed`: the metric must be regenerated whenever a
+    # stamp moves, and a `changed_when: false` run here costs milliseconds.
+    # Without this the metric would only exist after the first timer fire,
+    # and an absent series is indistinguishable from a healthy one in
+    # Grafana — the alert would be silently unarmed on a fresh host. Same
+    # reasoning as roles/dns-client's equivalent step.
+    - name: Regenerate the deploy-stamp metrics now
+      ansible.builtin.command:
+        cmd: "{{ deploy_stamp_metric_script }}"
+      changed_when: false
