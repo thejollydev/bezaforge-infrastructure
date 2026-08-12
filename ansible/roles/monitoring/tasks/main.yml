@@ -233,6 +233,22 @@
 # 1. Read the Docker socket (owned by root:docker)
 # 2. Read system log files in /var/log/ (various owners)
 # This is the standard Promtail deployment approach.
+#
+# Its positions file (read offsets, one per log file) is bind-mounted from
+# promtail-positions/ rather than left in the container. On the container
+# filesystem it was destroyed by every recreate, so each deploy made Promtail
+# re-tail every file from byte 0 and replay weeks of already-shipped logs —
+# rejected by Loki as older than reject_old_samples_max_age (168h) while the
+# replay burned the ingestion rate limit that current logs needed.
+# root-owned because Promtail writes it as uid 0.
+
+- name: Ensure Promtail positions directory exists
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/loki/promtail-positions"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
 
 - name: Deploy Loki docker-compose.yml
   ansible.builtin.copy:
