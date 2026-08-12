@@ -48,6 +48,15 @@ jobs:
       - uses: renovatebot/github-action@v46.2.2
         with:
           token: ${{ secrets.RENOVATE_TOKEN }}
+          # The ENGINE, pinned separately from the action. Left unset, the
+          # action runs ghcr.io/renovatebot/renovate at a floating MAJOR tag
+          # (':43', then ':44' after the v46.2.2 bump) and re-pulls it every
+          # run — so the tool rewriting this repo's dependency files could
+          # change build-to-build, and a major arrived inside an unrelated
+          # action bump with nothing in the diff to show it. Pinned to the
+          # FORGE-70 standard for the same reason every image here is.
+          # Kept current by the customManager in .github/renovate.json.
+          renovate-version: 44.24.3
         env:
           LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
           RENOVATE_DRY_RUN: ${{ (inputs.dryRun && 'full') || 'null' }}

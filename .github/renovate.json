@@ -30,6 +30,18 @@
       "autoReplaceStringTemplate": "image: {{{depName}}}{{#if newValue}}:{{{newValue}}}{{/if}}{{#if newDigest}}@{{{newDigest}}}{{/if}}",
       "datasourceTemplate": "docker",
       "versioningTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "The Renovate ENGINE version passed to renovatebot/github-action as renovate-version. The action's own default is a floating major tag re-pulled every run, so without this pin the tool that rewrites this repo changes build-to-build and a major can arrive inside an unrelated action bump. Kept as a bare semver string (NOT an image ref) -- the pinDigests exception below exists because appending a digest here would make the input invalid.",
+      "managerFilePatterns": ["/^\\.github/workflows/renovate\\.yml$/"],
+      "matchStrings": [
+        "renovate-version:\\s+(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
+      "autoReplaceStringTemplate": "renovate-version: {{{newValue}}}",
+      "depNameTemplate": "ghcr.io/renovatebot/renovate",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "semver"
     }
   ],
   "packageRules": [
@@ -37,6 +49,11 @@
       "description": "Pin digests for every managed container image — aligns updates to the FORGE-70 tag@sha256 standard (adds a digest to tag-only images on bump).",
       "matchDatasources": ["docker"],
       "pinDigests": true
+    },
+    {
+      "description": "The renovate-version input is a bare version string, not an image reference — a digest pin would emit '44.24.3@sha256:...' and the action would fail to resolve it. Must come AFTER the pinDigests rule above; later rules win.",
+      "matchPackageNames": ["ghcr.io/renovatebot/renovate"],
+      "pinDigests": false
     },
     {
       "description": "Coordinated app stacks — images are version-locked as a unit and updated via their own runbooks (ERPNext = frappe_docker + bench migrate; LangFuse = the v3 stack). Renovate must not bump them piecemeal.",
