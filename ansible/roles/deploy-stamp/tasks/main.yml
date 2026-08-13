@@ -16,9 +16,14 @@
     # clones and checks out. It cannot run log/rev-parse/status, and these
     # only ever READ the operator's existing checkout — nothing is fetched,
     # written, or moved. The module genuinely does not cover this case.
+    # ⚠️ `%n` (git's newline), NOT a space. The command module splits argv on
+    # whitespace, so `--format=%H %ct` arrives as TWO arguments and git reads
+    # `%ct` as a revision: "fatal: ambiguous argument '%ct'". Keeping the
+    # format a single token sidesteps quoting entirely. `.split()` below
+    # splits on any whitespace, so the newline parses the same as a space.
     - name: Read the commit the control node is deploying from # noqa: command-instead-of-module
       ansible.builtin.command:
-        cmd: git -C {{ playbook_dir }}/.. log -1 --format=%H %ct
+        cmd: git -C {{ playbook_dir }}/.. log -1 --format=%H%n%ct
       register: deploy_stamp_head
       changed_when: false
       delegate_to: localhost
