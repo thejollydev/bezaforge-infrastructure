@@ -1,0 +1,64 @@
+---
+# ============================================================
+# roles/deploy-stamp — record which commit each role was last
+# deployed from, so "merged" stops standing in for "shipped" (#671)
+# ============================================================
+#
+# A merged PR changes a file in git and changes nothing on any host until
+# a playbook runs. Four times now that gap has gone unnoticed — #649's
+# alert inert for a day, #164's digest undeployed for two, #552's entire
+# safety-net remediation undeployed for a day. Each was found by hand, or
+# not at all until the next session went looking.
+#
+# This role stamps every role it can prove ran, on every host, with the
+# commit the control node was sitting on. scripts/deploy-drift-check.py
+# then compares those stamps against main and the "Deploy Drift" Grafana
+# rule alerts on the result.
+#
+# WHY THE STAMP IS PER-ROLE AND NOT PER-HOST
+# ------------------------------------------
+# Almost every real deploy here is tag-scoped (`--tags adguard`). A single
+# whole-host SHA would advance on those runs and claim credit for the 30
+# roles that did not execute — a false green, which is worse than no check
+# at all. It would also read as "behind" after literally any commit,
+# including a README fix, and an alert that is always red is an alert
+# nobody looks at. Per-role granularity fixes both, and makes docs-only
+# and CI-only commits structurally incapable of firing it: the check only
+# ever looks at `ansible/roles/**` paths.
+deploy_stamp_enabled: true
+
+# One file per role. /etc/bezaforge is an existing convention on these
+# hosts (roles/restic-gcs already keeps its env file there).
+deploy_stamp_dir: /etc/bezaforge/deployed
+
+# Joins the existing mechanism rather than building one — Debian/Ubuntu's
+# prometheus-node-exporter enables the textfile collector by default and
+# already ships apt.prom in this directory. Same as roles/dns-client and
+# roles/dnsmasq.
+deploy_stamp_metric_file: /var/lib/prometheus/node-exporter/bezaforge_deploy.prom
+deploy_stamp_metric_script: /usr/local/bin/bezaforge-deploy-stamp-metric.sh
+
+# ⚠️ ROLES WHOSE TAG IS NOT THEIR NAME.
+# Every role in site.yml carries `tags: <its own name>` — except these
+# three, which all ship under `tags: backups`. Left implicit they would
+# silently never stamp, putting the permanent blind spot in the backup
+# roles, which is the worst possible place for one. Audited across
+# site.yml 2026-08-12: these are the only three.
+deploy_stamp_role_tags:
+  db-dumps: backups
+  minio-exports: backups
+  forge-ops-backup-rsync: backups
+
+# This role stamps others, never itself — it runs on every pass by
+# definition, so its own stamp would carry no information.
+#
+# health-check and os-update are deliberately absent from this list
+# because they are absent from site.yml entirely: they belong to
+# health.yml and update.yml, which are run deliberately rather than as
+# config convergence. A change to them does not sit undeployed in the
+# harmful sense, so they are OUT OF SCOPE for drift alerting rather than
+# forgotten. scripts/deploy-drift-check.py only ever compares roles that
+# carry a stamp, so their absence is silent by construction — this
+# comment is where that decision is recorded.
+deploy_stamp_exclude_roles:
+  - deploy-stamp

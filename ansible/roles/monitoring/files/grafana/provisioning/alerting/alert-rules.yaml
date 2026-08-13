@@ -434,3 +434,55 @@ groups:
           isPaused: false
           notification_settings:
             receiver: Discord
+        - uid: bfg9deploydrift01
+          title: Deploy Drift
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 3600
+                to: 0
+              datasourceUid: dfdseqn41ybk0e
+              model:
+                editorMode: code
+                expr: bezaforge_deploy_drift_exit_code > 0
+                instant: true
+                intervalMs: 1000
+                legendFormat: '{{ $labels.instance }}'
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          noDataState: OK
+          execErrState: OK
+          for: 6h
+          annotations:
+            summary: 'A change merged to main has never been deployed to at least one host (exit code {{ $values.A }})'
+            description: 'A merged PR changes a file in git and changes nothing on any host until ansible-playbook runs. Nothing used to detect the gap — CI went green, the repo read as correct, no alert fired. This has bitten four times (#649 alert inert for a day, #164 digest undeployed for two, #552 an entire safety-net remediation undeployed, and the 2026-05 homepage icon) and every instance was found by hand or not at all. Exit code 1 = at least one host is BEHIND main on at least one role; bezaforge_deploy_drift_roles carries how many pairs. Exit code 2 = the check is INVALID and NOT a pass — either Gitea/Prometheus was unreachable, or a host was deployed from a DIRTY working tree so its stamp names a commit that does not describe what is running (see bezaforge_deploy_drift_dirty), or no host has ever run roles/deploy-stamp so there is nothing to compare. Diagnose with: scripts/deploy-drift-check.py -v (add --hosts to see which hosts report stamps at all). The fix is to deploy the roles it names and then verify the LIVE artifact rather than the PLAY RECAP — a tag-scoped run only touches the tags you name, which is exactly how #649 and #164 were missed. The 6h window means merging and deploying in one session never nags. Only ansible/roles/** is compared, so docs-only and CI-only commits are structurally incapable of firing this.'
+          isPaused: false
+          notification_settings:
+            receiver: Discord

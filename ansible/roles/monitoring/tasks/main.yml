@@ -263,3 +263,86 @@
   community.docker.docker_compose_v2:
     project_src: "{{ bezaforge_root }}/loki"
     state: present
+
+# ------------------------------------------------------------
+# Deploy-drift watcher (#671)
+# ------------------------------------------------------------
+# roles/deploy-stamp records, on every host, which commit each role was
+# last deployed from. This is the half that reads those stamps back out of
+# Prometheus, compares them against main via the Gitea API, and publishes
+# a number the "Deploy Drift" Grafana rule alerts on.
+#
+# Four times a merged PR has sat undeployed with nothing reporting it
+# (#649, #164, #552, and the 2026-05 homepage icon). Both 2026-08-11
+# instances were found only because a full --check sweep was demanded by
+# hand. See defaults/main.yml for why this runs here on forge-ops.
+- name: Configure the deploy-drift watcher
+  when:
+    - monitoring_deploy_drift_monitor | bool
+    - not ansible_check_mode
+  block:
+
+    # python3 is present on forge-ops today, but the check is worthless
+    # without it and would fail in the confusing direction — no summary
+    # line, which the wrapper reports as INVALID. Declare the dependency
+    # rather than inherit it. Stdlib only; no pip, no venv.
+    - name: Ensure python3 is installed (the drift check is built on it)
+      ansible.builtin.apt:
+        name: python3
+        state: present
+
+    - name: Ensure the node_exporter textfile directory exists
+      ansible.builtin.file:
+        path: "{{ monitoring_deploy_drift_metric_file | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    # Copied from the repo's scripts/ rather than duplicated into files/.
+    # Two copies of a drift checker is the same bug it exists to catch.
+    - name: Deploy the drift check script (verbatim from scripts/)
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../scripts/deploy-drift-check.py"
+        dest: "{{ monitoring_deploy_drift_check_script }}"
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy the drift metric wrapper
+      ansible.builtin.template:
+        src: deploy-drift-metric.sh.j2
+        dest: "{{ monitoring_deploy_drift_metric_script }}"
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy the drift check service and timer
+      ansible.builtin.template:
+        src: "deploy-drift-check.{{ item }}.j2"
+        dest: "/etc/systemd/system/bezaforge-deploy-drift-check.{{ item }}"
+        owner: root
+        group: root
+        mode: '0644'
+      loop:
+        - service
+        - timer
+      notify: monitoring reload systemd
+
+    - name: Flush handlers so the unit exists before the timer is enabled
+      ansible.builtin.meta: flush_handlers
+
+    - name: Enable and start the drift check timer
+      ansible.builtin.systemd:
+        name: bezaforge-deploy-drift-check.timer
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    # Without this the metric is absent until the first timer fire, and an
+    # absent series is indistinguishable from a healthy one in Grafana —
+    # the alert would be silently unarmed on a freshly-deployed host. Same
+    # reasoning as roles/dns-client's and roles/dnsmasq's equivalent steps.
+    - name: Run the drift check once now so the metric exists immediately
+      ansible.builtin.command: "{{ monitoring_deploy_drift_metric_script }}"
+      changed_when: false

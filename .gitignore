@@ -40,3 +40,7 @@ GEMINI.md
 # Codex
 .codex
 .codex/
+
+# Python bytecode (scripts/ is stdlib-only, but py_compile leaves these)
+__pycache__/
+*.pyc

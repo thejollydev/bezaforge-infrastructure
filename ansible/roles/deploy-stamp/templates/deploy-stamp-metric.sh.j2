@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }} — roles/deploy-stamp/templates/deploy-stamp-metric.sh.j2 (#671)
+#
+# Publishes this host's per-role deploy stamps as node_exporter textfile
+# metrics, so "which commit is this host actually running for role X" is a
+# question Prometheus can answer instead of one somebody has to ask by
+# hand during an incident.
+#
+# Reads every file in the stamp directory rather than being handed the
+# roles that just ran: a tag-scoped deploy updates two stamps and must not
+# erase the other thirty. The stamp directory is the state; this is only
+# its projection.
+
+set -uo pipefail
+
+STAMP_DIR="{{ deploy_stamp_dir }}"
+OUT="{{ deploy_stamp_metric_file }}"
+TMP="${OUT}.$$"
+
+emit() {
+    cat <<'EOF'
+# HELP bezaforge_role_deployed_commit_timestamp_seconds Committer timestamp of the repo HEAD this role was last deployed from.
+# TYPE bezaforge_role_deployed_commit_timestamp_seconds gauge
+EOF
+    for f in "${STAMP_DIR}"/*; do
+        [ -f "${f}" ] || continue
+        # shellcheck disable=SC1090
+        role="" commit_ts="" deployed_ts="" sha="" branch="" dirty=""
+        while IFS='=' read -r k v; do
+            case "${k}" in
+                role) role="${v}" ;;
+                commit_ts) commit_ts="${v}" ;;
+                deployed_ts) deployed_ts="${v}" ;;
+                sha) sha="${v}" ;;
+                branch) branch="${v}" ;;
+                dirty) dirty="${v}" ;;
+            esac
+        done < "${f}"
+        [ -n "${role}" ] && [ -n "${commit_ts}" ] || continue
+        printf 'bezaforge_role_deployed_commit_timestamp_seconds{role="%s"} %s\n' \
+            "${role}" "${commit_ts}"
+    done
+
+    cat <<'EOF'
+# HELP bezaforge_role_deployed_timestamp_seconds Wall-clock time at which this role was last applied to this host.
+# TYPE bezaforge_role_deployed_timestamp_seconds gauge
+EOF
+    for f in "${STAMP_DIR}"/*; do
+        [ -f "${f}" ] || continue
+        role="" deployed_ts=""
+        while IFS='=' read -r k v; do
+            case "${k}" in
+                role) role="${v}" ;;
+                deployed_ts) deployed_ts="${v}" ;;
+            esac
+        done < "${f}"
+        [ -n "${role}" ] && [ -n "${deployed_ts}" ] || continue
+        printf 'bezaforge_role_deployed_timestamp_seconds{role="%s"} %s\n' \
+            "${role}" "${deployed_ts}"
+    done
+
+    # 1 means the control node had modified tracked files when this role
+    # was applied, so `sha` does NOT describe what is running. The drift
+    # check reports that as INVALID rather than believing the stamp — an
+    # exporter that cannot measure must never emit a healthy value.
+    cat <<'EOF'
+# HELP bezaforge_role_deployed_dirty 1 if this role was deployed from a dirty working tree, so its recorded SHA cannot be trusted.
+# TYPE bezaforge_role_deployed_dirty gauge
+EOF
+    for f in "${STAMP_DIR}"/*; do
+        [ -f "${f}" ] || continue
+        role="" dirty=""
+        while IFS='=' read -r k v; do
+            case "${k}" in
+                role) role="${v}" ;;
+                dirty) dirty="${v}" ;;
+            esac
+        done < "${f}"
+        [ -n "${role}" ] || continue
+        printf 'bezaforge_role_deployed_dirty{role="%s"} %s\n' \
+            "${role}" "${dirty:-0}"
+    done
+
+    # An info-style series so a human reading Prometheus can see the actual
+    # commit, not just an epoch. Value is always 1; the labels are the data.
+    cat <<'EOF'
+# HELP bezaforge_role_deployed_sha_info The commit and branch this role was last deployed from. Always 1; the labels carry the information.
+# TYPE bezaforge_role_deployed_sha_info gauge
+EOF
+    for f in "${STAMP_DIR}"/*; do
+        [ -f "${f}" ] || continue
+        role="" sha="" branch=""
+        while IFS='=' read -r k v; do
+            case "${k}" in
+                role) role="${v}" ;;
+                sha) sha="${v}" ;;
+                branch) branch="${v}" ;;
+            esac
+        done < "${f}"
+        [ -n "${role}" ] && [ -n "${sha}" ] || continue
+        # Strip anything that would break the exposition format. Branch
+        # names may legally contain characters a label value may not.
+        branch="${branch//\"/}"
+        branch="${branch//\\/}"
+        printf 'bezaforge_role_deployed_sha_info{role="%s",sha="%s",branch="%s"} 1\n' \
+            "${role}" "${sha}" "${branch}"
+    done
+}
+
+# Write-then-rename: node_exporter reads this directory continuously and a
+# partially-written file scrapes as truncated garbage. rename(2) on the
+# same filesystem is atomic — a scrape sees the old file or the new one,
+# never half of one.
+emit > "${TMP}"
+chmod 0644 "${TMP}"
+mv -f "${TMP}" "${OUT}"
