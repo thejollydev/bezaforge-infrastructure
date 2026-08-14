@@ -35,6 +35,22 @@ jobs:
       - run: pip install yamllint==1.38.0
       - run: yamllint -c .yamllint .
 
+  # alert-rules.yaml is excluded from BOTH linters (it is a verbatim Grafana
+  # provisioning export — see .yamllint / .ansible-lint), which left it with
+  # no validation at all: a syntax error in it passed CI green while Grafana
+  # silently refused to provision the alerts. Caught 2026-08-14 by an
+  # unescaped apostrophe inside a single-quoted scalar.
+  alert-rules:
+    name: grafana alert rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+      - run: pip install PyYAML==6.0.3
+      - run: scripts/check-alert-rules.py
+
   ansible-lint:
     # ansible-lint also runs `ansible-playbook --syntax-check` internally
     # (the syntax-check rule is core + unskippable), so a separate syntax
