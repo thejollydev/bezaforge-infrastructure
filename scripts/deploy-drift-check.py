@@ -56,6 +56,14 @@ whose blind spot is undocumented gets trusted past its evidence:
   MISSED  drift that is not in git at all — a file hand-edited on a host.
           That is `--check`'s job, not this one's.
 
+⚠️ PARTIAL COVERAGE USED TO READ AS FULL COVERAGE. On 2026-08-14 three of
+five hosts had every stamp arrive under a rewritten Prometheus label, so
+no stamp matched a real role name and all three were skipped — silently,
+because "role not in git" was treated as benign. The run reported CURRENT
+with the busiest hosts unchecked. Any pair this script cannot evaluate is
+now REPORTED (exit 2), never passed over: a check that quietly narrows its
+own scope will eventually report a green it has not earned.
+
 USAGE
   scripts/deploy-drift-check.py             # summary + anything behind
   scripts/deploy-drift-check.py -v          # every host/role pair
@@ -65,8 +73,9 @@ USAGE
 EXIT CODES
   0  every stamped host is current with main
   1  at least one host is BEHIND main on at least one role
-  2  the check is INVALID — Gitea or Prometheus was unreachable, or a host
-     was deployed from a dirty tree. Not a pass and not a drift result;
+  2  the check is INVALID — Gitea or Prometheus was unreachable, a host was
+     deployed from a dirty tree, nothing is stamped at all, or a stamp names
+     a role that does not exist in git. Not a pass and not a drift result;
      fix the cause before reading anything into the comparison.
 """
 
@@ -93,6 +102,14 @@ GRACE_SECONDS = int(os.environ.get("GRACE_SECONDS", "0"))
 
 DEPLOYED_METRIC = "bezaforge_role_deployed_commit_timestamp_seconds"
 DIRTY_METRIC = "bezaforge_role_deployed_dirty"
+
+# ⚠️ `ansible_role`, NOT `role`. Prometheus target labels win over metric
+# labels — a metric's own `role` is renamed to `exported_role` and the
+# scrape config's value takes the name. prometheus.yml sets `role:` on the
+# forge-ops, forge-hypervisor and forge-brizza jobs, so the original label
+# was rewritten on exactly those three hosts and their stamps became
+# unreadable here. See the header of roles/deploy-stamp's metric script.
+ROLE_LABEL = "ansible_role"
 
 
 class Unreachable(Exception):
@@ -154,11 +171,11 @@ def main():
 
     try:
         deployed = {
-            (m.get("instance", "?"), m.get("role", "?")): v
+            (m.get("instance", "?"), m.get(ROLE_LABEL, "?")): v
             for m, v in prom_query(DEPLOYED_METRIC)
         }
         dirty = {
-            (m.get("instance", "?"), m.get("role", "?")): v
+            (m.get("instance", "?"), m.get(ROLE_LABEL, "?")): v
             for m, v in prom_query(DIRTY_METRIC)
         }
     except Unreachable as exc:
@@ -203,6 +220,7 @@ def main():
 
     behind = []
     dirty_pairs = []
+    unknown = []
     checked = 0
 
     print(f"{'HOST':<18} {'ROLE':<26} {'DEPLOYED':<20} {'MAIN':<20} RESULT")
@@ -211,8 +229,19 @@ def main():
     for (host, role), dep_ts in sorted(deployed.items()):
         want_ts = wanted.get(role)
         if want_ts is None:
-            # The role has a stamp but no longer exists on the branch —
-            # deleted upstream, stamp not yet reaped. Not drift.
+            # ⚠️ A stamp naming a role that does not exist in git. Reported,
+            # never skipped — this branch used to `continue` silently, and
+            # that silence is what turned a Prometheus label collision into
+            # a clean bill of health for three unmonitored hosts (2026-08-14).
+            # A skipped pair is indistinguishable from a healthy one, so an
+            # anomaly here must be loud even though the benign cause (a role
+            # deleted upstream whose stamp was never reaped) is harmless and
+            # one `rm` away.
+            print(
+                f"{host:<18} {role:<26} {'-':<20} {'not in git':<20} "
+                f"*** UNKNOWN ROLE ***"
+            )
+            unknown.append((host, role))
             continue
         checked += 1
         dep_s = datetime.fromtimestamp(dep_ts).strftime("%Y-%m-%d %H:%M")
@@ -237,7 +266,8 @@ def main():
     print()
     print(
         f"checked={checked}  behind={len(behind)}  "
-        f"dirty={len(dirty_pairs)}  unstamped={int(bool(unstamped))}"
+        f"dirty={len(dirty_pairs)}  unstamped={int(bool(unstamped))}  "
+        f"unknown={len(unknown)}"
     )
 
     if not deployed:
@@ -245,6 +275,23 @@ def main():
         print("  Nothing has run roles/deploy-stamp yet, so nothing can be compared.")
         print("  Deploy it: cd ansible && ansible-playbook site.yml \\")
         print("               --ask-become-pass --ask-vault-pass")
+        return 2
+
+    if unknown:
+        print("RESULT: INVALID — a host reports a stamp for a role that is not in git.")
+        print("  Two causes, and the second is the dangerous one:")
+        print("    1. a role was deleted upstream and its stamp was never reaped")
+        print("       -> ssh <host> and rm /etc/bezaforge/deployed/<role>")
+        print("    2. the metric's labels are being rewritten in transit, so real")
+        print("       roles arrive under a name that matches nothing. Check for an")
+        print("       exported_ prefix, which means a scrape-config label of the")
+        print("       same name won:")
+        print("         curl -s 'https://prometheus.bezaforge.dev/api/v1/query"
+              "?query=bezaforge_role_deployed_sha_info' | grep -o 'exported_[a-z_]*'")
+        print("  Until this is resolved those hosts are NOT being checked, and a")
+        print("  pass here would be a false green.")
+        for host, role in unknown:
+            print(f"    {host}: {role}")
         return 2
 
     if dirty_pairs:

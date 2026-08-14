@@ -62,11 +62,36 @@ cd ansible && ansible-playbook site.yml \
 
 ### Exit code 2 — INVALID (not a pass)
 
-Three distinct causes; the script says which:
+Four distinct causes; the script says which:
 
 - **Dirty working tree** — a host was deployed from a checkout with modified tracked files, so its stamp names a commit that does not describe what is running. Commit or stash, then redeploy that role. `bezaforge_deploy_drift_dirty` carries the count.
 - **Gitea or Prometheus unreachable** — the check reports INVALID rather than a pass. It reaches both through Traefik, so this usually means Traefik or DNS, not the checker. Check `docker ps` on forge-ops first.
 - **Nothing stamped at all** — no host has run `roles/deploy-stamp` yet. Run a full `site.yml`.
+- **A stamp names a role that is not in git** (`bezaforge_deploy_drift_unknown`) — benign cause: a role was deleted upstream and its stamp was never reaped (`rm /etc/bezaforge/deployed/<role>`). Dangerous cause: the labels are being rewritten in transit, so real roles arrive under a name matching nothing and **those hosts are not being checked at all.** Test for it:
+
+  ```bash
+  curl -s 'https://prometheus.bezaforge.dev/api/v1/query?query=bezaforge_role_deployed_sha_info' \
+    | grep -o 'exported_[a-z_]*' | sort -u
+  ```
+
+  Any `exported_` prefix means a scrape-config label of the same name won — see the trap below.
+
+---
+
+## ⚠️ The label-collision trap (found live, 2026-08-14)
+
+**Prometheus target labels beat metric labels.** When a scraped series carries a label the scrape config also sets, the metric's own value is renamed to `exported_<label>` and the target's value takes the name.
+
+The stamper originally exported `role="adguard"`. `prometheus.yml` sets a `role:` target label on three jobs — forge-ops (`docker-host`), forge-hypervisor (`hypervisor`), forge-brizza (`assistant-host`) — so on exactly those three hosts every stamp arrived as `role="docker-host"` with the real name buried in `exported_role`. forge-ai and forge-erp, whose jobs set no `role` label, were unaffected and looked perfect.
+
+Every stamp on disk was correct. But the checker found no such role in git, **silently skipped all three hosts, and reported `CURRENT`** — a clean bill of health for the three busiest machines in the fleet, which is precisely the false green #671 exists to kill.
+
+Two things changed as a result, and the second matters more than the first:
+
+1. The label is now **`ansible_role`**, which cannot collide with anything in `prometheus.yml`. Do not "simplify" it back.
+2. **A pair the check cannot evaluate is reported, never skipped.** The silent `continue` is what converted a label bug into a green. A check that quietly narrows its own scope will eventually report a pass it has not earned.
+
+If you ever add a label to a `bezaforge_*` metric, grep `prometheus.yml` for that name first.
 
 ---
 
@@ -87,6 +112,10 @@ PROM_URL=http://127.0.0.1:PORT ROLES_OVERRIDE=adguard scripts/deploy-drift-check
 | Stamp newer than the role's last commit | 0 |
 | Stamp marked `dirty=1` | 2 |
 | No host stamped at all | 2 |
+| Stamp names a role not in git | 2 |
+| **Labels arrive under the wrong name** (the 08-14 bug) | **2 — must never be 0** |
+
+That last row is the regression test for the label collision. Point the stub at a metric labelled `role` instead of `ansible_role`: the check must report INVALID, not `CURRENT`.
 
 The wrapper's own failure path matters too: if `deploy-drift-check.py` is missing or unrunnable, `deploy-drift-metric.sh` publishes `exit_code=2`, **not** a healthy `0`. An exporter that cannot measure must never emit a healthy value. Verify by pointing the wrapper at a nonexistent script and reading the `.prom`.
 

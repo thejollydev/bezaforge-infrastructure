@@ -20,8 +20,10 @@
 #   0  every stamped host/role pair matches main
 #   1  at least one host is BEHIND main on at least one role
 #   2  the check is INVALID — Gitea or Prometheus unreachable, a host
-#      deployed from a dirty tree, or no host stamped at all. Not a pass
-#      and not a drift result.
+#      deployed from a dirty tree, no host stamped at all, or a stamp
+#      naming a role that is not in git (which means those pairs are not
+#      being checked, so a pass would be a false green). Not a pass and
+#      not a drift result.
 # The counts are exported alongside so the metric carries its own evidence.
 
 set -uo pipefail
@@ -47,11 +49,13 @@ checked="$(printf '%s' "${summary}"    | sed -n 's/.*checked=\([0-9]*\).*/\1/p')
 behind="$(printf '%s' "${summary}"     | sed -n 's/.*behind=\([0-9]*\).*/\1/p')"
 dirty="$(printf '%s' "${summary}"      | sed -n 's/.*dirty=\([0-9]*\).*/\1/p')"
 unstamped="$(printf '%s' "${summary}"  | sed -n 's/.*unstamped=\([0-9]*\).*/\1/p')"
+unknown="$(printf '%s' "${summary}"    | sed -n 's/.*unknown=\([0-9]*\).*/\1/p')"
 
 : "${checked:=0}"
 : "${behind:=0}"
 : "${dirty:=0}"
 : "${unstamped:=0}"
+: "${unknown:=0}"
 
 # A missing summary line means the script itself failed to run (not found,
 # not executable, interpreter missing, killed). Report INVALID rather than
@@ -78,6 +82,9 @@ bezaforge_deploy_drift_checked ${checked}
 # HELP bezaforge_deploy_drift_dirty Host/role pairs whose stamp came from a dirty working tree and cannot be trusted.
 # TYPE bezaforge_deploy_drift_dirty gauge
 bezaforge_deploy_drift_dirty ${dirty}
+# HELP bezaforge_deploy_drift_unknown Stamps naming a role that does not exist in git — those pairs are NOT being checked, so a pass would be a false green.
+# TYPE bezaforge_deploy_drift_unknown gauge
+bezaforge_deploy_drift_unknown ${unknown}
 EOF
 chmod 0644 "${TMP}"
 mv -f "${TMP}" "${OUT}"

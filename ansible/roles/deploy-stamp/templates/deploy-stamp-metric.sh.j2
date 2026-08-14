@@ -10,6 +10,21 @@
 # roles that just ran: a tag-scoped deploy updates two stamps and must not
 # erase the other thirty. The stamp directory is the state; this is only
 # its projection.
+#
+# ⚠️ THE LABEL IS `ansible_role`, NOT `role`. DO NOT "SIMPLIFY" IT.
+# Prometheus target labels WIN over metric labels: when a scraped series
+# carries a label the scrape config also sets, the metric's own value is
+# renamed to `exported_<label>` and the target's value takes the name.
+# prometheus.yml sets `role:` on three jobs — forge-ops (docker-host),
+# forge-hypervisor (hypervisor) and forge-brizza (assistant-host) — so a
+# `role` label here was silently rewritten on exactly those three hosts.
+# Every stamp was written correctly; they just arrived in Prometheus
+# labelled `role="docker-host"` with the real name hidden in
+# `exported_role`. The drift check then found no such role in git and
+# skipped them, reporting CURRENT while the three busiest hosts were
+# unmonitored — a false green, the precise failure #671 exists to kill.
+# Found 2026-08-14 on the first live verification. `ansible_role` cannot
+# collide with anything in prometheus.yml.
 
 set -uo pipefail
 
@@ -37,7 +52,7 @@ EOF
             esac
         done < "${f}"
         [ -n "${role}" ] && [ -n "${commit_ts}" ] || continue
-        printf 'bezaforge_role_deployed_commit_timestamp_seconds{role="%s"} %s\n' \
+        printf 'bezaforge_role_deployed_commit_timestamp_seconds{ansible_role="%s"} %s\n' \
             "${role}" "${commit_ts}"
     done
 
@@ -55,7 +70,7 @@ EOF
             esac
         done < "${f}"
         [ -n "${role}" ] && [ -n "${deployed_ts}" ] || continue
-        printf 'bezaforge_role_deployed_timestamp_seconds{role="%s"} %s\n' \
+        printf 'bezaforge_role_deployed_timestamp_seconds{ansible_role="%s"} %s\n' \
             "${role}" "${deployed_ts}"
     done
 
@@ -77,7 +92,7 @@ EOF
             esac
         done < "${f}"
         [ -n "${role}" ] || continue
-        printf 'bezaforge_role_deployed_dirty{role="%s"} %s\n' \
+        printf 'bezaforge_role_deployed_dirty{ansible_role="%s"} %s\n' \
             "${role}" "${dirty:-0}"
     done
 
@@ -102,7 +117,7 @@ EOF
         # names may legally contain characters a label value may not.
         branch="${branch//\"/}"
         branch="${branch//\\/}"
-        printf 'bezaforge_role_deployed_sha_info{role="%s",sha="%s",branch="%s"} 1\n' \
+        printf 'bezaforge_role_deployed_sha_info{ansible_role="%s",sha="%s",branch="%s"} 1\n' \
             "${role}" "${sha}" "${branch}"
     done
 }
