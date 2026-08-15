@@ -7,13 +7,30 @@
 #
 # Source of truth for these JSON files:
 #   ansible/roles/monitoring/files/grafana/dashboards/
-# Export procedure:
+# Capture procedure:
+#   scripts/grafana-export-dashboards.sh
 #   docs/runbooks/grafana-dashboards-export.md
+#
+# ⛔ NEVER NAME A SUBDIRECTORY `General` (#659).
+# With foldersFromFilesStructure below, Grafana creates one folder per
+# subdirectory. `General` is Grafana's built-in default folder — it already
+# exists and CANNOT be created, so the provisioner errors and **aborts the
+# entire tree walk**, importing nothing at all. Not a degraded import: zero.
+# That is exactly what happened from 2026-05-20 to 2026-08-15 — every 30
+# seconds, ~250,000 failures, while these dashboards were never once
+# provisioned and the "dashboards survive a rebuild" guarantee was fiction.
+# scripts/grafana-export-dashboards.sh now remaps the default folder to
+# BezaForge so the export cannot recreate the condition.
 apiVersion: 1
 
 providers:
   - name: bezaforge
     orgId: 1
+    # ⚠️ `folder` and `foldersFromFilesStructure` interact, and Grafana's
+    # precedence between them is version-dependent. This config is
+    # deliberately correct under EITHER reading: the directory on disk is
+    # also named BezaForge, so whichever one wins, the dashboards land in
+    # the same place. Keep them equal if you rename one.
     folder: BezaForge
     type: file
     disableDeletion: false

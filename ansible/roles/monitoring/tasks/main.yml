@@ -140,6 +140,26 @@
     - provisioning/alerting
     - dashboards
 
+# ⚠️ MUST RUN BEFORE THE SYNC BELOW, AND THE FIX IS INERT WITHOUT IT (#659).
+# `copy` only adds and overwrites — it never deletes a file the source no
+# longer has. Renaming dashboards/General -> dashboards/BezaForge in the repo
+# therefore leaves the OLD directory sitting on the host, and Grafana keeps
+# trying to create a folder named `General` (its reserved default, which
+# cannot be created), which aborts the entire provisioning walk exactly as
+# before. The rename fixes nothing until the stale directory is gone.
+#
+# Same shape as the fstab entry that survived a list removal in the NFS
+# decommission: removing something from the source of truth is not the same
+# as removing it from the machine.
+#
+# Safe to keep permanently — `state: absent` on a path that no longer exists
+# is a no-op, so this stays green forever and costs one task.
+- name: Remove the reserved-name dashboard directory left by the pre-#659 layout
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/grafana/dashboards/General"
+    state: absent
+  notify: restart grafana
+
 - name: Sync Grafana provisioning + dashboards from repo
   ansible.builtin.copy:
     src: "grafana/{{ item }}/"
