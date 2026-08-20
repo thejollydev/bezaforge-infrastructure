@@ -36,7 +36,19 @@ ansible-playbook site.yml --tags <role> --limit <host> --ask-become-pass --ask-v
 
 Both prompts make this **Joseph-run, never agent-run**. Agents hand over the
 exact command, then verify live with read-only checks (their own job) and
-re-run for the idempotency proof (`changed=0`).
+re-run for the idempotency proof.
+
+⛔ **The proof is NOT `changed=0` — that is unachievable here.** Since
+`roles/deploy-stamp` shipped (#671) every tagged run rewrites a stamp file
+containing a fresh `deployed_ts`, so `Stamp each role applied in this pass`
+reports `changed` **by design**. A tagged deploy floors at `changed=1`.
+**The criterion: the only changed task is the deploy stamp.** Any other
+changed task on a second identical run is a finding.
+
+⚠️ And a `docker_compose_v2` "Start …" that changes on a re-run is **not
+automatically** the documented false drift — that case recreates *once*.
+Decide it with `docker inspect -f '{{.Created}}'` across the two runs: an
+unchanged timestamp is cosmetic, a new one is real recreation.
 
 ## Fleet rules that bite (full list in the vault lessons-learned)
 
