@@ -44,3 +44,9 @@ GEMINI.md
 # Python bytecode (scripts/ is stdlib-only, but py_compile leaves these)
 __pycache__/
 *.pyc
+
+# AIW-MANAGED-AGENT-FILES — canonical copy lives in the private vault
+/AGENTS.md
+/CLAUDE.md
+/.claudeignore
+/.graphifyignore
