@@ -58,7 +58,7 @@ cd ansible && ansible-playbook site.yml \
   --tags <roles it named> --ask-become-pass --ask-vault-pass
 ```
 
-⚠️ **Then verify the LIVE artifact, not the PLAY RECAP.** A tag-scoped run only touches the tags you name — that is exactly how #649 and #164 were missed. `ssh` and `diff` the on-host file, or curl the endpoint that changed. A second apply returning `changed=0` is the idempotency proof.
+⚠️ **Then verify the LIVE artifact, not the PLAY RECAP.** A tag-scoped run only touches the tags you name — that is exactly how #649 and #164 were missed. `ssh` and `diff` the on-host file, or curl the endpoint that changed. A second apply is the idempotency proof — but ⛔ **the proof is NOT `changed=0`**: `deploy-stamp` rewrites a fresh `deployed_ts` every `site.yml` run, so the floor is `changed=1` (2 on `erp_hosts`, where erpnext is always-changed by design). **The criterion: the only changed task is the deploy stamp.** See `AGENTS.md`.
 
 ### Exit code 2 — INVALID (not a pass)
 
