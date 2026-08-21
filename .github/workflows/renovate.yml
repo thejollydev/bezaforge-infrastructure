@@ -56,7 +56,7 @@ jobs:
           # action bump with nothing in the diff to show it. Pinned to the
           # FORGE-70 standard for the same reason every image here is.
           # Kept current by the customManager in .github/renovate.json.
-          renovate-version: 44.24.3
+          renovate-version: 44.32.1
         env:
           LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
           RENOVATE_DRY_RUN: ${{ (inputs.dryRun && 'full') || 'null' }}
