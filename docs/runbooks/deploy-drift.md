@@ -58,7 +58,7 @@ cd ansible && ansible-playbook site.yml \
   --tags <roles it named> --ask-become-pass --ask-vault-pass
 ```
 
-⚠️ **Then verify the LIVE artifact, not the PLAY RECAP.** A tag-scoped run only touches the tags you name — that is exactly how #649 and #164 were missed. `ssh` and `diff` the on-host file, or curl the endpoint that changed. A second apply is the idempotency proof — but ⛔ **the proof is NOT `changed=0`**: `deploy-stamp` rewrites a fresh `deployed_ts` every `site.yml` run, so the floor is `changed=1` (2 on `erp_hosts`, where erpnext is always-changed by design). **The criterion: the only changed task is the deploy stamp.** See `AGENTS.md`.
+⚠️ **Then verify the LIVE artifact, not the PLAY RECAP.** A tag-scoped run only touches the tags you name — that is exactly how #649 and #164 were missed. `ssh` and `diff` the on-host file, or curl the endpoint that changed. A second apply is the idempotency proof: **`changed=0`**. ⚠️ One documented exception — on `erp_hosts` with the `erpnext` role in scope the floor is **1**, because `erpnext-one.yaml` ships a one-shot `configurator` that `docker compose up` re-runs every pass. That is frappe_docker's design, confirmed benign in the #493 audit, and must not be chased. ⚠️ **Re-run from the SAME checkout state**, or the comparison is invalid: the stamp records `branch` and `dirty`, so the identical commit deployed from a task branch and then again from `main` after merging rewrites the stamp and legitimately reports `changed` once. ⛔ From #671 (2026-08-12) until #819 the floor was `changed=1` everywhere, because `deploy-stamp` wrote a fresh `deployed_ts` into its stamp on every run; that field is gone and `changed=0` is the gate again. See `AGENTS.md`.
 
 ### Exit code 2 — INVALID (not a pass)
 

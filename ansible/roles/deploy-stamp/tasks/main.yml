@@ -16,6 +16,18 @@
     # clones and checks out. It cannot run log/rev-parse/status, and these
     # only ever READ the operator's existing checkout — nothing is fetched,
     # written, or moved. The module genuinely does not cover this case.
+    #
+    # ⛔ check_mode: false on all three, and it is load-bearing (#819). The
+    # command module does not support check mode, so under --check Ansible
+    # SKIPS these and the registered `stdout` resolves to empty — then
+    # `.split()[0]` below raises "has no element 0" and the task dies hard.
+    # deploy-stamp is `tags: always` in all five plays, so without this
+    # EVERY --check run fails on EVERY host: the role built to make
+    # undeployed changes visible broke the tool used to preview them, and
+    # this fleet's existing distrust of --check output camouflaged it from
+    # #671 shipping (2026-08-12) until #819. These read the control node's
+    # own checkout and nothing else, so running them under --check is safe
+    # by construction — no host is touched and nothing is written.
     # ⚠️ `%n` (git's newline), NOT a space. The command module splits argv on
     # whitespace, so `--format=%H %ct` arrives as TWO arguments and git reads
     # `%ct` as a revision: "fatal: ambiguous argument '%ct'". Keeping the
@@ -26,6 +38,7 @@
         cmd: git -C {{ playbook_dir }}/.. log -1 --format=%H%n%ct
       register: deploy_stamp_head
       changed_when: false
+      check_mode: false
       delegate_to: localhost
       become: false
       run_once: true
@@ -35,6 +48,7 @@
         cmd: git -C {{ playbook_dir }}/.. rev-parse --abbrev-ref HEAD
       register: deploy_stamp_branch
       changed_when: false
+      check_mode: false
       delegate_to: localhost
       become: false
       run_once: true
@@ -56,15 +70,7 @@
         cmd: git -C {{ playbook_dir }}/.. status --porcelain --untracked-files=no
       register: deploy_stamp_dirty
       changed_when: false
-      delegate_to: localhost
-      become: false
-      run_once: true
-
-    - name: Read the control node's clock for the deploy timestamp
-      ansible.builtin.command:
-        cmd: date +%s
-      register: deploy_stamp_now
-      changed_when: false
+      check_mode: false
       delegate_to: localhost
       become: false
       run_once: true
@@ -100,6 +106,30 @@
     # A tag-scoped run therefore cannot claim credit for roles it skipped.
     # deploy_stamp_role_tags covers the three roles whose tag is not their
     # own name; ansible_skip_tags covers --skip-tags.
+    #
+    # ⛔ EVERY FIELD BELOW MUST BE A DETERMINISTIC FUNCTION OF THE CONTROL
+    # NODE'S GIT STATE. `copy` compares content, so any per-run value makes
+    # this task report `changed` on every run, forever, on every host —
+    # which destroys the fleet's idempotency gate. #671 shipped with
+    # `deployed_ts` (a fresh `date +%s`) in this content and did exactly
+    # that for nine days: "a re-run reports changed=0" became unmeetable
+    # fleet-wide, and the runbook created in that very same commit asserted
+    # it anyway. Removed in #819. "When did this role last RUN" cannot be
+    # recorded here without reintroducing the defect; the metric generator
+    # reports the stamp file's mtime instead. See
+    # templates/deploy-stamp-metric.sh.j2.
+    #
+    # ⚠️ GIT STATE, NOT THE COMMIT — the distinction matters for the gate.
+    # `sha` and `commit_ts` depend only on HEAD, but `branch` and `dirty`
+    # depend on HOW the control node is checked out. So the SAME commit
+    # deployed from a task branch and then again from `main` after a
+    # fast-forward merge writes DIFFERENT content and legitimately reports
+    # `changed` once — as does a first deploy from a dirty tree followed by
+    # a clean one. That is this repo's normal workflow, so an idempotency
+    # re-run must be done from the SAME checkout state as the first run, or
+    # the comparison is invalid. Both fields are kept deliberately: `dirty`
+    # is the false-green guard scripts/deploy-drift-check.py relies on, and
+    # `branch` is what makes a stamp from an unmerged branch legible.
     - name: Stamp each role applied in this pass
       ansible.builtin.copy:
         dest: "{{ deploy_stamp_dir }}/{{ item }}"
@@ -112,7 +142,6 @@
           role={{ item }}
           sha={{ deploy_stamp_head.stdout.split()[0] }}
           commit_ts={{ deploy_stamp_head.stdout.split()[1] }}
-          deployed_ts={{ deploy_stamp_now.stdout | trim }}
           branch={{ deploy_stamp_branch.stdout | trim }}
           dirty={{ 1 if deploy_stamp_dirty.stdout | trim | length > 0 else 0 }}
       loop: "{{ ansible_play_role_names | difference(deploy_stamp_exclude_roles) }}"
