@@ -55,20 +55,35 @@ EOF
             "${role}" "${commit_ts}"
     done
 
-    # ⚠️ SEMANTICS CHANGED IN #819, deliberately. This used to read a
-    # `deployed_ts` field that roles/deploy-stamp wrote into the stamp on
-    # every run from `date +%s` — which made the stamp task report `changed`
-    # on every run on every host and cost the fleet its idempotency gate for
-    # nine days. It is now the stamp file's mtime, and `copy` only rewrites
-    # the file when the content changes, so this reads "when this role's
-    # deployed commit last CHANGED on this host" — NOT "when the role last
-    # ran". The latter cannot be recorded without writing on every run,
-    # which is precisely the defect. Nothing consumed the old series: no
-    # dashboard, no alert rule, and not scripts/deploy-drift-check.py, which
-    # compares bezaforge_role_deployed_commit_timestamp_seconds above.
+    # ⚠️ RENAMED IN #819, not redefined — the name change is the point.
+    # This was bezaforge_role_deployed_timestamp_seconds, "when the role
+    # last ran", fed by a `deployed_ts` field that roles/deploy-stamp wrote
+    # from `date +%s` on every run — which made the stamp task report
+    # `changed` every run on every host and cost the fleet its idempotency
+    # gate for nine days. The replacement is the stamp file's mtime, which
+    # is a DIFFERENT QUANTITY, so it gets a different name: reusing the old
+    # one would leave a single Prometheus series holding two incompatible
+    # meanings either side of the cutover, and any range query spanning it
+    # would silently average them. Nothing consumed the old series — no
+    # dashboard, no rule in alert-rules.yaml, and not
+    # scripts/deploy-drift-check.py — so it is simply gone.
+    #
+    # ⛔ DO NOT ALERT ON THIS AS STALENESS. It measures when the stamp's
+    # CONTENT last changed, so for a healthy role that nobody has needed to
+    # redeploy the value is SUPPOSED to sit still, possibly for months. The
+    # obvious `time() - <this> > 7d` would fire for every converged role on
+    # the fleet. "When did this role last run" is deliberately not recorded
+    # anywhere: recording it requires writing on every run, which is the
+    # #819 defect itself. Deployed-vs-main is what actually matters and
+    # bezaforge_role_deployed_commit_timestamp_seconds above already
+    # answers it.
+    #
+    # ⚠️ It is stamp CONTENT, not the deployed commit. mtime advances when
+    # only `branch` or `dirty` changes at an identical SHA, and does NOT
+    # advance when `copy` repairs owner/group/mode without rewriting bytes.
     cat <<'EOF'
-# HELP bezaforge_role_deployed_timestamp_seconds Mtime of this role's stamp file — when its deployed commit last changed on this host. NOT when the role last ran; see #819.
-# TYPE bezaforge_role_deployed_timestamp_seconds gauge
+# HELP bezaforge_role_stamp_mtime_seconds Mtime of this role's stamp file — when the stamp CONTENT last changed on this host. Not when the role last ran, and not a staleness signal; see #819.
+# TYPE bezaforge_role_stamp_mtime_seconds gauge
 EOF
     for f in "${STAMP_DIR}"/*; do
         [ -f "${f}" ] || continue
@@ -80,7 +95,7 @@ EOF
         done < "${f}"
         mtime="$(stat -c %Y "${f}" 2>/dev/null || true)"
         [ -n "${role}" ] && [ -n "${mtime}" ] || continue
-        printf 'bezaforge_role_deployed_timestamp_seconds{ansible_role="%s"} %s\n' \
+        printf 'bezaforge_role_stamp_mtime_seconds{ansible_role="%s"} %s\n' \
             "${role}" "${mtime}"
     done
 
