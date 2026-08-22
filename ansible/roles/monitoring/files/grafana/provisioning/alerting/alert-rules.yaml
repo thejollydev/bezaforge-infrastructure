@@ -5,6 +5,17 @@ groups:
       folder: BezaForge Alerts
       interval: 1m
       rules:
+        # ⚠️ SCOPED, AND IT MUST STAY SCOPED (#676, 2026-08-22). This rule was
+        # a bare `up`, which was correct while every target was a host. The
+        # blackbox job added fourteen more `up` series whose instance label is
+        # a URL, not a host — so an unscoped `up` would fire fourteen times
+        # saying "https://pm.bezaforge.dev is down" the moment the PROBER
+        # died, which is neither true nor actionable.
+        #
+        # The exclusion is deliberately narrow: it drops `blackbox-http` only.
+        # The prober's own health is scraped as the separate `blackbox-exporter`
+        # job with instance="blackbox", so it stays covered here and reads
+        # correctly — the thing that cannot measure is still watched.
         - uid: afg8q41305tdsd
           title: Host Down
           condition: C
@@ -16,7 +27,7 @@ groups:
               datasourceUid: dfdseqn41ybk0e
               model:
                 editorMode: builder
-                expr: up
+                expr: up{job!="blackbox-http"}
                 instant: true
                 intervalMs: 1000
                 legendFormat: __auto
@@ -483,6 +494,82 @@ groups:
           annotations:
             summary: 'A change merged to main has never been deployed to at least one host (exit code {{ $values.A }})'
             description: 'A merged PR changes a file in git and changes nothing on any host until ansible-playbook runs. Nothing used to detect the gap — CI went green, the repo read as correct, no alert fired. This has bitten four times (#649 alert inert for a day, #164 digest undeployed for two, #552 an entire safety-net remediation undeployed, and the 2026-05 homepage icon) and every instance was found by hand or not at all. Exit code 1 = at least one host is BEHIND main on at least one role; bezaforge_deploy_drift_roles carries how many pairs. Exit code 2 = the check is INVALID and NOT a pass — either Gitea/Prometheus was unreachable, or a host was deployed from a DIRTY working tree so its stamp names a commit that does not describe what is running (see bezaforge_deploy_drift_dirty), or no host has ever run roles/deploy-stamp so there is nothing to compare, or a stamp names a role that is not in git (bezaforge_deploy_drift_unknown) which means those hosts are NOT being checked and a pass would be a false green — check for an exported_ label prefix, which means a scrape-config label of the same name overwrote the one this metric set. Diagnose with: scripts/deploy-drift-check.py -v (add --hosts to see which hosts report stamps at all). The fix is to deploy the roles it names and then verify the LIVE artifact rather than the PLAY RECAP — a tag-scoped run only touches the tags you name, which is exactly how #649 and #164 were missed. The 6h window means merging and deploying in one session never nags. Only ansible/roles/** is compared, so docs-only and CI-only commits are structurally incapable of firing this.'
+          isPaused: false
+          notification_settings:
+            receiver: Discord
+        # ============================================================
+        # Service Not Answering (#676)
+        # ============================================================
+        # THE RULE THIS FLEET DID NOT HAVE. On 2026-08-15 pm.bezaforge.dev
+        # returned 502 for hours and every rule above this one stayed green,
+        # because they all measure hosts and containers. The host was fine.
+        # The container was running. The application inside it was dead.
+        #
+        # probe_success is 0 when the endpoint returns a 5xx, when the TLS
+        # handshake fails, when the connection is refused — and, the case
+        # #676 specifically demanded, when the request simply TIMES OUT. A
+        # hung service that accepts a connection and never replies is invisible
+        # to a status-code check and caught by this one.
+        #
+        # noDataState: NoData is load-bearing rather than boilerplate here. If
+        # blackbox stops running, these series vanish, and an absent series is
+        # indistinguishable from a healthy one — the same trap the DNS and
+        # drift metrics each hit. NoData fires; OK would mean a dead prober
+        # reads as a healthy fleet.
+        #
+        # for: 2m = four consecutive failed scrapes at 30s. Long enough that a
+        # container restart during a deploy does not page, far shorter than
+        # the multi-hour outage that prompted this.
+        - uid: bfg9httpprobe001
+          title: Service Not Answering
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: dfdseqn41ybk0e
+              model:
+                editorMode: code
+                expr: probe_success
+                instant: true
+                intervalMs: 1000
+                legendFormat: '{{ $labels.instance }}'
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 1
+                        type: lt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          noDataState: NoData
+          execErrState: OK
+          for: 2m
+          keepFiringFor: 5m
+          annotations:
+            summary: '{{ $labels.instance }} is not answering'
+            description: 'The endpoint failed an HTTP probe from forge-ops. This means the SERVICE is unhealthy, not necessarily the host — the 2026-08-15 case (#676) had a healthy host, a running container, and a segfaulting Rails app behind an Apache that answered 502 for hours with nothing alerting. Probes go through AdGuard and Traefik on purpose, so this also fires for a DNS or router failure; if every target alerts at once, suspect Traefik or DNS before suspecting fourteen services. Diagnose with: curl -sSi https://<host> from the workstation, then docker logs <container> on the host that runs it. A probe counts as failed on 5xx, on connection refused, on TLS failure, and on timeout (5s) — the timeout case is the one a status-code check misses. Valid codes are listed in roles/monitoring/files/blackbox-config.yml and deliberately include 302 and 401, because six of these services redirect to a login page and Traefik answers 401. Coverage is the target list in roles/monitoring/files/prometheus.yml and nowhere else; verify it with count(probe_success), which must equal the number of targets there.'
           isPaused: false
           notification_settings:
             receiver: Discord

@@ -1,0 +1,82 @@
+---
+# ============================================================
+# blackbox exporter — HTTP probing (#676)
+# ============================================================
+#
+# WHY THIS EXISTS: on 2026-08-15 pm.bezaforge.dev returned 502 for hours and
+# NOTHING alerted. OpenProject's Ruby was segfaulting while Apache and the
+# bundled Postgres stayed up, so the container ran, the host was healthy, and
+# every one of the nine Grafana rules was green. They watch hosts and nodes;
+# none of them asked whether a service answers HTTP.
+#
+# The lesson generalises past OpenProject: a green host is not a working
+# service, and "the container is running" is not "the application replies".
+# Only an actual request over the real path proves that.
+#
+# WHY BLACKBOX AND NOT UPTIME KUMA. Kuma already runs at
+# uptime.bezaforge.dev and could do this. It is not used because its monitor
+# list lives in its SQLite database, which means coverage would be invisible
+# to review, unrebuildable from the repo, and hand-added in a UI — the exact
+# failure mode `bezaforge_dns_rewrites` exists to prevent. #676 requires
+# coverage "codified in VCS, not hand-added in a UI". Kuma stays as the
+# human-facing status page; this is the alert path.
+
+modules:
+  # The only module. One shape of question — "does this service still answer
+  # like a working web application?" — asked of every target.
+  http_service:
+    prober: http
+
+    # ⚠️ THE POINT OF THE TICKET: #676 requires alerting on TIMEOUT, not only
+    # on status code. A hung service that accepts the connection and never
+    # replies is the failure this catches, and it is the one a status-code
+    # check misses completely. Below Prometheus's 10s scrape_timeout for this
+    # job so blackbox returns a failed probe rather than the scrape itself
+    # timing out — a failed probe is a data point, a failed scrape is a hole.
+    timeout: 5s
+
+    http:
+      valid_http_versions: [HTTP/1.1, HTTP/2.0]
+
+      # ⚠️ DO NOT REPLACE THIS WITH THE STOCK http_2xx MODULE, but not for the
+      # reason you would guess. Measured against this fleet on 2026-08-22:
+      # stock reports success for pm, grafana, prometheus, netbox, uptime and
+      # books — because stock FOLLOWS REDIRECTS, so it chases each 302 to the
+      # login page and grades that 200 instead. It fails on traefik only (401,
+      # basic auth), so the naive "stock would false-alarm everywhere" claim is
+      # simply untrue and was measured rather than assumed.
+      #
+      # The real objection is subtler and worse: grading the end of a redirect
+      # chain means the verdict describes the LOGIN PAGE, not the application.
+      # A broken SSO reads as six services down, and a healthy login page in
+      # front of a dead app reads as up — which is precisely the shape of the
+      # #676 outage. This module grades the FIRST response instead.
+      #
+      # 302: pm, grafana, prometheus, netbox, uptime, books redirect to their
+      #      login page when unauthenticated.
+      # 401: traefik's dashboard is behind basic auth.
+      # Both mean "the application is up and answering correctly".
+      #
+      # What is deliberately ABSENT is the whole 5xx range, which is what the
+      # #676 outage actually served (502 from Apache, in front of a dead
+      # Rails). If you add a code here, be sure it cannot be produced by a
+      # broken backend.
+      valid_status_codes: [200, 201, 204, 301, 302, 303, 307, 308, 401, 403]
+
+      # Do not chase redirects. A 302 to a login page is already proof the app
+      # is alive, and following it would make the probe's verdict depend on
+      # the auth flow of each service — turning an SSO change into a fleet-wide
+      # false alarm.
+      follow_redirects: false
+
+      # This fleet is v4-only. Without this blackbox tries AAAA first on every
+      # probe and waits for it to fail, which shows up as latency that is not
+      # the service's fault.
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+
+      # Every target is HTTPS through Traefik. If a probe somehow lands on
+      # plaintext, that is a finding in itself and must fail rather than pass
+      # quietly — a certificate or router misconfiguration is exactly the kind
+      # of silent breakage this role exists to surface.
+      fail_if_not_ssl: true

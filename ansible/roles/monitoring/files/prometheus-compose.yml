@@ -75,3 +75,27 @@ services:
       - /dev/disk/:/dev/disk:ro
     networks:
       - bezaforge-net
+
+  # Added 2026-08-22 for #676. The nine rules that existed before this
+  # watched hosts and containers; none of them asked whether a service
+  # actually answers. pm.bezaforge.dev served 502 for hours on 2026-08-15
+  # with every one of them green, because the container was running and the
+  # host was fine — only the application inside was dead.
+  #
+  # No Traefik labels and no published port: nothing outside Prometheus has
+  # any reason to reach it, and exposing a prober that will follow a URL you
+  # hand it is a needless open door. Prometheus reaches it by container name
+  # on bezaforge-net.
+  blackbox:
+    image: prom/blackbox-exporter:v0.28.0@sha256:e753ff9f3fc458d02cca5eddab5a77e1c175eee484a8925ac7d524f04366c2fc
+    container_name: blackbox
+    restart: unless-stopped
+    volumes:
+      - /opt/bezaforge/prometheus/blackbox-config.yml:/etc/blackbox_exporter/config.yml:ro
+    # ⚠️ Probes resolve *.bezaforge.dev through the host's resolver, which is
+    # AdGuard on this same box, and connect back to Traefik on 10.10.20.20.
+    # That is the whole point — the probe walks the same path a human does —
+    # but it does mean this container depends on DNS and Traefik being up,
+    # and reports them as down when they are not. Correct, not a bug.
+    networks:
+      - bezaforge-net

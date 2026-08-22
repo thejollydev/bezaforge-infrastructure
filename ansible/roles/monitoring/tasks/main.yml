@@ -50,6 +50,36 @@
   notify: restart prometheus
 
 # ------------------------------------------------------------
+# Blackbox exporter config (#676)
+# ------------------------------------------------------------
+# The prober that answers "does this service actually reply?", as opposed to
+# every job above it, which answers "is this host alive?". On 2026-08-15 the
+# second question was green for hours while the first would have been red:
+# pm.bezaforge.dev served 502 from Apache while the Rails app behind it was
+# segfaulting, and no rule on the fleet was looking.
+#
+# Its target list lives in prometheus.yml, NOT here — this file only defines
+# what a healthy answer looks like. See both before changing coverage.
+#
+# Notifies `restart prometheus` because blackbox is a service inside the
+# prometheus compose project, so that handler recreates it too. A config
+# change here is INERT until something makes it take effect: blackbox reloads
+# on SIGHUP or POST /-/reload only, never on its own when the file changes.
+# Verified 2026-08-22 by editing a mounted config under a running v0.28.0 —
+# no reload for 6s, then an immediate "Reloaded config file" on SIGHUP.
+# ⚠️ Its startup log says "Configuration file change detected, reloading the
+# configuration", which reads like a file watcher and is not one; that line
+# is emitted by the shared load path on first read too.
+- name: Deploy blackbox exporter config
+  ansible.builtin.copy:
+    src: blackbox-config.yml
+    dest: "{{ bezaforge_root }}/prometheus/blackbox-config.yml"
+    owner: joseph
+    group: joseph
+    mode: '0644'
+  notify: restart prometheus
+
+# ------------------------------------------------------------
 # Prometheus compose stack
 # ------------------------------------------------------------
 # Three containers in one compose file:

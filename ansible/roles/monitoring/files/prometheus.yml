@@ -52,3 +52,85 @@ scrape_configs:
         labels:
           instance: 'forge-brizza'
           role: 'assistant-host'
+
+  # ============================================================
+  # HTTP service probing (#676)
+  # ============================================================
+  #
+  # Everything above this line measures HOSTS. Nothing above it notices when
+  # a service dies while its host stays green — which is exactly what
+  # happened on 2026-08-15, when pm.bezaforge.dev served 502 for hours with
+  # all nine alert rules green. These two jobs are the other question.
+
+  # The prober's own health. Kept as a SEPARATE job from the probes below so
+  # it produces exactly one `up` series with a sane instance label, which
+  # means the existing "Host Down" rule covers the prober for free and says
+  # "blackbox is down" rather than naming a URL. A watcher that cannot
+  # measure must never look healthy — the same rule the deploy-drift check
+  # follows when it exits INVALID rather than passing.
+  - job_name: 'blackbox-exporter'
+    static_configs:
+      - targets: ['blackbox:9115']
+        labels:
+          instance: 'blackbox'
+
+  # The probes themselves.
+  #
+  # ⚠️ THE TARGET LIST IS THE COVERAGE. There is no other copy — adding a
+  # service to the fleet without adding it here means it is unmonitored, and
+  # nothing will tell you. It was seeded from the fourteen `siteMonitor`
+  # entries in docker/homepage/config/services.yaml, which were already the
+  # curated public surface but only ever drove a browser-side status dot.
+  # Keep the two lists in step.
+  #
+  # ⚠️ COUNT, DON'T EYEBALL (#671's lesson, restated in #676). After any
+  # change here, verify the number of series, not just that the query
+  # returns something:
+  #     count(probe_success)            -> must equal the target count below
+  #     count(probe_success == 1)       -> healthy subset
+  # A target that silently stops being scraped produces no series at all,
+  # and an absent series is indistinguishable from a healthy one in Grafana.
+  #
+  # ⚠️ These probe THROUGH Traefik and AdGuard, deliberately: that is the
+  # path a human uses, so a broken router or DNS record is a real outage and
+  # should alert. The cost is that a Traefik failure lights up all fourteen
+  # at once. That is honest rather than noisy — they are all genuinely
+  # unreachable — and traefik.bezaforge.dev is itself one of the targets.
+  - job_name: 'blackbox-http'
+    metrics_path: /probe
+    params:
+      module: [http_service]
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    static_configs:
+      - targets:
+          - https://bezaforge.dev              # homepage (apex)
+          - https://git.bezaforge.dev          # Gitea
+          - https://docs.bezaforge.dev         # Outline
+          - https://pm.bezaforge.dev           # OpenProject — the #676 outage
+          - https://grafana.bezaforge.dev      # Grafana
+          - https://prometheus.bezaforge.dev   # Prometheus
+          - https://netbox.bezaforge.dev       # NetBox
+          - https://uptime.bezaforge.dev       # Uptime Kuma
+          - https://traefik.bezaforge.dev      # Traefik dashboard
+          - https://erp.bezaforge.dev          # ERPNext
+          - https://books.bezaforge.dev        # Calibre-Web
+          - https://chat.bezaforge.dev         # Open WebUI
+          - https://langfuse.bezaforge.dev     # LangFuse
+          - https://brizza-dash.bezaforge.dev  # Brizza dashboard
+    # The standard blackbox dance: the scrape goes to the exporter, but the
+    # series must be labelled with the URL being probed, not with the
+    # exporter's address. Without the last step every series would collapse
+    # onto instance="blackbox:9115" and fourteen targets would look like one.
+    #
+    # ⚠️ `instance` is set here as a TARGET label on purpose. Target labels
+    # beat metric labels on this fleet (see the standing caveat) — anything
+    # the exporter emitted under the same name would be renamed to
+    # `exported_instance` and the alert would lose the service's identity.
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
