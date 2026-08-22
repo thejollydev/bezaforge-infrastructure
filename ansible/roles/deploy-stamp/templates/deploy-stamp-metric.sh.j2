@@ -40,12 +40,11 @@ EOF
     for f in "${STAMP_DIR}"/*; do
         [ -f "${f}" ] || continue
         # shellcheck disable=SC1090
-        role="" commit_ts="" deployed_ts="" sha="" branch="" dirty=""
+        role="" commit_ts="" sha="" branch="" dirty=""
         while IFS='=' read -r k v; do
             case "${k}" in
                 role) role="${v}" ;;
                 commit_ts) commit_ts="${v}" ;;
-                deployed_ts) deployed_ts="${v}" ;;
                 sha) sha="${v}" ;;
                 branch) branch="${v}" ;;
                 dirty) dirty="${v}" ;;
@@ -56,22 +55,33 @@ EOF
             "${role}" "${commit_ts}"
     done
 
+    # ⚠️ SEMANTICS CHANGED IN #819, deliberately. This used to read a
+    # `deployed_ts` field that roles/deploy-stamp wrote into the stamp on
+    # every run from `date +%s` — which made the stamp task report `changed`
+    # on every run on every host and cost the fleet its idempotency gate for
+    # nine days. It is now the stamp file's mtime, and `copy` only rewrites
+    # the file when the content changes, so this reads "when this role's
+    # deployed commit last CHANGED on this host" — NOT "when the role last
+    # ran". The latter cannot be recorded without writing on every run,
+    # which is precisely the defect. Nothing consumed the old series: no
+    # dashboard, no alert rule, and not scripts/deploy-drift-check.py, which
+    # compares bezaforge_role_deployed_commit_timestamp_seconds above.
     cat <<'EOF'
-# HELP bezaforge_role_deployed_timestamp_seconds Wall-clock time at which this role was last applied to this host.
+# HELP bezaforge_role_deployed_timestamp_seconds Mtime of this role's stamp file — when its deployed commit last changed on this host. NOT when the role last ran; see #819.
 # TYPE bezaforge_role_deployed_timestamp_seconds gauge
 EOF
     for f in "${STAMP_DIR}"/*; do
         [ -f "${f}" ] || continue
-        role="" deployed_ts=""
+        role="" mtime=""
         while IFS='=' read -r k v; do
             case "${k}" in
                 role) role="${v}" ;;
-                deployed_ts) deployed_ts="${v}" ;;
             esac
         done < "${f}"
-        [ -n "${role}" ] && [ -n "${deployed_ts}" ] || continue
+        mtime="$(stat -c %Y "${f}" 2>/dev/null || true)"
+        [ -n "${role}" ] && [ -n "${mtime}" ] || continue
         printf 'bezaforge_role_deployed_timestamp_seconds{ansible_role="%s"} %s\n' \
-            "${role}" "${deployed_ts}"
+            "${role}" "${mtime}"
     done
 
     # 1 means the control node had modified tracked files when this role
