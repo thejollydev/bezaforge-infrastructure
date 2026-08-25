@@ -32,7 +32,7 @@ CONFIG = {
   "prompt-library"=>DEV, "thejollydev"=>DEV,
   # --- infrastructure (one shared taxonomy) ---
   "bezaforge-infrastructure"=>INFRA, "dev-environment"=>INFRA,
-  "ansible-arch"=>INFRA, "ai-workspace"=>INFRA, "master-mind-cutover"=>INFRA,
+  "ansible-arch"=>INFRA, "ai-workspace"=>INFRA,
   # --- business/ops ---
   "bezacore-ops"=>BUSINESS, "bezacore-labs"=>BUSINESS,
   # --- personal / life (bespoke) ---
@@ -51,6 +51,12 @@ CONFIG = {
 # hold no work of their own, so a taxonomy and an Epic type would be clutter on
 # a page nobody files against. Recorded so a later run doesn't "fix" it.
 CONTAINERS = ["infrastructure","personal-life","clients"]
+
+# Retired for good. Not archived-and-might-come-back — done, and deliberately
+# never provisioned again. Listed rather than merely absent so the "NOT IN
+# CONFIG" report below stays quiet about them instead of nagging every run,
+# which is its own kind of resurfacing.
+RETIRED = ["master-mind-cutover"]
 
 type_ids = Type.where(name:["Epic","Feature","Bug"]).pluck(:id)
 abort "expected Epic/Feature/Bug, found #{type_ids.size} of 3" unless type_ids.size == 3
@@ -125,8 +131,9 @@ end
 # A new project that is in neither list announces itself here, rather than being
 # silently missed the way never4ga was.
 puts "---"
-unknown = Project.pluck(:identifier) - CONFIG.keys - CONTAINERS
+unknown = Project.pluck(:identifier) - CONFIG.keys - CONTAINERS - RETIRED
 puts "containers (no taxonomy by design): #{CONTAINERS.join(', ')}"
+puts "retired (never provisioned again): #{RETIRED.join(', ')}"
 puts "NOT IN CONFIG — decide a class for these: #{unknown.join(', ')}" if unknown.any?
 puts "IN CONFIG but missing on the instance: #{missing.join(', ')}" if missing.any?
 puts "bezaforge-infrastructure now: #{bf.categories.order(:name).pluck(:name).join(', ')}"
