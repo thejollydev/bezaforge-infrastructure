@@ -63,8 +63,12 @@ docker cp op_provision_rails.rb openproject:/tmp/ && \
 - **Archived projects 403** on queries, grids and work packages, so
   `op_provision.py` skips them with one message rather than failing six times.
   The Rails half still applies, so an archived project is fully provisioned the
-  moment it is unarchived. Currently archived: `bezacore-ops`,
-  `master-mind-cutover`.
+  moment it is unarchived. Currently archived: `bezacore-ops`.
+- **Retired projects** go in `RETIRED` in the Rails script, not merely left out
+  of `CONFIG` — otherwise the "NOT IN CONFIG" report nags about them on every
+  run, which is its own kind of resurfacing. `master-mind-cutover` is retired:
+  archived, done, and never provisioned again. Its 14 work packages stay; the
+  taxonomy and types a 2026-08-25 run briefly gave it were removed again.
 - The three top-level containers (`infrastructure`, `personal-life`, `clients`)
   are **deliberately** outside the standard — see `CONTAINERS` in the Rails
   script. A run reports any project in neither list, so a new one announces
