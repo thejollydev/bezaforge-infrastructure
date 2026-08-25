@@ -100,10 +100,17 @@ STANDARD_QUERIES = [
 
 def ensure_queries(proj):
     """delete-by-name then recreate (idempotent); return the by-category id."""
+    # A query's project link carries the NUMERIC id (/api/v3/projects/32), never
+    # the identifier, so matching on the identifier silently never matched and
+    # the delete never fired — every re-run added four more saved views. Resolve
+    # the id first and compare against that.
+    _, pdata = req("GET", f"/projects/{proj}")
+    proj_id = pdata.get("id")
     _, ex = req("GET", "/queries?pageSize=200")
     names = {q[0] for q in STANDARD_QUERIES}
     for q in ex.get("_embedded", {}).get("elements", []):
-        if q.get("name") in names and (q["_links"].get("project") or {}).get("href","").endswith(f"/{proj}"):
+        href = ((q["_links"].get("project") or {}).get("href") or "")
+        if q.get("name") in names and href.rsplit("/", 1)[-1] == str(proj_id):
             req("DELETE", f"/queries/{q['id']}")
     ids = {}
     for name, cols, gb, filt, sort, hier in STANDARD_QUERIES:
@@ -173,6 +180,17 @@ def ensure_board(proj):
 def provision(proj):
     cfg = PROJECTS.get(proj, {})
     print(f"== provisioning {proj} ==")
+
+    # An archived project 403s on queries, grids and work packages, so every
+    # step below would fail one at a time and report six errors for one cause.
+    # Say the cause once instead. Rails-side categories/types still apply, so an
+    # archived project is fully provisioned the moment it is unarchived.
+    status, proj_data = req("GET", f"/projects/{proj}")
+    if status == 200 and proj_data.get("active") is False:
+        print("    SKIP — project is archived; unarchive it first")
+        print("== done ==")
+        return
+
     set_project(proj, cfg)
     ensure_milestones(proj, cfg.get("milestones", []))
     cat_qid = ensure_queries(proj)
