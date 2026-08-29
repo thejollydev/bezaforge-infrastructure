@@ -31,7 +31,6 @@ terraform/terraform.tfvars
 
 # Claude
 .claude/
-CLAUDE.md
 
 # Gemini
 .gemini/
@@ -45,8 +44,7 @@ GEMINI.md
 __pycache__/
 *.pyc
 
-# AIW-MANAGED-AGENT-FILES — canonical copy lives in the private vault
-/AGENTS.md
-/CLAUDE.md
+# Agent instruction files are tracked here, per ADR-0011 — the vault holds the
+# work, the repository holds the product, and that includes its own AGENTS.md.
 /.claudeignore
 /.graphifyignore
