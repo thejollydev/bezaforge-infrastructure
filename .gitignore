@@ -47,9 +47,11 @@ __pycache__/
 /.claudeignore
 /.graphifyignore
 
-# Agent instruction files are generated pointers, never content, and are
-# never tracked (ADR-0025). The content lives in the never-knowledge vault and
-# reaches a session through the Never4gA Context Pack.
+# BEGIN never4ga agent instruction files (ADR-0025)
+# These are generated pointers, not content. What they used to carry
+# lives in the never-knowledge vault and reaches a session through the
+# Context Pack.
 AGENTS.md
 CLAUDE.md
 GEMINI.md
+# END never4ga agent instruction files
