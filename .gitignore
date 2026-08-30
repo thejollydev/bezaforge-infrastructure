@@ -44,7 +44,14 @@ GEMINI.md
 __pycache__/
 *.pyc
 
-# Agent instruction files are tracked here, per ADR-0011 — the vault holds the
-# work, the repository holds the product, and that includes its own AGENTS.md.
 /.claudeignore
 /.graphifyignore
+
+# BEGIN never4ga agent instruction files (ADR-0025)
+# These are generated pointers, not content. What they used to carry
+# lives in the never-knowledge vault and reaches a session through the
+# Context Pack.
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+# END never4ga agent instruction files
