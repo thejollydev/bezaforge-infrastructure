@@ -69,15 +69,38 @@ forge_brizza_desktop_package: ubuntu-desktop
 # /home/joseph/.ssh/id_ed25519_vault_sync.pub as a WRITE deploy key on
 # the Gitea vault repo — the first play run fails at the clone step
 # until then (expected).
+# ⚠️ PINNED to the RETIRED Master-Mind vault, deliberately and
+# knowingly (2026-08-30, #791).
+#
+# The role default moved to never-knowledge because the hypervisor's
+# clone is what sanoid snapshots and restic ships offsite, and that was
+# protecting a dead vault. Brizza's grounding is a different question:
+# it is Brizza Phase 2 gate item G3 ("vault grounding re-pointed at
+# something alive"), which names three options — re-point at the OKF
+# vault, ground through bezaforge ADR 0003 shared file access, or drop
+# grounding and reintroduce it in the rebuild — and says all three
+# depend on G1 (rebuild) and G2 (dedicated-VM), so decide them
+# together. That decision is Joseph's and it is open.
+#
+# So this host stays exactly where it is until G3 lands. The pin is
+# explicit rather than inherited BECAUSE the role default moved: without
+# it, brizza would take the new repo while keeping the old clone path,
+# and the new guard in roles/vault-sync would fail its play. Consequence
+# of pinning, stated plainly: Brizza's grounding remains frozen at
+# 2026-08-15 and every vault answer it gives is that date or older
+# (RSK-02, Brizza #793). That is a known, accepted state, not an
+# oversight — remove this pin when G3 is settled.
+vault_sync_repo: "ssh://git@git.bezaforge.dev:2222/joseph/Master-Mind-Obsidian-Vault.git"
 vault_sync_clone_path: /home/joseph/Vaults/Master-Mind
 vault_sync_user: joseph
 vault_sync_create_user: false
-# Brizza drop zone (BRIZZA-62, 2026-06-11): the ONE vault dir the Hermes
-# container can write (nested RW bind over the RO vault mount). Hermes
-# creates new files 0600/uid-10000, which joseph's git can't read — this
-# makes the sync chmod g+rwX the dir (via a scoped sudoers rule) before
-# every git add. See roles/vault-sync/defaults for the full rationale.
-vault_sync_normalize_perms_path: /home/joseph/Vaults/Master-Mind/00-INBOX/Brizza
+# vault_sync_normalize_perms_path REMOVED 2026-08-30 (#791), and this is
+# independent of G3 — it is dead code wherever brizza points. It existed
+# because the Hermes CONTAINER wrote as uid 10000 (BRIZZA-62); Hermes has
+# run bare-metal AS joseph since 2026-06-16, so the sync was firing a
+# root `chmod -R g+rwX` every 60 seconds over files joseph already owned.
+# Leaving it unset also makes the role remove the sudoers rule it
+# installed. See roles/vault-sync/defaults for the full rationale.
 vault_sync_ssh_key: /home/joseph/.ssh/id_ed25519_vault_sync
 vault_sync_manage_leases: false
 vault_sync_manage_etc_hosts: false
