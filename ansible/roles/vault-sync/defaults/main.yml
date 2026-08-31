@@ -16,11 +16,14 @@
 # one had no server-side clone or snapshots at all. No decision gates
 # that; it is a data-protection fix.
 #
-# forge-brizza is NOT repointed here. Its grounding is Brizza Phase 2
-# gate item G3, which is open — see host_vars/forge-brizza/vars.yml,
-# where it is pinned to the old repo explicitly and the consequences of
-# that pin are stated. Do not "tidy up" that pin: removing it silently
-# repoints Brizza and settles a decision that is Joseph's.
+# ⚠️ This is now a SINGLE-HOST role. forge-brizza was retired 2026-08-30
+# with Brizza v1, taking the second deployment with it — and with it the
+# only writer this sync ever had. The parametrization below (the
+# deployment-shape flags, the create_user / webhook / mirror / lease
+# switches) exists because there were two very different deployments.
+# It is kept rather than collapsed into the hypervisor's shape because
+# Brizza v2 is being built and may want a clone again, but be aware that
+# only one path is exercised today.
 #
 # The vault left Google Drive (ADR 0002): Gitea is the single
 # hub; this role maintains the server-side clone on the
@@ -36,13 +39,11 @@
 #   - forge-hypervisor: canonical server clone on the bezapool/vault
 #     ZFS dataset (sanoid + restic scope), GitHub/GitLab mirror
 #     fan-out, Gitea webhook receiver. Defaults below = this host.
-#   - forge-brizza: LOCAL clone for Hermes vault grounding
-#     (host_vars overrides; timer-only — no webhook/mirrors/leases).
-#     Replaces the retired NFS-RW mount: recursive traversal over NFS
-#     intermittently EINVALed when a checkout here raced the NFS
-#     client (FORGE-49); a local clone has no NFS in the read path.
-#     (The bezapool/vault NFS exports were retired with it — no
-#     consumers remain post-Cognee.)
+#   - forge-brizza: RETIRED 2026-08-30. Was a local clone for Hermes
+#     vault grounding (timer-only — no webhook/mirrors/leases), itself
+#     replacing an NFS-RW mount whose recursive traversal EINVALed when
+#     a checkout here raced the NFS client (FORGE-49). Both the host and
+#     the agent that read the clone are gone.
 #
 # Prereqs done out-of-band 2026-06-06 (one-time):
 #   - deploy key ~/.ssh/id_ed25519_vault_sync registered in
@@ -59,8 +60,7 @@
 #   - forge-hypervisor's pre-existing Master-Mind clone at
 #     /bezapool/vault moved aside before the first run — see the guard
 #     in tasks/main.yml for why this is a deliberate manual step rather
-#     than something the play does. (forge-brizza needs neither step
-#     while it stays pinned to the old repo.)
+#     than something the play does.
 # ============================================================
 
 # Where the clone lives — the bezapool/vault dataset, LOCAL on
@@ -135,9 +135,14 @@ vault_sync_etc_hosts_pins:
   - git.bezaforge.dev
   - uptime.bezaforge.dev
 
-# Identity for commits made by the sync (Hermes/Brizza writes).
-vault_sync_git_name: "Brizza (vault-sync)"
-vault_sync_git_email: "brizza@bezaforge.dev"
+# Identity for commits made by the sync. Renamed off "Brizza
+# (vault-sync)" / brizza@bezaforge.dev on 2026-08-30: Brizza was the only
+# writer this clone ever had, and attributing future commits to a retired
+# agent would misname whatever actually made them. The auto-commit step
+# is dormant now — there is no local writer at all — but it stays for
+# robustness, and if it ever fires the author should be the service.
+vault_sync_git_name: "vault-sync"
+vault_sync_git_email: "vault-sync@bezaforge.dev"
 
 # Webhook receiver — Gitea POSTs here on every push so pulls
 # happen within seconds. UFW restricts sources to forge-ops

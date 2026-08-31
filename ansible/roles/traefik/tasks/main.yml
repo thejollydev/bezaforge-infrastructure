@@ -56,9 +56,8 @@
 
 # Off-box backend routes (file provider). The Docker provider only
 # discovers containers local to forge-ops, so services on OTHER hosts
-# (e.g. the Brizza Hermes dashboard on forge-brizza, VLAN 50) are declared
-# as explicit router+service files here. FORGE-54. Hot-reloaded like
-# middleware — no restart.
+# (e.g. ERPNext on forge-erp) are declared as explicit router+service
+# files here. FORGE-54. Hot-reloaded like middleware — no restart.
 - name: Deploy Traefik dynamic off-box routes
   ansible.builtin.copy:
     src: "{{ item }}"
@@ -67,19 +66,21 @@
     group: joseph
     mode: '0644'
   loop:
-    - brizza-dash.yml
     - erp.yml
 
 # FORGE-56: Hermes Studio was abandoned (unmaintained April-2026 fork
 # targeting Hermes v0.9, incompatible with the live v2026.6.5 gateway).
 # The copy task above does NOT prune files dropped from its loop, so
 # remove the retired route explicitly — Traefik hot-reloads it away.
+# brizza-dash.yml joins it 2026-08-30: forge-brizza was retired with
+# Brizza v1, so the route pointed at a host that no longer answers.
 - name: Remove retired off-box routes
   ansible.builtin.file:
     path: "{{ bezaforge_root }}/traefik/config/dynamic/{{ item }}"
     state: absent
   loop:
     - studio.yml
+    - brizza-dash.yml
 
 # ------------------------------------------------------------
 # SSL certificate storage

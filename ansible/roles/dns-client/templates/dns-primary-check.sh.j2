@@ -26,7 +26,7 @@
 # LINGERING state is detected instead of discovered months later.
 #
 # Remediation when this alerts (safe, ~1s of DNS interruption):
-#     ansible forge-ops,forge-ai,forge-brizza,forge-erp -i inventory/hosts.yml \
+#     ansible forge-ops,forge-ai,forge-erp -i inventory/hosts.yml \
 #       -m systemd -a "name=systemd-resolved state=restarted" \
 #       --become --ask-become-pass --ask-vault-pass
 

@@ -22,8 +22,9 @@
 #      2026-08-09. That was true when written, and stopped being the whole
 #      story the day the hypervisor started serving DNS.)
 #
-#   2. the VMs (forge-ai, forge-erp, forge-brizza) — freshly booted after
-#      step 1. forge-erp wants a clean container stop for ERPNext/MariaDB.
+#   2. the VMs (forge-ai, forge-erp) — freshly booted after step 1.
+#      forge-erp wants a clean container stop for ERPNext/MariaDB.
+#      (forge-brizza was retired 2026-08-30 with Brizza v1.)
 #
 #   3. forge-ops LAST — it runs AdGuard, which is DNS for EVERY VLAN. While
 #      forge-ops is down nothing else can resolve deb.debian.org, so no other
@@ -35,7 +36,7 @@
 # something restarts the resolver. DNS keeps working, so nothing looks wrong
 # — but AdGuard's query log goes blind for that host and its filtering stops.
 #
-#   ansible forge-ops,forge-ai,forge-brizza,forge-erp -i inventory/hosts.yml \
+#   ansible forge-ops,forge-ai,forge-erp -i inventory/hosts.yml \
 #     -m systemd -a "name=systemd-resolved state=restarted" \
 #     --become --ask-become-pass --ask-vault-pass
 #
@@ -64,7 +65,7 @@
   tags: [update, hypervisor]
 
 - name: Update the Proxmox guest VMs
-  hosts: forge-ai,forge-erp,forge-brizza
+  hosts: forge-ai,forge-erp
   become: true
   gather_facts: true
   serial: 1
@@ -94,7 +95,7 @@
       ansible.builtin.debug:
         msg:
           - "hosts needing reboot : {{ osu_reboot_hosts | join(', ') if osu_reboot_hosts else 'none' }}"
-          - "reboot order         : forge-hypervisor -> forge-ai/forge-erp/forge-brizza -> forge-ops"
+          - "reboot order         : forge-hypervisor -> forge-ai/forge-erp -> forge-ops"
           - "why forge-ops last   : it runs AdGuard, DNS for every VLAN"
           - "then verify with     : ansible-playbook health.yml"
       vars:

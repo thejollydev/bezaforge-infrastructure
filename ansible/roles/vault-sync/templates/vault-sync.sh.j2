@@ -7,7 +7,7 @@
 # a no-op, so webhook+timer coexistence is safe.
 #
 # Conflict policy: local commits that can't rebase cleanly are parked on
-# brizza/conflict-<ts> (pushed to Gitea for visibility) and main is reset
+# vault-sync/conflict-<ts> (pushed to Gitea for visibility) and main is reset
 # to origin — nothing is force-pushed, nothing is silently dropped.
 set -euo pipefail
 
@@ -36,7 +36,7 @@ sudo /usr/bin/chmod -R g+rwX {{ vault_sync_normalize_perms_path }}
 # 1. Commit any local writes (Hermes/Brizza) so they survive the rebase.
 if [ -n "$(git status --porcelain)" ]; then
   git add -A
-  git commit -q -m "brizza: vault-sync auto-commit $(date -Iseconds)"
+  git commit -q -m "vault-sync: auto-commit $(date -Iseconds)"
 fi
 
 # 2. Rebase onto the hub.
@@ -48,10 +48,10 @@ if ! git pull --rebase -q origin "{{ vault_sync_branch }}"; then
   if [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; then
     ts=$(date +%Y%m%d-%H%M%S)
     git rebase --abort 2>/dev/null || true
-    git branch "brizza/conflict-${ts}"
-    git push -q origin "brizza/conflict-${ts}" || true
+    git branch "vault-sync/conflict-${ts}"
+    git push -q origin "vault-sync/conflict-${ts}" || true
     git reset --hard -q "origin/{{ vault_sync_branch }}"
-    logger -t vault-sync "CONFLICT: local commits parked on brizza/conflict-${ts}; main reset to origin"
+    logger -t vault-sync "CONFLICT: local commits parked on vault-sync/conflict-${ts}; main reset to origin"
   else
     logger -t vault-sync "pull failed (network/auth?) — leaving state untouched, will retry"
   fi
