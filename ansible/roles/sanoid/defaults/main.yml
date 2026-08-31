@@ -44,16 +44,6 @@ sanoid_templates:
     daily: 7
     weekly: 4
     monthly: 6
-  # brizza_backup: same posture as forge_ops_backup — a derivative copy
-  # refreshed nightly (03:45 rsync of forge-brizza's ~/.hermes, FORGE-25).
-  # NOT the vzdump trap: the source prunes exports on a 14-day window, so
-  # snapshots here EXTEND history past the source retention (the point),
-  # pinning only small dailies — not multi-GB pruned backup archives.
-  brizza_backup:
-    hourly: 0
-    daily: 7
-    weekly: 4
-    monthly: 6
   # forge-erp ERPNext bench backups (FORGE-60/61/62). Financial-grade: extends
   # history well past the 14-day local prune on forge-erp. `yearly` is honoured
   # by the conditional in sanoid.conf.j2 (the other templates simply omit it).
@@ -109,10 +99,11 @@ sanoid_datasets:
     template: "forge_ops_backup"
     recursive: "no"
 
-  # forge-brizza ~/.hermes nightly mirror (FORGE-25, 2026-06-12).
-  - dataset: "bezapool/brizza-backup"
-    template: "brizza_backup"
-    recursive: "no"
+  # bezapool/brizza-backup REMOVED 2026-08-30 with the Brizza v1 teardown.
+  # ⚠️ Removing it here stops NEW snapshots; it does not delete the dataset
+  # or the snapshots already taken. Those hold the only history of Brizza's
+  # ~/.hermes beyond the source's own 14-day export prune, so destroying
+  # them is a separate, deliberate act — see the retirement PR's runbook.
 
   # forge-erp ERPNext bench backups (FORGE-60/61/62, 2026-06-17). Small logical
   # dumps pushed nightly from forge-erp — safe to snapshot (NOT the vzdump trap;

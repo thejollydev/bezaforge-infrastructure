@@ -45,7 +45,7 @@ PROJECTS = {
   "intelligrace": {"status": _ON,
     "description": "BezaCore Labs co-flagship product (Django 6 + Django Ninja + Wagtail 7.4 + Next.js 16, Cloud Run). Phase 0."},
   "brizza": {"status": _ON,
-    "description": "Personal AI assistant — LIVE on the Hermes Agent bridge (forge-brizza, bare-metal). Python + LangGraph build = planned graduation."},
+    "description": "Personal AI assistant. v1 (Hermes Agent bridge on forge-brizza) was torn down whole 2026-08-30; v2 is a ground-up rebuild with a different shape — multiple Hermes clients or an agent swarm, possibly laptop-orchestrated."},
   "bezacore-cogs": {"status": _ON,
     "description": "BezaCore Labs small-tools (COG) collection. Ideation — first candidate: village-app."},
   # ---- business / ops ----

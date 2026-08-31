@@ -63,7 +63,7 @@ VERBOSE=0
 NAMES=(
   # host records (explicit on both sides)
   forge-hypervisor forge-ops forge-ops-mgmt omada
-  forge-ai forge-erp forge-brizza forge-dev
+  forge-ai forge-erp forge-dev
   # service names (wildcard -> Traefik)
   home traefik grafana git pm docs books erp netbox uptime langfuse
   # controls

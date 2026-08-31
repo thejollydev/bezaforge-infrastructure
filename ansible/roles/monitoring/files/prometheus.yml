@@ -46,13 +46,6 @@ scrape_configs:
         labels:
           instance: 'forge-erp'
 
-  - job_name: 'node-exporter-forge-brizza'
-    static_configs:
-      - targets: ['10.10.50.20:9100']
-        labels:
-          instance: 'forge-brizza'
-          role: 'assistant-host'
-
   # ============================================================
   # HTTP service probing (#676)
   # ============================================================
@@ -117,7 +110,6 @@ scrape_configs:
           - https://books.bezaforge.dev        # Calibre-Web
           - https://chat.bezaforge.dev         # Open WebUI
           - https://langfuse.bezaforge.dev     # LangFuse
-          - https://brizza-dash.bezaforge.dev  # Brizza dashboard
     # The standard blackbox dance: the scrape goes to the exporter, but the
     # series must be labelled with the URL being probed, not with the
     # exporter's address. Without the last step every series would collapse

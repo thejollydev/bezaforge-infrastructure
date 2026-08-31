@@ -281,7 +281,7 @@ groups:
         # rebooted, the sharepool ZFS pool failed to import, and sanoid threw
         # CRITICAL every 15 minutes for ~24 h with nobody alerted. A failed
         # systemd unit is the earliest generic signal that a host is degraded.
-        # Covers forge-hypervisor / forge-ai / forge-erp / forge-brizza, which
+        # Covers forge-hypervisor / forge-ai / forge-erp, which
         # run the NATIVE prometheus-node-exporter (systemd collector enabled),
         # AND forge-ops — corrected 2026-08-09. This comment used to say
         # forge-ops was "NOT covered yet", which stopped being true the moment
@@ -389,7 +389,7 @@ groups:
           for: 30m
           annotations:
             summary: '{{ $labels.instance }} is resolving via the SECONDARY DNS server, not AdGuard'
-            description: 'systemd-resolved failed over and does not fail back on its own, so this persists silently: the host loses ad-filtering and vanishes from AdGuard query logs while everything looks healthy. Any adguard container restart can cause it. Fix (about 1s of DNS interruption): ansible forge-ops,forge-ai,forge-brizza,forge-erp -i inventory/hosts.yml -m systemd -a "name=systemd-resolved state=restarted" --become --ask-become-pass --ask-vault-pass — ALSO run "sudo systemctl restart systemd-resolved" on the workstation, which parks identically but is not in the inventory and runs no dns-client role, so it emits no metric and THIS ALERT CANNOT SEE IT. On 2026-08-09 the workstation was parked three separate times in one session and a human caught it every time.'
+            description: 'systemd-resolved failed over and does not fail back on its own, so this persists silently: the host loses ad-filtering and vanishes from AdGuard query logs while everything looks healthy. Any adguard container restart can cause it. Fix (about 1s of DNS interruption): ansible forge-ops,forge-ai,forge-erp -i inventory/hosts.yml -m systemd -a "name=systemd-resolved state=restarted" --become --ask-become-pass --ask-vault-pass — ALSO run "sudo systemctl restart systemd-resolved" on the workstation, which parks identically but is not in the inventory and runs no dns-client role, so it emits no metric and THIS ALERT CANNOT SEE IT. On 2026-08-09 the workstation was parked three separate times in one session and a human caught it every time.'
           isPaused: false
           notification_settings:
             receiver: Discord

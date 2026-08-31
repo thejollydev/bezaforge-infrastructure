@@ -45,7 +45,7 @@ If failover works for REFUSED but not BLACKHOLE, that is a real and useful findi
    → expect a public address (values vary)
 
 3. **Two terminals** — the Phase A block commands are self-timing and hold their terminal, so measurement happens in the other. (In practice a second machine can do the measuring over SSH instead; the block only needs to hold *a* terminal.)
-4. **Physical or Proxmox-console access is available** if something goes badly. forge-ops is bare metal — it has no Proxmox console. The VMs (forge-ai 101, forge-erp 103, forge-brizza 104) do, at `https://10.10.10.10:8006`.
+4. **Physical or Proxmox-console access is available** if something goes badly. forge-ops is bare metal — it has no Proxmox console. The VMs (forge-ai 101, forge-erp 103) do, at `https://10.10.10.10:8006`.
 
 ### Host reference (use IPs — DNS is the thing being broken)
 
@@ -53,7 +53,6 @@ If failover works for REFUSED but not BLACKHOLE, that is a real and useful findi
 |---|---|---|
 | forge-ops | `10.10.20.20` | resolved global (`DNS=`) |
 | forge-ai | `10.10.50.10` | netplan link scope |
-| forge-brizza | `10.10.50.20` | netplan link scope |
 | forge-erp | `10.10.20.50` | netplan link scope |
 | forge-hypervisor | `10.10.10.10` | static resolv.conf → own dnsmasq |
 | Joseph's laptop | `10.10.40.99` | NetworkManager → resolv.conf **and** systemd-resolved (nsswitch `resolve` is first) |
@@ -126,7 +125,7 @@ Re-run the A2 measurements. Failover here will be slower — that is expected, a
 
 ### A4. Repeat A1–A3 on the remaining hosts
 
-Order: **forge-erp** → **forge-brizza** → **forge-ai** → **forge-ops**.
+Order: **forge-erp** → **forge-ai** → **forge-ops**.
 
 forge-ops is last and deserves care: it is where AdGuard runs.
 
@@ -293,7 +292,6 @@ Failover times are the deliverable. Fill this in and paste it into #638:
 | forge-erp | **71 ms** | **10.18 s** | ✅ | ✅ | single link scope, networkd |
 | forge-ops | discarded | **10.20 s** | ✅ | ✅ | first REFUSED run used a leaking block (container DNAT); the link-scoped `1.1.1.1` never answered once |
 | forge-ai | ✅ (Phase B) | not run | ✅ | ✅ | structurally identical to forge-erp |
-| forge-brizza | ✅ (Phase B) | not run | ✅ | ✅ | NetworkManager renderer |
 | laptop | **83 ms** (Phase B) | not run | ✅ | ✅ | uncacheable probe name, so not a cache hit |
 
 **The two numbers that matter.** A *stopped container* refuses immediately → failover in **under 100 ms**, which is the case you actually hit on every `--tags adguard` deploy. A *dead or unreachable host* has to time out → **~10.2 s** on the first query, then normal. Both are recoveries, not outages.
@@ -302,7 +300,7 @@ Failover times are the deliverable. Fill this in and paste it into #638:
 
 ```bash
 cd ~/Projects/bezaforge-infrastructure/ansible
-ansible forge-ops,forge-ai,forge-brizza,forge-erp -i inventory/hosts.yml \
+ansible forge-ops,forge-ai,forge-erp -i inventory/hosts.yml \
   -m systemd -a "name=systemd-resolved state=restarted" \
   --become --ask-become-pass --ask-vault-pass
 ```

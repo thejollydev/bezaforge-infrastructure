@@ -47,11 +47,8 @@ backup_services:
     # The db-dumps logical pg_dump is the authoritative DB restore path;
     # this physical tree copy is a secondary (crash-consistent for the live
     # pgdata) and captures attachments under assets/.
-  - name: brizza-postgres
-    # Physical copy of the data dir alongside the logical pg_dumpall
-    # (db-dumps). The dump is the authoritative restore path; this
-    # mirrors the outline pattern for parity.
   # cognee removed 2026-06-09 (Cognee retired — see Cognee KB doc + journal)
+  # brizza-postgres removed 2026-08-30 (Brizza v1 teardown)
   - name: prometheus
     excludes:
       # The write-ahead-log is constantly mutating during scrape.

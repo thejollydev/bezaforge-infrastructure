@@ -42,7 +42,7 @@ dns_client_search_domains:
 # reason #628 refused to template PVE's /etc/network/interfaces: fighting
 # the thing that owns the file loses.
 #
-#   netplan  — Ubuntu VMs (forge-ai, forge-brizza, forge-erp). Netplan owns
+#   netplan  — Ubuntu VMs (forge-ai, forge-erp). Netplan owns
 #              the link, so nameservers go in a netplan drop-in and end up
 #              LINK-scoped. This role then leaves DNS= out of resolved.conf
 #              entirely, so the host has exactly ONE scope.
@@ -61,7 +61,9 @@ dns_client_method: netplan
 # ⚠️ EVERY NETPLAN HOST MUST DECLARE THIS EXPLICITLY IN host_vars. The
 # fleet has no single right answer, so this default is a placeholder, not
 # a fleet convention — inheriting it is always a bug:
-#   forge-brizza   eth0       (real rename: matched by MAC + set-name)
+#   (forge-brizza used eth0 — a real rename matched by MAC + set-name —
+#    and was retired 2026-08-30; noted because Brizza v2 may reuse the
+#    same cloud-init and inherit the same non-default key.)
 #   forge-ai       enp6s18    (kernel ALTNAME; presents as ens18)
 #   forge-erp      enp6s18    (kernel ALTNAME; presents as ens18)
 #

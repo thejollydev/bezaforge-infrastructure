@@ -4,7 +4,7 @@
 # Bucket B (FORGE-85)
 #
 # Mounts the `files` Samba share served by roles/fileshare on
-# forge-hypervisor, giving agent VMs (forge-brizza, forge-ai)
+# forge-hypervisor, giving agent VMs (forge-ai; Brizza v2 when built)
 # filesystem access to documents + the live two-way Google
 # Drive mount — an agent write is a plain file write, no Drive
 # MCP/API needed.
@@ -31,7 +31,7 @@ fileshare_client_username: bezashare
 
 # Local ownership as seen THROUGH the mount. cifs has no per-file
 # ownership; everything appears as this uid/gid. 1000 = joseph (the
-# agent/service user on both forge-brizza and forge-ai).
+# agent/service user on forge-ai).
 fileshare_client_uid: 1000
 fileshare_client_gid: 1000
 
