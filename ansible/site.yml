@@ -1,7 +1,8 @@
 ---
 # ============================================================
 # BezaForge Infrastructure — forge-hypervisor + forge-ops +
-# forge-ai + forge-brizza
+# forge-ai + forge-erp
+# (forge-brizza retired 2026-08-30; assistant_hosts is empty)
 # ============================================================
 
 - name: Configure BezaForge hypervisor
@@ -100,8 +101,6 @@
     # Replaced Plane 2026-07 (Plane retired, FORGE #455).
     - role: openproject
       tags: openproject
-    - role: brizza-postgres
-      tags: brizza-postgres
     - role: db-dumps
       tags: backups
     - role: minio-exports
@@ -156,49 +155,26 @@
     - role: deploy-stamp
       tags: always
 
-- name: Configure BezaForge assistant hosts
-  hosts: assistant_hosts
-  become: true
-
-  roles:
-    - role: unattended-upgrades
-      tags: unattended-upgrades
-    # Masks units that can never succeed on the host (opt-in per host_vars),
-    # so the #552 failed-unit alert only ever fires on real failures.
-    - role: systemd-hygiene
-      tags: systemd-hygiene
-    # Removes obsolete duplicate dpkg conffiles left by distro upgrades
-    # (currently the cloud-init logrotate duplicate, LP#2152107).
-    - role: conffile-cleanup
-      tags: conffile-cleanup
-    # Resolver config (#638). forge-brizza does NOT run `common`, so before
-    # this role its DNS was configured only by roles/forge-brizza's own
-    # netplan drop-in — correct, but invisible to every fleet-wide DNS
-    # change. That ownership now lives here.
-    - role: dns-client
-      tags: dns-client
-    # Read-only journal/log access for the admin user (#638 session). Same
-    # four plays as dns-client because that is exactly the set of hosts with
-    # a `joseph` account — forge-hypervisor is root-only.
-    - role: admin-access
-      tags: admin-access
-    - role: fail2ban
-      tags: fail2ban
-    - role: forge-brizza
-      tags: forge-brizza
-    # FORGE-49: local vault clone for Hermes grounding — replaces the
-    # NFS-RW mount (vaultsync-checkout-vs-NFS-reader race). Timer-only;
-    # all hypervisor-specific behavior is disabled in host_vars.
-    - role: vault-sync
-      tags: vault-sync
-    # ADR 0003 Bucket B consumer: mount the hypervisor's `files` SMB
-    # share (docs + live two-way Google Drive) at /mnt/bezashare.
-    - role: fileshare-client
-      tags: fileshare-client
-    # Deploy stamp — must stay LAST, `tags: always` (#671). See the
-    # hypervisor play above for why.
-    - role: deploy-stamp
-      tags: always
+# ------------------------------------------------------------
+# forge-brizza (assistant_hosts) — RETIRED 2026-08-30.
+#
+# Brizza v1 was torn down whole: the VM, the Hermes agent on it, the
+# brizza-postgres store on forge-ops, the Ollama fallback model on
+# forge-ai, and the ~/.hermes backups. Brizza v2 is being rebuilt from
+# scratch with a different shape (multiple Hermes clients or a swarm,
+# possibly orchestrated from the laptop), so nothing here was worth
+# carrying forward — a v1 play kept "just in case" would have described
+# a machine that no longer exists and a design that no longer applies.
+#
+# The IDENTITY is held, not freed: VMID 104, 10.10.50.20 and
+# forge-brizza.bezaforge.dev are reserved for v2 (same treatment as
+# forge-dev, 2026-08-08). See terraform/vms.tf and the DNS rewrite in
+# group_vars/all/vars.yml, both of which carry the reservation.
+#
+# The assistant_hosts group is kept EMPTY in inventory/hosts.yml rather
+# than deleted, so this play can come back by adding a host rather than
+# by rebuilding the group.
+# ------------------------------------------------------------
 
 - name: Configure BezaForge ERP host
   hosts: erp_hosts

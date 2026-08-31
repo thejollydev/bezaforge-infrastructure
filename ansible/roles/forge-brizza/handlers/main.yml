@@ -1,8 +1,0 @@
----
-# Handlers only run when notified by a task that made a change.
-
-# Both handlers this role used to define — `restart systemd-resolved`
-# (FORGE-45) and `netplan apply` (FORGE-38) — moved to roles/dns-client
-# with the DNS tasks that notified them (#638, 2026-08-08). Nothing in this
-# role notifies anything now; a handler that can never fire is worse than
-# no handler, because it reads as coverage.

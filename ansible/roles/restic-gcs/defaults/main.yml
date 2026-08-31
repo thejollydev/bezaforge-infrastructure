@@ -28,10 +28,9 @@ restic_backup_sources:
   # RETIRED Master-Mind vault offsite nightly while the live vault had no
   # offsite copy at all. Size drops to ~25 MB with the smaller corpus.
   - /bezapool/vault
-  # forge-brizza ~/.hermes mirror (FORGE-25, 2026-06-12). Lands at 03:45
-  # via hermes-backup-rsync on forge-brizza — inside this 04:00 window,
-  # so GCS carries same-night session exports + state snapshots. ~600 MB.
-  - /bezapool/brizza-backup
+  # /bezapool/brizza-backup REMOVED 2026-08-30 (Brizza v1 teardown). New
+  # runs no longer back it up; snapshots already in GCS age out on the
+  # repository's own retention rather than vanishing with this change.
   # forge-erp ERPNext app-consistent bench backups (FORGE-60/61/62,
   # 2026-06-17). Pushed nightly at 03:30 by forge-erp-backup.sh on forge-erp —
   # inside this 04:00 window, so GCS carries same-night financial dumps. ~1 MB.

@@ -82,44 +82,25 @@ module "forge_erp" {
 }
 
 # ---------------------------------------------------------------------------
-# forge-brizza — VMID 104
-# Ubuntu 26.04, Brizza AI assistant (Hermes Agent bridge; LangGraph graduation planned)
-# VLAN 50 (AI), 10.10.50.20
+# forge-brizza — VMID 104 — RETIRED 2026-08-30, IDENTITY RESERVED
+#
+# Brizza v1 was torn down whole (VM, Hermes agent, brizza-postgres on
+# forge-ops, the Ollama fallback model on forge-ai, the ~/.hermes
+# backups). The module is removed rather than commented out, because a
+# commented module is not state — Terraform would still have destroyed
+# the VM on the next apply either way, and dead HCL only invites someone
+# to uncomment a v1 shape into a v2 world.
+#
+# ⚠️ VMID 104, 10.10.50.20 and forge-brizza.bezaforge.dev are RESERVED,
+# not freed — Brizza v2 is being built and will take them. Same
+# treatment as forge-dev (VMID 102). Do not hand any of the three to
+# another host.
+#
+# v2 will not be a copy of this: the shape under discussion is multiple
+# Hermes clients or an agent swarm, possibly orchestrated from the
+# laptop, so its resources (4 cores / 16 GB / 100 GB here) should be
+# sized against that design rather than inherited from this one.
 # ---------------------------------------------------------------------------
-
-module "forge_brizza" {
-  source = "./modules/proxmox-vm"
-
-  vm_id       = 104
-  name        = "forge-brizza"
-  description = "Brizza AI assistant — Hermes Agent bridge (Discord + dashboard)"
-  node_name   = var.proxmox_node
-  cores       = 4
-  memory      = 16384
-  # FORGE-83: enable ballooning (no passthrough). Reclaim 16384→4096 under host
-  # pressure; floor 4096 is generous for the lightly-loaded Hermes bridge (could
-  # be lowered for more reclaim). Makes the Proxmox RAM gauge accurate too.
-  balloon_minimum     = 4096
-  disk_size           = 100
-  storage_pool        = "vm-fast"
-  disk_interface      = "scsi0"
-  cpu_type            = "x86-64-v2-AES"
-  bios_type           = "ovmf"
-  bridge              = "vmbr0"
-  vlan_id             = 50
-  ip_address          = "10.10.50.20/24"
-  gateway             = "10.10.50.1"
-  ssh_public_key      = var.ssh_public_key
-  cloud_init_password = var.cloud_init_password
-  tags                = ["ai", "brizza"]
-  # Live pet — manage as imported (like forge-ai/erp), not template-clone. It was
-  # cloned from the template at birth, but it's a running VM now; leaving
-  # create_from_template=true kept a live `clone` block whose template vm_id is a
-  # force-replacement attribute, so bumping the template_id default (9000→9002)
-  # would have destroyed+recreated it. Disk is already raw (module default), so no
-  # disk_format override needed. See ROADMAP #107 provisioning decision (2026-07-15).
-  create_from_template = false
-}
 
 # ---------------------------------------------------------------------------
 # forge-arcade — VMID 105

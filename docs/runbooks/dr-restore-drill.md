@@ -23,11 +23,11 @@ Per ADR 0001 (MVB four-layer) + the forge-erp hardening in PR #63 (FORGE-60/61/6
 | # | Layer | Produces | Schedule | Offsite? | Restore proves |
 |---|-------|----------|----------|----------|----------------|
 | 1 | **VM image** (Proxmox vzdump, all VMs, `snapshot` mode + guest-agent fs-freeze) | `vzdump-qemu-<vmid>-*.vma.zst` on `bezapool-vzdump`, keep-daily=7 | 02:00 | **No** (on-pool only) | A whole VM boots from bare metal |
-| 2 | **App-consistent dumps** — forge-ops Postgres (`db-dumps`: gitea, langfuse, netbox, outline, brizza → `bezapool/forge-ops-backup`, keep 14) + forge-erp `bench backup --with-files` → `bezapool/forge-erp-backup` | `.sql.gz` / bench `.tgz` | 02:30 / 03:30 | Yes (via layer 4) | A database/site restores independent of the VM |
-| 3 | **ZFS snapshots** (sanoid, every 15 min) on `gdrive`, `forge-ops-backup`, `brizza-backup`, `forge-erp-backup`, `downloads`, `media` | block-level snapshots | continuous | No | File-level "undo" + point-in-time recovery |
-| 4 | **Offsite** (restic → GCS Nearline) of `/bezapool/{forge-ops-backup,vault,brizza-backup,forge-erp-backup}` + `/sharepool/files` | encrypted restic repo in GCS | 04:00; integrity `restic check` Sun 05:00 | **Yes (this IS the offsite)** | Data survives total loss of the rack |
+| 2 | **App-consistent dumps** — forge-ops Postgres (`db-dumps`: gitea, langfuse, netbox, outline → `bezapool/forge-ops-backup`, keep 14) + forge-erp `bench backup --with-files` → `bezapool/forge-erp-backup` | `.sql.gz` / bench `.tgz` | 02:30 / 03:30 | Yes (via layer 4) | A database/site restores independent of the VM |
+| 3 | **ZFS snapshots** (sanoid, every 15 min) on `gdrive`, `forge-ops-backup`, `forge-erp-backup`, `downloads`, `media` | block-level snapshots | continuous | No | File-level "undo" + point-in-time recovery |
+| 4 | **Offsite** (restic → GCS Nearline) of `/bezapool/{forge-ops-backup,vault,forge-erp-backup}` + `/sharepool/files` | encrypted restic repo in GCS | 04:00; integrity `restic check` Sun 05:00 | **Yes (this IS the offsite)** | Data survives total loss of the rack |
 
-**Layer supply chain (nightly):** 02:00 vzdump → 02:30 db-dumps → 02:45 forge-ops rsync → 03:00 sanoid daily → 03:30 forge-erp bench→rsync → 03:45 brizza `~/.hermes` rsync → 04:00 restic→GCS. So the 04:00 offsite run carries *same-night* dumps.
+**Layer supply chain (nightly):** 02:00 vzdump → 02:30 db-dumps → 02:45 forge-ops rsync → 03:00 sanoid daily → 03:30 forge-erp bench→rsync → 04:00 restic→GCS. So the 04:00 offsite run carries *same-night* dumps.
 
 ---
 

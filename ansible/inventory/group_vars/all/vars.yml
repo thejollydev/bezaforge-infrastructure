@@ -118,6 +118,10 @@ bezaforge_dns_rewrites:
   - {domain: "omada.bezaforge.dev", answer: "10.10.10.5"}
   - {domain: "forge-ai.bezaforge.dev", answer: "10.10.50.10"}
   - {domain: "forge-erp.bezaforge.dev", answer: "10.10.20.50"}
+  # forge-brizza (VMID 104) was retired 2026-08-30 with Brizza v1. Kept
+  # deliberately, same call as forge-dev below: Brizza v2 is being built
+  # and will reuse this name and address, so this is a reservation rather
+  # than stale config. Resolves to nothing until v2 exists.
   - {domain: "forge-brizza.bezaforge.dev", answer: "10.10.50.20"}
   # forge-dev (VMID 102) does not currently exist — removed from the fleet.
   # Mirrored deliberately on Joseph's call 2026-08-08: he intends to rebuild

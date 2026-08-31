@@ -6,7 +6,4 @@ output "forge_erp_ip" {
   value = module.forge_erp.ip_address
 }
 
-output "forge_brizza_ip" {
-  value = module.forge_brizza.ip_address
-}
 

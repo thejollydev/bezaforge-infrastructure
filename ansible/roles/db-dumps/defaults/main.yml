@@ -42,9 +42,8 @@ postgres_dumps:
     # (socket peer-auth), -x -O so it restores into the DB a fresh
     # container recreates. (#471)
     dump_cmd: "docker exec openproject su - postgres -c 'pg_dump -d openproject -x -O'"
-  - service: brizza
-    container: brizza-db
 # harbor removed 2026-05-17 (retired — see ROADMAP carryover #8)
 # wiki removed 2026-05-17 (Wiki.js retired — see ROADMAP carryover #21)
 # taiga removed 2026-05-22 (Taiga retired — see guide 12)
 # plane removed 2026-07-14 (Plane retired — migrated to OpenProject, FORGE #455)
+# brizza removed 2026-08-30 (Brizza v1 torn down whole — VM, agent and store)

@@ -14,7 +14,7 @@
 # one more rclone mount matches that pattern and avoids the
 # FUSE-in-unprivileged-LXC unknown (ADR 0003 build refinement, 2026-06-28).
 #
-# Consumers (all via SMB/cifs): laptop, Windows desktop, forge-brizza,
+# Consumers (all via SMB/cifs): laptop, Windows desktop,
 # forge-ai. Code/vault do NOT live here — that's Bucket A (git + Gitea).
 #
 # One-time prereqs (Joseph, interactive):
@@ -76,13 +76,13 @@ fileshare_allowed_networks:
   - "10.10.20.0/24"   # production (forge-ops, forge-erp)
   - "10.10.30.0/24"   # dev
   - "10.10.40.0/24"   # home (laptop + Windows desktop)
-  - "10.10.50.0/24"   # AI (forge-brizza, forge-ai)
+  - "10.10.50.0/24"   # AI (forge-ai; 10.10.50.20 reserved for Brizza v2)
   - "10.10.99.0/24"   # WireGuard
 
 # Secrets:
 #   vault_fileshare_smb_password — inventory/group_vars/all/vault.yml
 #     (moved from host_vars 2026-07-02, FORGE-85: the fileshare-client
-#     role on forge-brizza/forge-ai reads the same credential)
+#     role on forge-ai reads the same credential)
 # Define in host_vars/forge-hypervisor/vault.yml (server-only):
 #   vault_fileshare_drive_client_id:     "….apps.googleusercontent.com"
 #   vault_fileshare_drive_client_secret: "GOCSPX-…"
