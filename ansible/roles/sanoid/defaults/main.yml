@@ -70,7 +70,9 @@ sanoid_templates:
   # snapshotted — it already holds point-in-time VM backups, and snapshotting a
   # backup dataset pinned every pruned-out daily backup (1.44 TB dead weight;
   # one stale weekly snapshot alone held 619 GB). See the datasets list below.
-  # vault: the Master-Mind git clone (ADR 0002). Same posture as
+  # vault: the never-knowledge git clone (ADR 0002; was Master-Mind
+  # until the #791 repoint — this dataset spent a fortnight snapshotting
+  # a retired vault hourly). Same posture as
   # gdrive had — hottest dataset, hourly granularity genuinely useful.
   # Git history overlaps this protection but snapshots also cover
   # untracked/ignored files and a corrupted-clone scenario.

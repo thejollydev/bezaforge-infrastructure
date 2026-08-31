@@ -102,7 +102,7 @@ Ansible automates all post-provisioning configuration for forge-ops. A single co
 | `forge-brizza` | forge-brizza host config — Hermes Agent bridge (bare-metal since 2026-06-16), sudo-rs→classic pin, LLMNR off, `~/.hermes` nightly backup. *(The NFS vault mount was retired in FORGE-49 — forge-brizza now runs its own local vault clone via `roles/vault-sync`.)* |
 | `fail2ban` | SSH brute-force protection (forge-ops, forge-ai, forge-brizza) |
 | `brizza-postgres` | Brizza's Postgres 18 on forge-ops — `brizza` DB, LangGraph-checkpointer + APScheduler schemas |
-| `vault-sync` | Master-Mind vault git sync (ADR 0002) — canonical clone on the hypervisor (webhook + timer, GitHub/GitLab mirror fan-out) and a parametrized local-clone deployment on forge-brizza for Hermes (FORGE-49) |
+| `vault-sync` | Knowledge vault git sync (ADR 0002, `never-knowledge`) — canonical clone on the hypervisor (webhook + timer, GitHub/GitLab mirror fan-out) and a parametrized local-clone deployment on forge-brizza for Hermes (FORGE-49) |
 | `gdrive-replica` | One-way nightly rclone mirror of Google Drive → `bezapool/gdrive` on the hypervisor (drive.readonly scope; replaces retired Insync — FORGE-35) |
 | `sanoid` | ZFS auto-snapshots on forge-hypervisor — per-dataset retention on `bezapool` **and `sharepool`** (vault 24h/14d/8w/12m, gdrive 24h/14d/8w/12m, forge-ops-backup 7d/4w/6m, brizza-backup, forge-erp-backup, sharepool/files; backup datasets deliberately not snapshotted). Also owns the nightly `syncoid` replica `sharepool/files` → `bezapool/sharepool-backup`. |
 | `db-dumps` | Nightly 02:30 EDT `pg_dumpall` per Postgres container on forge-ops → NFS-mounted `bezapool/forge-ops-backup` |
@@ -224,7 +224,7 @@ Models served locally — no external API calls for LLM inference.
 
 **bezapool** — ZFS mirror pool on forge-hypervisor:
 - 2× 4TB HDDs in mirror configuration
-- Datasets: `vault` (Master-Mind vault git clone — ADR 0002, synced from Gitea by `roles/vault-sync`), `gdrive` (Google Drive docs replica — nightly one-way rclone via `roles/gdrive-replica`), `forge-ops-backup` (nightly app-state mirror), `brizza-backup` (forge-brizza `~/.hermes`), `forge-erp-backup` (ERPNext bench backups), `sharepool-backup` (syncoid replica), `vzdump` (Proxmox VM backups — deliberately not snapshotted)
+- Datasets: `vault` (knowledge vault git clone — ADR 0002, `never-knowledge` synced from Gitea by `roles/vault-sync`), `gdrive` (Google Drive docs replica — nightly one-way rclone via `roles/gdrive-replica`), `forge-ops-backup` (nightly app-state mirror), `brizza-backup` (forge-brizza `~/.hermes`), `forge-erp-backup` (ERPNext bench backups), `sharepool-backup` (syncoid replica), `vzdump` (Proxmox VM backups — deliberately not snapshotted)
 - NFS exports: `bezapool/{gdrive,forge-ops-backup}` mounted on forge-ops at `/mnt/bezapool/`
 
 > The `media` + `downloads` datasets and their NFS exports were **destroyed 2026-07-18** when the Jellyfin/Seedbox media stack was retired (~106 GB reclaimed). Ebooks are served by Calibre-Web-Automated from `/opt/bezaforge/calibre-web/` bind mounts, **not** from an NFS-mounted dataset.
@@ -294,7 +294,7 @@ bezaforge-infrastructure/
 │       ├── minio-exports/             # LangFuse MinIO logical exports
 │       ├── guest-agent/               # qemu-guest-agent on Proxmox VMs
 │       ├── rocm/                      # forge-ai ROCm as-built
-│       ├── vault-sync/                # Master-Mind vault git sync (hypervisor + forge-brizza deployments)
+│       ├── vault-sync/                # Knowledge vault git sync (hypervisor + forge-brizza deployments)
 │       ├── gdrive-replica/            # Nightly rclone Drive→bezapool mirror (hypervisor)
 │       ├── sanoid/                    # ZFS auto-snapshots on forge-hypervisor (bezapool)
 │       ├── db-dumps/                  # Nightly pg_dumpall per Postgres container → NFS

@@ -18,12 +18,12 @@
 #           forge_brizza_hermes_insurance_enabled (FORGE-94 decoupled
 #           this + the FORGE-25 rsync backup from the docker flag).
 #
-# Companion docs (Master-Mind vault):
-#   - 05_Projects/brizza/ROADMAP.md
-#   - 05_Projects/brizza/phases/Phase-1-Deploy.md
-#   - 05_Projects/bezaforge-infrastructure/phases/2-automation/
-#       08-memory-system-role.md
-#         → "Phase A continuation on forge-brizza"
+# Companion docs (never-knowledge vault — repathed #791; these were
+# 05_Projects/... in the retired Master-Mind vault):
+#   - 10_Workspaces/Brizza/Plans/roadmap.md
+#   - 10_Workspaces/Brizza/Plans/phase-2_bridge-live.md
+#   - 10_Workspaces/BezaCore-Labs/Workspaces/BezaForge-Infrastructure/
+#       Plans/phase-2_automation.md
 # ============================================================
 
 # ------------------------------------------------------------

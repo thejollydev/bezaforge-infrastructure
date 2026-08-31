@@ -124,8 +124,8 @@
         description: Public mirror
         icon: github.png
     - Vault:
-        href: obsidian://open?vault=Master-Mind
-        description: Master-Mind knowledge base
+        href: obsidian://open?vault=never-knowledge
+        description: never-knowledge base
         icon: obsidian.png
 
 # ─────────────────────────── Hosts tab ───────────────────────────

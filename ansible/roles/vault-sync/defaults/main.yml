@@ -1,8 +1,26 @@
 ---
 # ============================================================
-# vault-sync role defaults — Master-Mind vault git clone on
+# vault-sync role defaults — knowledge vault git clone on
 # forge-hypervisor (ADR 0002 v1.2, 2026-06-06; runs on the
 # bezapool/vault dataset owner — git-over-NFS wedged brizza's kernel)
+#
+# ⚠️ REPOINTED 2026-08-30 (#791): the vault this DEFAULT serves is
+# `never-knowledge`, NOT the retired Master-Mind vault. Master-Mind was
+# archived (#195) and its Gitea repo has been frozen at 2026-08-15 ever
+# since, so both deployments were syncing a dead corpus perfectly and
+# silently — every run fetched cleanly, found nothing and exited 0.
+#
+# The half fixed here is the hypervisor's: bezapool/vault is what sanoid
+# snapshots hourly and restic-gcs ships offsite nightly, so that
+# protection was being spent on a vault nobody writes to while the live
+# one had no server-side clone or snapshots at all. No decision gates
+# that; it is a data-protection fix.
+#
+# forge-brizza is NOT repointed here. Its grounding is Brizza Phase 2
+# gate item G3, which is open — see host_vars/forge-brizza/vars.yml,
+# where it is pinned to the old repo explicitly and the consequences of
+# that pin are stated. Do not "tidy up" that pin: removing it silently
+# repoints Brizza and settles a decision that is Joseph's.
 #
 # The vault left Google Drive (ADR 0002): Gitea is the single
 # hub; this role maintains the server-side clone on the
@@ -31,6 +49,18 @@
 #     Gitea (read_only=false)
 #   - Gitea webhook → http://10.10.10.10:{{ port }}/ created
 #     via API with the Authorization header token below
+#
+# Re-done out-of-band for the #791 repoint (one-time, per host):
+#   - the SAME deploy key registered WRITE on the never-knowledge
+#     repo in Gitea, and on its GitHub/GitLab mirrors. A key is
+#     authorized per-repository, so a key that worked against
+#     Master-Mind does not carry over; the clone task fails until
+#     it is registered (expected).
+#   - forge-hypervisor's pre-existing Master-Mind clone at
+#     /bezapool/vault moved aside before the first run — see the guard
+#     in tasks/main.yml for why this is a deliberate manual step rather
+#     than something the play does. (forge-brizza needs neither step
+#     while it stays pinned to the old repo.)
 # ============================================================
 
 # Where the clone lives — the bezapool/vault dataset, LOCAL on
@@ -64,7 +94,8 @@ vault_sync_create_user: true
 vault_sync_webhook_enabled: true
 
 # Gitea origin. SSH on the Gitea container's mapped port 2222.
-vault_sync_repo: "ssh://git@git.bezaforge.dev:2222/joseph/Master-Mind-Obsidian-Vault.git"
+# never-knowledge since #791 (2026-08-30) — see the repoint note above.
+vault_sync_repo: "ssh://git@git.bezaforge.dev:2222/joseph/never-knowledge.git"
 vault_sync_branch: main
 
 # Deploy key (generated on-host if missing; pubkey must be a
@@ -127,9 +158,17 @@ vault_sync_webhook_allowed_sources:
 #
 # Hermes's file tool creates NEW files 0600 (mkstemp tempfile-then-
 # rename; it only copies the original mode when OVERWRITING). On
-# forge-brizza those files are owned by container uid 10000, so the
-# sync user (joseph/1000, group-only access) can't read them and
-# `git add -A` hard-fails — wedging the ENTIRE sync, pulls included.
+# forge-brizza those files WERE owned by container uid 10000, so the
+# sync user (joseph/1000, group-only access) couldn't read them and
+# `git add -A` hard-failed — wedging the ENTIRE sync, pulls included.
+#
+# ⚠️ No host enables this any more (#791, 2026-08-30). Hermes moved
+# Docker→bare-metal on 2026-06-16 and now runs AS joseph, so there is
+# no foreign-uid writer left to normalize; forge-brizza's override was
+# firing a root `chmod -R` every 60 seconds against files it already
+# owned. The mechanism stays because it is generic and the sudoers
+# rule self-removes when the path is empty (see tasks/main.yml) — but
+# turning it back on needs a real foreign-uid writer to justify it.
 # When set to a directory path, the sync script runs
 #   sudo /usr/bin/chmod -R g+rwX <path>
 # before staging, and the role installs a sudoers rule scoped to
@@ -158,10 +197,10 @@ vault_sync_mirror_push: true
 vault_sync_mirror_remotes:
   - name: github
     host: github.com
-    url: "git@github.com:thejollydev/Master-Mind-Obsidian-Vault.git"
+    url: "git@github.com:thejollydev/never-knowledge.git"
   - name: gitlab
     host: gitlab.com
-    url: "git@gitlab.com:thejollydev/Master-Mind-Obsidian-Vault.git"
+    url: "git@gitlab.com:thejollydev/never-knowledge.git"
 
 # ------------------------------------------------------------
 # Freshness heartbeat (FORGE-40 detection layer)

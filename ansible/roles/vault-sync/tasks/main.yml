@@ -1,6 +1,7 @@
 ---
 # ============================================================
-# vault-sync — server-side Master-Mind vault clone (ADR 0002)
+# vault-sync — server-side knowledge vault clone (ADR 0002).
+# Serves `never-knowledge` since #791 — see defaults/main.yml.
 # ============================================================
 
 - name: Install git
@@ -79,6 +80,37 @@
   register: vault_sync_mirror_known_hosts
   changed_when: "vault_sync_mirror_known_hosts.rc == 0
                  and (vault_sync_mirror_known_hosts.stdout | default('')) != ''"
+
+# The clone task below runs with update:false, so on a host that already
+# has a clone it will not fetch — but it WILL rewrite `origin` if the URL
+# has changed. That is the silent-failure shape #791 was: a working tree
+# full of one vault's content, an origin pointing at another, and a sync
+# script that would happily `git add -A` the difference and push it. Stop
+# instead, and make the operator move the old clone aside deliberately.
+# noqa justified (same case as roles/deploy-stamp): ansible.builtin.git
+# CLONES a repo, it does not report an existing one's remote. Reading a
+# git fact is exactly what the module cannot do.
+- name: Check the origin of any pre-existing clone  # noqa: command-instead-of-module
+  become: true
+  become_user: "{{ vault_sync_user }}"
+  ansible.builtin.command:
+    cmd: git -C {{ vault_sync_clone_path }} remote get-url origin
+  register: vault_sync_existing_origin
+  changed_when: false
+  failed_when: false
+  check_mode: false   # a read-only probe must run under --check too (#671)
+
+- name: Refuse to repoint a clone that holds a different vault
+  ansible.builtin.fail:
+    msg: >-
+      {{ vault_sync_clone_path }} is a clone of
+      {{ vault_sync_existing_origin.stdout | trim }}, but this role now
+      serves {{ vault_sync_repo }}. Ansible would rewrite origin and leave
+      the old vault's content staged against the new repo. Move the old
+      clone aside first, then re-run so it clones fresh.
+  when:
+    - vault_sync_existing_origin.rc == 0
+    - (vault_sync_existing_origin.stdout | trim) != vault_sync_repo
 
 - name: Clone the vault repo (first run only)
   become: true
