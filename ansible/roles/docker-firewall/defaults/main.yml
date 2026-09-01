@@ -1,0 +1,56 @@
+---
+# ============================================================
+# docker-firewall — source-restrict Docker-published ports (#963)
+# ============================================================
+# THE HOLE THIS EXISTS TO CLOSE. roles/common sets UFW to default-deny
+# incoming and opens only 80/443/53 to all, 22 to the Mgmt VLAN plus
+# common_admin_ssh_sources, 9100 to monitoring, 2049 to the hypervisor.
+# That is a correct policy and it is genuinely enforced — probed from
+# another VLAN on 2026-09-01, forge-ops refused 22 and 111.
+#
+# It does not apply to containers. Docker publishes a port by writing
+# its own rules into the nat and FORWARD chains, and traffic to a
+# published port never traverses UFW's INPUT chain — so UFW's
+# default-deny is structurally incapable of covering it. The same probe
+# reached 2222 (Gitea SSH), 3100 (Loki, unauthenticated) and 3053
+# (AdGuard admin UI) from a VLAN that should have had none of them.
+#
+# Loki was fixed by unpublishing it (roles/monitoring's loki-compose.yml
+# now binds 127.0.0.1) because nothing consumed the published binding at
+# all. The two below have real remote consumers and so need a rule
+# rather than a removal.
+#
+# WHY DOCKER-USER. Docker guarantees this chain is evaluated BEFORE its
+# own published-port rules and it does not flush it on daemon restart,
+# so it is the one supported place to filter container traffic. Rules
+# are kept in a dedicated child chain this role owns outright, flushed
+# and rebuilt on every apply, so the role never has to reason about what
+# a previous run left behind.
+docker_firewall_enabled: true
+
+# Own chain, jumped to from DOCKER-USER. Named rather than writing into
+# DOCKER-USER directly so a flush here can never remove a rule that
+# something else (Docker itself, a future role) put there.
+docker_firewall_chain: BEZAFORGE-DOCKER
+
+docker_firewall_script: /usr/local/sbin/bezaforge-docker-firewall.sh
+
+# Sources allowed to reach EVERY protected port below, unless a port
+# overrides with its own `allow`. The Mgmt VLAN is the admin network and
+# already has blanket UFW access to these hosts; the two laptop
+# addresses are the same pair common_admin_ssh_sources carries (Home
+# WiFi and WireGuard), kept in step with it deliberately.
+docker_firewall_default_allow:
+  - 10.10.10.0/24
+  - 10.10.40.99
+  - 10.10.99.99
+
+# Empty by default so the role is a no-op on any host that has not opted
+# in through host_vars — same stance as roles/systemd-hygiene.
+#
+# `port` is the PUBLISHED (host-side) port, not the container's. The
+# script matches it with conntrack's --ctorigdstport, because by the time
+# a packet reaches FORWARD it has already been DNAT'd to the container's
+# address and port; matching --dport here would silently match nothing
+# and the rule would look present while filtering no traffic.
+docker_firewall_ports: []

@@ -7,8 +7,23 @@ services:
     image: grafana/loki:3.7.6@sha256:efd47c67f9bac88ca29bcf8cb997d9ab29d1848bd0aff579282295542a745952
     container_name: loki
     restart: unless-stopped
+    # ⚠️ BOUND TO LOCALHOST, DELIBERATELY (#963). This published on
+    # 10.10.20.20:3100 until 2026-09-01, which put an UNAUTHENTICATED
+    # Loki on the Production IP — and because Docker's iptables rules
+    # bypass UFW's INPUT chain, roles/common's default-deny never
+    # applied to it. It answered /ready with 200 to a probe from
+    # another VLAN.
+    #
+    # Nothing consumed that binding. Promtail pushes to
+    # http://loki:3100 and Grafana's datasource reads the same, both
+    # over the bezaforge-net Docker network, which is unaffected by
+    # publishing. No promtail, vector or fluent process exists on any
+    # other host (checked fleet-wide 2026-09-01), so there is no remote
+    # shipper either. Localhost is kept rather than removing the
+    # publish entirely so `curl localhost:3100` still works on the host
+    # for debugging.
     ports:
-      - "10.10.20.20:3100:3100"
+      - "127.0.0.1:3100:3100"
     volumes:
       - /opt/bezaforge/loki/config.yml:/etc/loki/config.yml:ro
       - /opt/bezaforge/loki/data:/loki

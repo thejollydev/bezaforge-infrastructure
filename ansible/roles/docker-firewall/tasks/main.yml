@@ -1,0 +1,54 @@
+---
+# roles/docker-firewall (#963) — see defaults/main.yml for why this exists.
+
+- name: Restrict Docker-published ports
+  when: docker_firewall_enabled | bool
+  block:
+
+    # iptables is present on any Docker host by definition (dockerd
+    # writes rules with it), but the package can be absent on a minimal
+    # image where dockerd shells out to a vendored copy. Cheap to assert.
+    - name: Ensure iptables is installed
+      ansible.builtin.apt:
+        name: iptables
+        state: present
+
+    - name: Deploy the Docker published-port firewall script
+      ansible.builtin.template:
+        src: bezaforge-docker-firewall.sh.j2
+        dest: "{{ docker_firewall_script }}"
+        owner: root
+        group: root
+        mode: '0755'
+      register: docker_firewall_script_state
+
+    - name: Deploy the Docker published-port firewall unit
+      ansible.builtin.template:
+        src: bezaforge-docker-firewall.service.j2
+        dest: /etc/systemd/system/bezaforge-docker-firewall.service
+        owner: root
+        group: root
+        mode: '0644'
+      notify: reload systemd (docker-firewall)
+
+    - name: Flush handlers (reload systemd)
+      ansible.builtin.meta: flush_handlers
+
+    - name: Enable the Docker published-port firewall at boot
+      ansible.builtin.systemd:
+        name: bezaforge-docker-firewall.service
+        enabled: true
+      when: not ansible_check_mode
+
+    # Applied immediately rather than only at the next boot: the rules
+    # are the whole point of the role, and leaving a host unprotected
+    # until it happens to reboot would mean the deploy reports success
+    # while changing nothing. The script is idempotent, so running it on
+    # every pass is correct and cheap — changed_when is tied to the
+    # script content rather than the run, because rebuilding a chain to
+    # the same contents is not a change.
+    - name: Apply the Docker published-port rules now
+      ansible.builtin.command:
+        cmd: "{{ docker_firewall_script }}"
+      changed_when: docker_firewall_script_state is changed
+      when: not ansible_check_mode
