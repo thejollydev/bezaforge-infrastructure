@@ -165,3 +165,18 @@ sanoid_syncoid_replications:
 # settled, before restic→GCS fires at 04:00 (ordering parity with the
 # other backup legs, though restic reads the live sharepool path).
 sanoid_syncoid_schedule: "*-*-* 03:15:00"
+
+# ------------------------------------------------------------
+# Scrub liveness metric (#956)
+# ------------------------------------------------------------
+# The scrub CADENCE is Debian's stock /etc/cron.d/zfsutils-linux
+# (second Sunday monthly, all pools) and is deliberately left alone —
+# it is package-maintained, it demonstrably fires (the 2026-08-09
+# scrubs on record were it), and replacing it would be codifying a
+# thing that already works. What was missing is anything that NOTICES
+# when it stops working: this timer publishes each pool's last scrub
+# end time hourly, and the "Zpool Scrub Overdue" Grafana rule alerts
+# when a pool ages past the cadence plus margin. Outcome, not schedule.
+sanoid_scrub_metric_script: /usr/local/bin/bezaforge-zpool-scrub-metric.py
+sanoid_scrub_metric_file: /var/lib/prometheus/node-exporter/bezaforge_zpool_scrub.prom
+sanoid_scrub_metric_schedule: hourly

@@ -573,3 +573,134 @@ groups:
           isPaused: false
           notification_settings:
             receiver: Discord
+        # ============================================================
+        # Zpool Scrub Overdue + Zpool Scrub Errors (#956)
+        # ============================================================
+        # bezapool spent three weeks with one mirror leg on a failing SATA
+        # link, and the last scrub predated the fault — "0 known data
+        # errors" was a claim nobody had retested against the media. The
+        # scrub CADENCE already existed (Debian's stock
+        # /etc/cron.d/zfsutils-linux, second Sunday monthly; the 2026-08-09
+        # scrubs on record were it firing), but nothing watched the OUTCOME.
+        # roles/sanoid publishes each pool's last scrub end time hourly;
+        # this alerts when a pool ages past the monthly cadence plus margin.
+        #
+        # 40 days, not 32: the cron fires on the second Sunday, so
+        # consecutive scrubs can legitimately sit 35 days apart (Aug 9 ->
+        # Sep 13). 40 fires only when a full cycle has genuinely been
+        # missed. A running scrub reports its start time (see the metric
+        # script), so a scrub in flight on day 39 reads as fresh rather
+        # than flapping mid-scrub.
+        #
+        # noDataState: NoData is load-bearing, same as the DNS and drift
+        # rules — if the metric timer dies, the series vanishes, and an
+        # absent series must fire rather than read as a healthy pool.
+        - uid: bfg9zpoolscrub01
+          title: Zpool Scrub Overdue
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 3600
+                to: 0
+              datasourceUid: dfdseqn41ybk0e
+              model:
+                editorMode: code
+                expr: (time() - bezaforge_zpool_last_scrub_timestamp_seconds) / 86400
+                instant: true
+                intervalMs: 1000
+                legendFormat: '{{ $labels.zpool }}'
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 40
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          noDataState: NoData
+          execErrState: OK
+          for: 6h
+          annotations:
+            summary: 'zpool {{ $labels.zpool }} has not been scrubbed in {{ $values.A }} days'
+            description: 'The monthly scrub cadence is Debian''s stock /etc/cron.d/zfsutils-linux (second Sunday, all ONLINE pools) — this alert means it has not produced a completed scrub on this pool for over 40 days, so either the cron is gone, the pool was not ONLINE when it fired, a scrub was started and never finished, or the last scan was a resilver (which deliberately does not count — after a resilver a scrub is exactly what is wanted). A value in the tens of thousands of days means the pool has never been scrubbed at all (metric is 0). Check zpool status <pool> on forge-hypervisor, then zpool scrub <pool> — but NOT while the pool has a known-failing device link; a scrub is hours of sustained I/O through every leg (the 2026-08-31 lesson, #955/#956). Metric source: bezaforge-zpool-scrub-metric.timer (roles/sanoid).'
+          isPaused: false
+          notification_settings:
+            receiver: Discord
+        # A scrub that completes WITH errors is worse than an overdue one —
+        # it is positive evidence of data damage, and zpool status was the
+        # only place it appeared. No for: delay beyond one evaluation
+        # window: this value only changes when a scrub completes, so there
+        # is nothing to debounce.
+        - uid: bfg9zpoolscrub02
+          title: Zpool Scrub Errors
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 3600
+                to: 0
+              datasourceUid: dfdseqn41ybk0e
+              model:
+                editorMode: code
+                expr: bezaforge_zpool_scrub_errors
+                instant: true
+                intervalMs: 1000
+                legendFormat: '{{ $labels.zpool }}'
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          noDataState: OK
+          execErrState: OK
+          for: 1m
+          annotations:
+            summary: 'zpool {{ $labels.zpool }} last scrub reported {{ $values.A }} errors'
+            description: 'The most recent scrub on this pool completed with errors — positive evidence of damaged data, not a scheduling problem. Run zpool status -v <pool> on forge-hypervisor to see the affected files, and check whether a device leg is degraded before anything else. noDataState is OK here (unlike Scrub Overdue) because the overdue rule already owns the absent-series case; both firing for one dead timer would be the #961 noise shape.'
+          isPaused: false
+          notification_settings:
+            receiver: Discord

@@ -1,0 +1,12 @@
+# Managed by Ansible role: sanoid — do not edit by hand.
+[Unit]
+Description=BezaForge zpool scrub metric (hourly)
+
+[Timer]
+OnCalendar={{ sanoid_scrub_metric_schedule }}
+# The metric must exist soon after boot, not an hour later — an absent
+# series is indistinguishable from a healthy one in Grafana.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

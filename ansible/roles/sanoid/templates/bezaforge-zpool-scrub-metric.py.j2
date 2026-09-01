@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+# {{ ansible_managed }} — roles/sanoid/templates/bezaforge-zpool-scrub-metric.py.j2 (#956)
+#
+# Publishes per-pool scrub state as node_exporter textfile metrics, so
+# "when was this pool last scrubbed" is a question Prometheus can answer
+# and an overdue scrub is a firing alert instead of a discovery.
+#
+# WHY THIS EXISTS. bezapool spent 2026-08-11 through 2026-08-31 with one
+# mirror leg on a SATA link that reset under load, and the last scrub
+# predated the fault. The monthly cadence DOES exist — Debian's stock
+# /etc/cron.d/zfsutils-linux scrubs every pool on the second Sunday, and
+# the 2026-08-09 scrubs on record were exactly that — but nothing
+# watched whether it kept happening. This fleet's standing lesson
+# applies: a scheduled job proves it ran, not that the data is fresh.
+# The metric measures the OUTCOME (scrub end time per pool), so the
+# alert fires whether the cause is a deleted cron, a pool that skips
+# (the stock script skips pools not ONLINE), or a scrub that never
+# finishes.
+#
+# Reads `zpool status -j --json-int` (OpenZFS >= 2.3; this host runs
+# 2.4.x) rather than parsing the human-format output, whose dates are
+# locale- and layout-fragile.
+#
+# ⚠️ SCRUBS ONLY. If the pool's most recent scan was a RESILVER, its
+# end_time deliberately does NOT count as a scrub: the timestamp stays
+# at 0 and the overdue alert fires until a real scrub completes — which
+# is the right nag, because after a resilver a scrub is exactly what
+# you want. (`scan_stats.function` distinguishes the two.)
+#
+# ⚠️ A RUNNING SCRUB REPORTS ITS START TIME. end_time for an in-flight
+# scan is not yet meaningful, but emitting 0 would make a pool look
+# never-scrubbed for the hours a scrub takes — the age alert would fire
+# mid-scrub, which is the flap #961 just removed elsewhere. A scrub that
+# hangs for weeks still fires the alert once its start time ages past
+# the threshold, so nothing is hidden by this.
+#
+# Write-then-rename: node_exporter reads the textfile directory
+# continuously; rename(2) on the same filesystem is atomic.
+
+import json
+import os
+import subprocess
+import sys
+
+OUT = "{{ sanoid_scrub_metric_file }}"
+
+
+def pools():
+    out = subprocess.run(
+        ["zpool", "list", "-H", "-o", "name"],
+        capture_output=True, text=True, check=True,
+    ).stdout
+    return out.split()
+
+
+def scan_stats(pool):
+    out = subprocess.run(
+        ["zpool", "status", "-j", "--json-int", pool],
+        capture_output=True, text=True, check=True,
+    ).stdout
+    return json.loads(out)["pools"][pool].get("scan_stats") or {}
+
+
+def main():
+    lines = [
+        "# HELP bezaforge_zpool_last_scrub_timestamp_seconds End time of this pool's last completed scrub (start time while one is running; 0 if never scrubbed or last scan was a resilver).",
+        "# TYPE bezaforge_zpool_last_scrub_timestamp_seconds gauge",
+    ]
+    errors_lines = [
+        "# HELP bezaforge_zpool_scrub_errors Errors reported by this pool's most recent scrub.",
+        "# TYPE bezaforge_zpool_scrub_errors gauge",
+    ]
+    running_lines = [
+        "# HELP bezaforge_zpool_scrub_in_progress 1 while a scrub is running on this pool.",
+        "# TYPE bezaforge_zpool_scrub_in_progress gauge",
+    ]
+
+    for pool in pools():
+        ss = scan_stats(pool)
+        is_scrub = ss.get("function") == "SCRUB"
+        state = ss.get("state", "")
+        if is_scrub and state == "FINISHED":
+            ts = ss.get("end_time", 0)
+        elif is_scrub and state == "SCANNING":
+            ts = ss.get("start_time", 0)
+        else:
+            ts = 0
+        lines.append(
+            'bezaforge_zpool_last_scrub_timestamp_seconds{zpool="%s"} %d'
+            % (pool, ts)
+        )
+        errors_lines.append(
+            'bezaforge_zpool_scrub_errors{zpool="%s"} %d'
+            % (pool, ss.get("errors", 0) if is_scrub else 0)
+        )
+        running_lines.append(
+            'bezaforge_zpool_scrub_in_progress{zpool="%s"} %d'
+            % (pool, 1 if (is_scrub and state == "SCANNING") else 0)
+        )
+
+    tmp = "%s.%d" % (OUT, os.getpid())
+    with open(tmp, "w") as fh:
+        fh.write("\n".join(lines + errors_lines + running_lines) + "\n")
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, OUT)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

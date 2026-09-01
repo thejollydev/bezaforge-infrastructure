@@ -98,3 +98,47 @@
     name: sanoid.timer
     enabled: true
     state: started
+
+# ------------------------------------------------------------
+# Scrub liveness metric (#956) — see defaults for why this exists
+# and why the cadence itself stays with Debian's stock cron.
+# ------------------------------------------------------------
+
+- name: Deploy the zpool scrub metric script
+  ansible.builtin.template:
+    src: bezaforge-zpool-scrub-metric.py.j2
+    dest: "{{ sanoid_scrub_metric_script }}"
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Deploy zpool scrub metric unit + timer
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "/etc/systemd/system/{{ item.dest }}"
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+    - { src: 'bezaforge-zpool-scrub-metric.service.j2', dest: 'bezaforge-zpool-scrub-metric.service' }
+    - { src: 'bezaforge-zpool-scrub-metric.timer.j2', dest: 'bezaforge-zpool-scrub-metric.timer' }
+  notify: reload systemd (sanoid)
+
+# Skipped in check mode for the same reason as the syncoid timer above:
+# a first --check run only simulates writing the unit file.
+- name: Enable + start the scrub metric timer
+  ansible.builtin.systemd:
+    name: bezaforge-zpool-scrub-metric.timer
+    enabled: true
+    state: started
+  when: not ansible_check_mode
+
+# Run once now rather than waiting for the first timer fire: an absent
+# series is indistinguishable from a healthy one in Grafana, so the
+# alert would be silently unarmed until the top of the hour. Same
+# reasoning as roles/deploy-stamp and roles/dns-client.
+- name: Generate the scrub metrics now
+  ansible.builtin.command:
+    cmd: "{{ sanoid_scrub_metric_script }}"
+  changed_when: false
+  when: not ansible_check_mode
