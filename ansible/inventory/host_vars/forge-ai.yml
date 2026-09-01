@@ -67,22 +67,32 @@ dns_client_netplan_id: enp6s18
 # from this role restores what never4ga needs instead of silently
 # breaking retrieval. The failure would be quiet: embedding calls fail,
 # search degrades to FTS, and nothing says why.
+# ⚠️ OPENCODE ON THE LAPTOP DEPENDS ON THIS HOST. It is configured
+# against http://10.10.50.10:11434/v1 with qwen3-coder:30b as its
+# default model and qwen2.5-coder:14b as its small_model
+# (~/.config/opencode/opencode.jsonc). qwen3-coder:30b (18 GB) was
+# pulled by hand 2026-08-30 and never declared; declared 2026-08-31
+# (#953) so a rebuild of forge-ai restores what opencode needs instead
+# of breaking it with no explanation — the same quiet failure class as
+# the never4ga embedding above (#203).
 ollama_models:
   - hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q8_0
+  - qwen3-coder:30b
+  - qwen2.5-coder:14b
 
 # ⚠️ UNDECLARED DRIFT, deliberately left for Joseph rather than guessed.
-# `ollama list` on forge-ai shows 14 models; this file declares one. The
-# rest have no recorded consumer, so declaring them here would assert a
-# desired state nobody chose:
-#   generative — qwen2.5-coder:14b, qwen3:30b-a3b (and qwen3.6:27b plus
-#     its -64k variant, both retiring with Brizza v1)
+# `ollama list` on forge-ai shows 14 models; this file declares three.
+# The rest have no recorded consumer, so declaring them here would
+# assert a desired state nobody chose:
+#   generative — qwen3:30b-a3b (and qwen3.6:27b plus its -64k variant,
+#     both retired with Brizza v1)
 #   embedding  — qwen3-embedding:{0.6b,4b,8b}, bge-m3, bge-m3-8k,
 #     embeddinggemma, nomic-embed-text, mxbai-embed-large,
 #     snowflake-arctic-embed2
-# The embedding set looks like a model bake-off for never4ga; the
-# generative pair are what Open WebUI has to offer once Brizza's model
-# goes. Reconcile deliberately — this file's header already says the list
-# should match reality before the next playbook pass, and it does not.
+# The embedding set looks like a model bake-off for never4ga; qwen3:30b-a3b
+# is what Open WebUI has to offer once Brizza's model goes. Reconcile
+# deliberately — this file's header already says the list should match
+# reality before the next playbook pass, and it does not.
 
 # ⚠️ RETAINED DELIBERATELY, though its stated reason has been retired.
 # FLASH_ATTENTION + KV q8_0 halve the KV cache; they were validated for
