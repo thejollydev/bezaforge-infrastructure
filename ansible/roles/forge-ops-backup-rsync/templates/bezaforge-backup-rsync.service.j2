@@ -14,6 +14,17 @@ Type=oneshot
 ExecStart=/usr/local/bin/bezaforge-backup-rsync.sh
 StandardOutput=journal
 StandardError=journal
+# ⚠️ 1h IS A DELIBERATE CEILING, SETTLED AFTER IT FIRED IN ANGER (#957).
+# The job normally runs four to seven minutes. On 2026-08-31 the
+# hypervisor's failing SATA link stalled the NFS export mid-run; the
+# mount is hard (see the nfs_mounts comment in host_vars/forge-ops), so
+# writes blocked indefinitely, rsync reported nothing, and this timeout
+# was the ONLY thing that turned an invisible hang into a failed unit
+# and an alert. Raising it would buy a longer silence, not a successful
+# backup — a run that needs more than an hour is a run something is
+# wrong with. If legitimate growth ever pushes the normal runtime
+# toward this ceiling, raise it in the same commit that explains what
+# grew.
 TimeoutStartSec=1h
 
 [Install]
