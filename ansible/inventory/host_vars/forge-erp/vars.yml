@@ -17,3 +17,15 @@ ansible_user: joseph
 # host_vars/forge-ai.yml for why keying it `ens18` fails silently.
 dns_client_method: netplan
 dns_client_netplan_id: enp6s18
+
+# ------------------------------------------------------------
+# Retired listeners (#963)
+# ------------------------------------------------------------
+# Same reasoning as forge-ops: rpcbind on 0.0.0.0:111, reachable from
+# the Home/guest VLAN through the gateway's default-permit gap, serving
+# nothing — /etc/exports is empty and this host neither serves nor
+# mounts NFS. Masked, not removed, so an nfs-common upgrade cannot
+# resurrect it.
+systemd_masked_units:
+  - rpcbind.service
+  - rpcbind.socket
