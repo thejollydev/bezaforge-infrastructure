@@ -26,7 +26,69 @@
 #
 # AdGuard prunes existing entries on the next maintenance pass
 # when this value is decreased.
-adguard_querylog_interval: "7d"
+#
+# ⚠️ RAISED 7d -> 30d AFTER THE PICTURE-FRAME INCIDENT (#962, #964).
+# The frame's C2 lookups were present in the FIRST MINUTE of retained
+# log, so the infection could not be dated — "since when" is the first
+# question in an incident and ~8 days of log could not answer it. 30d
+# trades disk (the 90d default grew the volume to ~3 GB by 2026-05-17;
+# expect roughly a third of that) for a month of incident-dating floor.
+# Revisit toward 90d if the next incident is older than the window.
+adguard_querylog_interval: "30d"
+
+# ------------------------------------------------------------
+# Blocklist reconciliation (#964)
+# ------------------------------------------------------------
+# Codified after the picture-frame incident (#962): the compromised
+# device made 51,298 DNS queries in the retained log and AdGuard
+# filtered ZERO of them — not the DGA C2 domains (kav.xcjvme.cc,
+# fry.zupkix.cc, tikolkkj49df.site...), not the ad-fraud SDK endpoints,
+# and not the public DoH resolvers it was probing to escape local DNS
+# entirely. Whatever lists were enabled did not cover threat traffic,
+# and nothing in code said what SHOULD be enabled.
+#
+# Same reconciliation shape as the rewrites above: add what is missing,
+# report extras loudly, prune only on explicit opt-in. Compared on URL
+# only — the name is cosmetic and the UI may hold its own.
+adguard_blocklists_manage: true
+
+# Both lists are HaGeZi's, in adblock syntax, maintained daily.
+#   tif.txt  Threat Intelligence Feeds — malware, phishing, DGA/C2,
+#            botnet domains (covers the BADBOX/Vo1d family the frame
+#            matched). This is the list whose absence #964 is about.
+#   doh.txt  Encrypted DNS endpoints — doh.pub, cloudflare-dns.com,
+#            dns.google and several hundred more. Blocking the HOSTNAME
+#            lookup is the cheap half of closing the DoH bypass; a
+#            device that cannot resolve the resolver falls back to
+#            port-53 DNS, which is the visible path. (Does not affect
+#            AdGuard's own DoH upstreams — upstream traffic is not
+#            filtered through the blocklists.) The thorough half —
+#            forcing 53 to the local resolver and dropping outbound
+#            853/known-DoH-IPs at the gateway — belongs with #963's ACL
+#            work, not here.
+# ⚠️ THE THIRD LIST IS THE HONEST ONE. TIF was verified 2026-09-01 to
+# contain NONE of the eleven C2/DGA domains the frame actually queried
+# (checked as ||<registrable-domain>^ against the 2.19M-rule feed). A
+# public feed protects against classes of threat; only the local list
+# protects against the traffic this network has actually seen. It lives
+# in this repo (roles/adguard/files/bezaforge-threat-blocklist.txt) and
+# is served to AdGuard through Gitea raw — anonymous read verified —
+# so updating it is a git commit, and a device asking for those names
+# again lights up as IsFiltered in the query log: a tripwire, not just
+# a block.
+adguard_blocklists:
+  - name: "HaGeZi Threat Intelligence Feeds"
+    url: "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/tif.txt"
+  - name: "HaGeZi Encrypted DNS Servers"
+    url: "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/doh.txt"
+  - name: "BezaForge local threat blocklist"
+    url: "https://git.bezaforge.dev/joseph/bezaforge-infrastructure/raw/branch/main/ansible/roles/adguard/files/bezaforge-threat-blocklist.txt"
+
+# Same deliberate stance as adguard_rewrites_prune: removing a filter
+# list from the fleet's primary resolver on the strength of a list being
+# complete is opt-in, never default. Extras are reported every run.
+#   --tags adguard -e adguard_blocklists_prune=true
+adguard_blocklists_prune: false
 
 # ------------------------------------------------------------
 # DNS rewrite reconciliation (#649)

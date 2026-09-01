@@ -1,0 +1,32 @@
+! Title: BezaForge local threat blocklist
+! Homepage: https://git.bezaforge.dev/joseph/bezaforge-infrastructure
+! Syntax: AdGuard DNS filtering rules
+!
+! Incident-derived indicators observed on THIS network, versioned in
+! git and served to AdGuard via Gitea raw (see roles/adguard
+! defaults/main.yml, #964). Public feeds cover classes of threat;
+! this file covers the specific domains something here actually
+! queried. HaGeZi TIF was checked on 2026-09-01 and contained NONE
+! of the domains below — a list's reputation is not evidence about
+! the traffic in front of you.
+!
+! Add a dated section per incident. Do not remove entries merely
+! because the infected device is gone: a returning or sibling device
+! asking for these names is exactly the signal worth catching, and a
+! block that also LOGS as filtered is the tripwire.
+!
+! --- #962 (2026-08-31): compromised picture frame, 10.10.40.109 ---
+! DGA / C2 lookups observed in the AdGuard query log. BADBOX/Vo1d
+! profile. Registrable domains blocked, so subdomain rotation within
+! them is covered.
+||xcjvme.cc^
+||dadwgfg.com^
+||dahjyjyg.com^
+||zupkix.cc^
+||mvxta.cc^
+||tikolkkj49df.site^
+||searcheshop.site^
+||szjlearn.com^
+||midrouterx.com^
+||waophoto.com^
+||meetweathers.com^
