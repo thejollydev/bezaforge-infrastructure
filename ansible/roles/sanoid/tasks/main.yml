@@ -124,6 +124,9 @@
     - { src: 'bezaforge-zpool-scrub-metric.timer.j2', dest: 'bezaforge-zpool-scrub-metric.timer' }
   notify: reload systemd (sanoid)
 
+- name: Flush handlers (reload systemd for the scrub metric units)
+  ansible.builtin.meta: flush_handlers
+
 # Skipped in check mode for the same reason as the syncoid timer above:
 # a first --check run only simulates writing the unit file.
 - name: Enable + start the scrub metric timer
