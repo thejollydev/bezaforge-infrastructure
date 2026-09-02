@@ -95,6 +95,40 @@
     project_src: "{{ bezaforge_root }}/adguard"
     state: present
 
+# ⚠️ WITHOUT THIS, AN IMAGE BUMP BREAKS THE DEPLOY (2026-09-02).
+# Everything below that speaks to the control API assumes it is ready,
+# and for years it was — because the container was already warm and
+# `state: present` was a no-op. The v0.107.79 bump RECREATED it, and the
+# very next API call got 404: AdGuard's web server accepts connections
+# before it has registered the /control/ routes, so the port is open and
+# the endpoint does not exist yet. That is a startup race the role could
+# not see, and it fires exactly when the role is doing something real —
+# an image bump, a first deploy, a DR rebuild.
+#
+# 404 vs 401 is the whole diagnosis and worth keeping: an unregistered
+# route answers 404, a registered one answers 401 without credentials.
+# Requiring 200 here means this also fails loudly, after a bounded wait,
+# if the credentials in vault no longer match the ones AdGuard holds —
+# which is the other way these tasks can go wrong on a fresh rebuild.
+- name: Wait for the AdGuard control API to be ready
+  ansible.builtin.uri:
+    url: "{{ adguard_api_url }}/control/status"
+    method: GET
+    user: "{{ vault_adguard_admin_user }}"
+    password: "{{ vault_adguard_admin_password }}"
+    force_basic_auth: true
+    status_code: [200]
+  register: adguard_api_ready
+  until: adguard_api_ready.status == 200
+  retries: 30
+  delay: 2
+  changed_when: false
+  # Same reasoning as the reads below: uri has no check-mode support, so
+  # without this a dry run skips it and every later fact is undefined.
+  check_mode: false
+  no_log: true          # the request carries the admin password
+  when: adguard_rewrites_manage | bool or adguard_blocklists_manage | bool
+
 # ------------------------------------------------------------
 # Query log retention enforcement
 # ------------------------------------------------------------
