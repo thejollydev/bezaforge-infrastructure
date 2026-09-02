@@ -151,6 +151,80 @@
         - (deploy_stamp_role_tags[item] | default(item)) not in ansible_skip_tags
 
     # ------------------------------------------------------------
+    # Reap stamps for roles that no longer exist in git (#960)
+    # ------------------------------------------------------------
+    # Fallout from #959: a role deleted from git leaves its stamp behind
+    # on every host that ever ran it, and deploy-drift-check.py then
+    # exits 2 — INVALID — until somebody sshes in and removes the file by
+    # hand. That is the right call by the checker (an unrecognised stamp
+    # CAN mean labels rewritten in transit, the 2026-08-14 false green),
+    # but the benign case is the common one, so the role that writes
+    # stamps also retires them.
+    #
+    # ⚠️ THE REAP LIST COMES FROM GIT, NOT FROM ANYWHERE ELSE.
+    # `ls-tree HEAD:ansible/roles` is the tracked tree at the commit
+    # being deployed — the same commit the stamps themselves record. A
+    # baked-in list would have a blind spot shaped exactly like the bug
+    # being hunted (#671's reasoning), and a working-tree listing would
+    # let an untracked scratch directory under roles/ protect a dead
+    # stamp. Deliberate consequences of reading HEAD: an uncommitted
+    # role deletion does NOT reap (the role is still in git), and a
+    # deploy from a branch that deletes a role DOES — which matches what
+    # that deploy just did to the host.
+    #
+    # ⚠️ "NOT IN GIT" IS NOT "NOT RUN THIS TIME". The stamp task above is
+    # scoped by ansible_run_tags; this is deliberately NOT. A role that
+    # exists in git but did not run this pass keeps its stamp untouched —
+    # reaping is keyed on existence in the tree, which a tag-scoped run
+    # knows just as completely as an unscoped one.
+    - name: Read the roles present in git at the deployed commit # noqa: command-instead-of-module
+      ansible.builtin.command:
+        cmd: git -C {{ playbook_dir }}/.. ls-tree --name-only HEAD:ansible/roles
+      register: deploy_stamp_git_roles
+      changed_when: false
+      check_mode: false
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    # Fail-safe: if the listing is implausible, refuse to reap rather
+    # than reap everything. This role is in every play by definition, so
+    # a listing without it means the probe read the wrong tree (a moved
+    # roles dir, a broken checkout) — and every stamp on the host would
+    # look reapable. An empty or wrong list must halt, never delete.
+    - name: Refuse to reap from an implausible role listing
+      ansible.builtin.assert:
+        that:
+          - "'deploy-stamp' in deploy_stamp_git_roles.stdout_lines"
+        fail_msg: >-
+          git ls-tree of ansible/roles did not include deploy-stamp
+          itself — the listing cannot be trusted, refusing to reap any
+          stamps.
+      run_once: true
+
+    - name: List the stamps present on this host
+      ansible.builtin.find:
+        paths: "{{ deploy_stamp_dir }}"
+        file_type: file
+      register: deploy_stamp_present
+
+    # The loop is the log: each reaped stamp appears by name as a changed
+    # item in the play output, so a genuine role deletion is visible in
+    # the deploy that propagates it, not hidden. On a healthy host the
+    # loop is empty and this is a no-op. The metric regeneration at the
+    # end of this role runs unconditionally, so the reaped role's series
+    # disappears from Prometheus in the same pass.
+    - name: Reap stamps for roles no longer in git
+      ansible.builtin.file:
+        path: "{{ deploy_stamp_dir }}/{{ item }}"
+        state: absent
+      loop: >-
+        {{ deploy_stamp_present.files | map(attribute='path')
+           | map('basename')
+           | difference(deploy_stamp_git_roles.stdout_lines)
+           | sort }}
+
+    # ------------------------------------------------------------
     # Publish the stamps as metrics
     # ------------------------------------------------------------
     # A script rather than a template, because the .prom must describe
