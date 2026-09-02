@@ -19,11 +19,16 @@
 #             correctness invariant shared with a SECOND machine:
 #             dnsmasq on forge-hypervisor must answer identically (#638).
 #   MANAGED   Query log retention (adguard_querylog_interval).
-#   UNMANAGED Upstream servers, ad block lists, admin credentials,
-#             client settings. AdGuard-only, no mirror, no parity risk —
-#             a DR-rebuild concern rather than a drift concern. Excluded
-#             from #649 deliberately, to keep the change surface on a live
-#             DNS server small. Codifying them is unfiled follow-on work.
+#   MANAGED   Blocklists — reconciled from `adguard_blocklists` through
+#             the control API (#964). Promoted out of UNMANAGED after the
+#             picture-frame incident: the enabled lists filtered zero of
+#             a botnet's 51k queries, and nothing in code said what
+#             should have been enabled.
+#   UNMANAGED Upstream servers, admin credentials, client settings.
+#             AdGuard-only, no mirror, no parity risk — a DR-rebuild
+#             concern rather than a drift concern. Excluded from #649
+#             deliberately, to keep the change surface on a live DNS
+#             server small. Codifying them is unfiled follow-on work.
 #
 # On a fresh rebuild you would need to:
 # 1. Run this role to deploy the container
@@ -31,8 +36,9 @@
 # 3. Set the admin credentials to match vault_adguard_admin_user /
 #    vault_adguard_admin_password in host_vars/forge-ops/vault.yml —
 #    without them this role cannot reach the control API at all
-# 4. Re-run this role; it restores the DNS rewrites by itself
-# 5. Re-add upstreams + block lists by hand (see 04-adguard-home.md)
+# 4. Re-run this role; it restores the DNS rewrites and the
+#    blocklists by itself
+# 5. Re-add upstreams by hand (see 04-adguard-home.md)
 # ============================================================
 
 # ------------------------------------------------------------
@@ -244,3 +250,135 @@
     - adguard_rewrites_manage | bool
     - adguard_pairs_to_prune | default([]) | length > 0
     - not (adguard_rewrites_prune | bool)
+
+# ------------------------------------------------------------
+# Blocklist reconciliation (#964)
+# ------------------------------------------------------------
+# Same shape as the rewrite reconciliation above, for the same reason it
+# was built there: the picture-frame incident (#962) showed the enabled
+# blocklists covered none of the threat traffic, and nothing in code
+# said what should be enabled. See defaults/main.yml for the list
+# rationale. Compared on URL only — AdGuard assigns its own ids and the
+# display name is cosmetic.
+
+- name: Read AdGuard's live filter list
+  ansible.builtin.uri:
+    url: "{{ adguard_api_url }}/control/filtering/status"
+    method: GET
+    user: "{{ vault_adguard_admin_user }}"
+    password: "{{ vault_adguard_admin_password }}"
+    force_basic_auth: true
+    return_content: true
+  register: adguard_live_filtering
+  changed_when: false
+  # Same reasoning as the rewrite read: uri has no check-mode support,
+  # and a dry run that cannot show the plan is useless. Reading changes
+  # nothing.
+  check_mode: false
+  no_log: true          # the request carries the admin password
+  when: adguard_blocklists_manage | bool
+
+- name: Reduce both filter sets to comparable URLs
+  ansible.builtin.set_fact:
+    adguard_live_filter_urls: >-
+      {{ adguard_live_filtering.json.filters | default([], true)
+         | map(attribute='url') | list }}
+    adguard_live_disabled_urls: >-
+      {{ adguard_live_filtering.json.filters | default([], true)
+         | rejectattr('enabled') | map(attribute='url') | list }}
+    adguard_desired_filter_urls: >-
+      {{ adguard_blocklists | map(attribute='url') | list }}
+  when: adguard_blocklists_manage | bool
+
+- name: Determine the blocklist differences
+  ansible.builtin.set_fact:
+    adguard_blocklists_to_add: >-
+      {{ adguard_blocklists
+         | rejectattr('url', 'in', adguard_live_filter_urls) | list }}
+    adguard_blocklist_urls_to_prune: >-
+      {{ adguard_live_filter_urls | difference(adguard_desired_filter_urls) }}
+  when: adguard_blocklists_manage | bool
+
+- name: Report the blocklist reconciliation plan
+  ansible.builtin.debug:
+    msg:
+      - "codified lists   : {{ adguard_blocklists | length }}"
+      - "live in AdGuard  : {{ adguard_live_filter_urls | length }}"
+      - "to add           : {{ adguard_blocklists_to_add | length }}"
+      - "  {{ adguard_blocklists_to_add | map(attribute='url') | join(', ') | default('(none)', true) }}"
+      - "unmanaged extras : {{ adguard_blocklist_urls_to_prune | length }}"
+      - "  {{ adguard_blocklist_urls_to_prune | join(', ') | default('(none)', true) }}"
+      - "prune enabled    : {{ adguard_blocklists_prune | bool | ternary('YES - extras above will be DELETED', 'no - extras left in place') }}"
+  when: adguard_blocklists_manage | bool
+
+# add_url both registers the list and triggers its first download, and
+# it enables the list by default — no separate refresh call is needed.
+- name: Add codified blocklists that AdGuard is missing
+  ansible.builtin.uri:
+    url: "{{ adguard_api_url }}/control/filtering/add_url"
+    method: POST
+    user: "{{ vault_adguard_admin_user }}"
+    password: "{{ vault_adguard_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      name: "{{ item.name }}"
+      url: "{{ item.url }}"
+      whitelist: false
+    status_code: [200]
+  loop: "{{ adguard_blocklists_to_add | default([]) }}"
+  loop_control:
+    label: "{{ item.url }}"
+  no_log: true          # the request carries the admin password
+  when: adguard_blocklists_manage | bool
+
+# A list that is PRESENT but switched off is the same false green #964
+# is about — declared protection that protects nothing. Fail rather than
+# warn: unlike an unmanaged extra, this is a direct contradiction of the
+# codified intent, and silently continuing would let a UI toggle undo
+# the whole feature without a trace.
+- name: FAIL if a codified blocklist is present but disabled
+  ansible.builtin.assert:
+    that:
+      - adguard_desired_filter_urls | intersect(adguard_live_disabled_urls)
+        | length == 0
+    fail_msg: >-
+      Codified blocklist(s) exist in AdGuard but are DISABLED:
+      {{ adguard_desired_filter_urls | intersect(adguard_live_disabled_urls) | join(', ') }}.
+      Re-enable them in the UI (Filters -> DNS blocklists) or remove them
+      from adguard_blocklists — a declared list that is switched off is
+      protection the code claims and the resolver does not provide.
+  when: adguard_blocklists_manage | bool
+
+- name: Remove blocklists AdGuard holds that are not codified
+  ansible.builtin.uri:
+    url: "{{ adguard_api_url }}/control/filtering/remove_url"
+    method: POST
+    user: "{{ vault_adguard_admin_user }}"
+    password: "{{ vault_adguard_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      url: "{{ item }}"
+      whitelist: false
+    status_code: [200]
+  loop: "{{ adguard_blocklist_urls_to_prune | default([]) }}"
+  loop_control:
+    label: "{{ item }}"
+  no_log: true          # the request carries the admin password
+  when:
+    - adguard_blocklists_manage | bool
+    - adguard_blocklists_prune | bool
+
+- name: WARN about unmanaged blocklists left in place
+  ansible.builtin.debug:
+    msg: >-
+      WARNING — AdGuard holds {{ adguard_blocklist_urls_to_prune | length }}
+      blocklist(s) not in adguard_blocklists:
+      {{ adguard_blocklist_urls_to_prune | join(', ') }}.
+      Either codify them in roles/adguard/defaults/main.yml or re-run with
+      -e adguard_blocklists_prune=true to delete them.
+  when:
+    - adguard_blocklists_manage | bool
+    - adguard_blocklist_urls_to_prune | default([]) | length > 0
+    - not (adguard_blocklists_prune | bool)
