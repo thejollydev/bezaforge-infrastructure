@@ -7,3 +7,10 @@
 # hardware, a service superseded by a container) — never units that are
 # merely broken, because those deserve a fix, not a silencer.
 systemd_masked_units: []
+
+# The unit names systemctl reports as existing on this host, derived from
+# the list-unit-files probe in tasks/main.yml. Kept here so the filter
+# expressions above stay readable.
+systemd_hygiene_present_units: >-
+  {{ systemd_hygiene_unit_files.stdout_lines | default([])
+     | map('split') | map('first') | list }}
