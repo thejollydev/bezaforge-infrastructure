@@ -1,0 +1,9 @@
+# Managed by Ansible role: sanoid — do not edit by hand.
+# Publishes per-pool scrub state as node_exporter textfile metrics (#956).
+[Unit]
+Description=BezaForge zpool scrub metric
+After=zfs-mount.service
+
+[Service]
+Type=oneshot
+ExecStart={{ sanoid_scrub_metric_script }}
