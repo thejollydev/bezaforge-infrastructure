@@ -115,6 +115,58 @@
     state: started
 
 # ------------------------------------------------------------
+# containerd data root
+# ------------------------------------------------------------
+# Docker 29 stores images in the containerd content store and the
+# overlayfs snapshotter, both of which sit under containerd's root —
+# NOT under /var/lib/docker. On forge-ops that put 112 G of images on
+# the 150 G root LV while the 300 G forge--ops--vg-docker LV, which
+# exists for exactly this data, sat at 5 %. Root reached 85 % and the
+# "Disk Space Low" alert fired for six days (#982, 2026-09-02).
+#
+# Relocating is a one-time offline data move, not something a role can
+# do safely mid-run: every container has to stop first. The role owns
+# the config file; the runbook owns the move.
+#
+#   docs/runbooks/forge-ops-containerd-relocation.md
+
+- name: Check whether the containerd data root has been migrated
+  ansible.builtin.stat:
+    path: "{{ docker_containerd_data_root }}/io.containerd.content.v1.content"
+  register: docker_containerd_target_store
+  when: docker_containerd_data_root != '/var/lib/containerd'
+
+- name: Check whether the default containerd root still holds the store
+  ansible.builtin.stat:
+    path: /var/lib/containerd/io.containerd.content.v1.content
+  register: docker_containerd_default_store
+  when: docker_containerd_data_root != '/var/lib/containerd'
+
+# Writing the new root while the data is still at the old one would leave
+# containerd with an empty store on restart: every image gone, every
+# running container's snapshot unreachable. Refuse rather than truncate.
+- name: Refuse to repoint containerd at an unmigrated data root
+  ansible.builtin.fail:
+    msg: >-
+      docker_containerd_data_root is {{ docker_containerd_data_root }} but the content
+      store is still at /var/lib/containerd. Run
+      docs/runbooks/forge-ops-containerd-relocation.md to move the data,
+      then re-run this role.
+  when:
+    - docker_containerd_data_root != '/var/lib/containerd'
+    - not (docker_containerd_target_store.stat.exists | default(false))
+    - docker_containerd_default_store.stat.exists | default(false)
+
+- name: Install containerd configuration
+  ansible.builtin.template:
+    src: containerd-config.toml.j2
+    dest: /etc/containerd/config.toml
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart containerd and docker
+
+# ------------------------------------------------------------
 # BezaForge directory structure
 # ------------------------------------------------------------
 # All Docker services live under /opt/bezaforge/{service}/.

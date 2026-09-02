@@ -104,6 +104,16 @@ nfs_mounts:
 # Service directory
 bezaforge_root: /opt/bezaforge
 
+# containerd data root (#982). Docker 29 keeps images in the containerd
+# content store and overlayfs snapshotter, so they land under containerd's
+# root rather than /var/lib/docker. Left at the default until the data is
+# moved: roles/docker fails the play if this points at a directory that
+# does not already hold the store, which would otherwise blank every image.
+#
+# UNCOMMENT AS STEP 6 OF docs/runbooks/forge-ops-containerd-relocation.md,
+# after the rsync and never before it.
+# docker_containerd_data_root: /var/lib/docker/containerd
+
 # Docker services deployed by the 'services' role
 # (traefik, adguard, monitoring have their own roles)
 # NOTE: harbor used its own offline installer (retired 2026-05-17)

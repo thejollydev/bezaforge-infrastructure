@@ -1,0 +1,15 @@
+---
+# Where containerd keeps its content store and snapshots.
+#
+# Docker 29 uses the containerd image store (docker info reports
+# "Storage Driver: overlayfs, driver-type: io.containerd.snapshotter.v1"),
+# so pulled images no longer land under /var/lib/docker — they land under
+# containerd's root. On a host that gave Docker its own LV, that means the
+# images end up on whatever volume holds /var/lib/containerd instead.
+#
+# Default is containerd's own default, so hosts that have not been migrated
+# keep their current behaviour and this role stays a no-op for them.
+# Override per host, and only after running
+# docs/runbooks/forge-ops-containerd-relocation.md — the guard in
+# tasks/main.yml refuses to point containerd at an empty directory.
+docker_containerd_data_root: /var/lib/containerd
