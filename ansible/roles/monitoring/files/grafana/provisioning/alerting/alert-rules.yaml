@@ -61,8 +61,19 @@ groups:
                 type: threshold
           noDataState: NoData
           execErrState: OK
-          for: 1m
-          keepFiringFor: 5m
+          # ⚠️ TUNED AGAINST A REAL EPISODE, not a guess (#961). On 2026-08-31
+          # forge-hypervisor's failing SATA link stalled the host repeatedly:
+          # 32 sample-minutes down across a day, delivered as 26 separate
+          # firing/resolved pairs WITH for: 1m + keepFiringFor: 5m already
+          # live — 1m/5m demonstrably does not stop the flapping shape.
+          # for: 2m = eight consecutive missed scrapes at 15s; a host that
+          # misses one scrape is not down. keepFiringFor: 15m is the episode
+          # merger — a host stalling every few minutes holds ONE alert open
+          # instead of sending a pair per stall. The stalls themselves must
+          # keep alerting (they are how the failing disk was found); the goal
+          # is one alert per episode, not fewer episodes reported.
+          for: 2m
+          keepFiringFor: 15m
           annotations:
             summary: '{{ $labels.instance }} is down'
           isPaused: false
