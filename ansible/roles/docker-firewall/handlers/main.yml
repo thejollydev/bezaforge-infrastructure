@@ -1,0 +1,4 @@
+---
+- name: reload systemd (docker-firewall)
+  ansible.builtin.systemd:
+    daemon_reload: true

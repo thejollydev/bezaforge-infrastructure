@@ -131,18 +131,52 @@ compose_services:
 nfs_client: true
 
 # ------------------------------------------------------------
+# Docker-published ports reachable from The Bunker (#963)
+# ------------------------------------------------------------
+# Measured 2026-09-01 by probing from another VLAN: 2222, 3053 and 3100
+# all answered, while 22 and 111 were correctly refused by UFW. The
+# difference is that the first three are Docker-published, and Docker's
+# iptables rules bypass UFW's INPUT chain, so roles/common's
+# default-deny never applied to them.
+#
+# 3100 (Loki) is absent from this list because it was fixed properly
+# instead: nothing consumed its published binding — promtail and Grafana
+# both reach it over the Docker network, and no other host runs a log
+# shipper — so loki-compose.yml now binds 127.0.0.1 and the port is gone
+# from the network entirely. Unpublishing beats filtering when there is
+# no consumer.
+#
+# These two have real remote consumers and so are filtered rather than
+# removed:
+#   2222  Gitea SSH. vault-sync on forge-hypervisor (10.10.10.10) pushes
+#         the knowledge vault through it — verified, its origin is
+#         ssh://git@git.bezaforge.dev:2222 and that name resolves here —
+#         plus Joseph's laptop from The Bunker WiFi and WireGuard.
+#   3053  AdGuard admin UI. Browser access from the laptop. The adguard
+#         role's own API reconciliation is unaffected either way: it
+#         runs ON forge-ops against this host's own IP, and host-local
+#         traffic never traverses FORWARD.
+docker_firewall_ports:
+  - name: "Gitea SSH"
+    port: 2222
+    proto: tcp
+  - name: "AdGuard admin UI"
+    port: 3053
+    proto: tcp
+
+# ------------------------------------------------------------
 # Retired listeners (#963)
 # ------------------------------------------------------------
 # rpcbind listened on 0.0.0.0:111 — answering on the Production IP,
-# which every device on the Home/guest VLAN can reach (the gateway's
-# default-permit gap, #963) — while serving NOTHING: /etc/exports is
-# empty, this host serves no NFS, and its own NFS *client* mounts are
-# v4.2, which needs no rpcbind (v4 is single-port 2049, in-band
-# locking). The picture-frame incident's blast-radius audit is what
-# surfaced it. Masked rather than removed because nfs-common drags it
-# back on upgrade; a stretch of systemd-hygiene's "impossible units"
-# charter, deliberate — an exposed listener with no consumer is hygiene
-# in the same sense.
+# which every device on VLAN 40 (The Bunker) can reach through the
+# gateway's default-permit posture — while serving NOTHING:
+# /etc/exports is empty, this host serves no NFS, and its own NFS
+# *client* mounts are v4.2, which needs no rpcbind (v4 is single-port
+# 2049, in-band locking). The picture-frame incident's blast-radius
+# audit is what surfaced it. Masked rather than removed because
+# nfs-common drags it back on upgrade; a stretch of systemd-hygiene's
+# "impossible units" charter, deliberate — an exposed listener with no
+# consumer is hygiene in the same sense.
 systemd_masked_units:
   - rpcbind.service
   - rpcbind.socket

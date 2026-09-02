@@ -1,0 +1,16 @@
+# Managed by Ansible role: docker-firewall — do not edit by hand.
+# Re-asserts the Docker published-port rules at boot (#963).
+[Unit]
+Description=BezaForge Docker published-port firewall
+# Docker creates DOCKER-USER as it starts; the script fails loudly if the
+# chain is absent, so it must not run before dockerd.
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+ExecStart={{ docker_firewall_script }}
+
+[Install]
+WantedBy=multi-user.target

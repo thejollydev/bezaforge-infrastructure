@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }} — roles/docker-firewall (#963)
+#
+# Rebuilds {{ docker_firewall_chain }} from scratch and makes sure
+# DOCKER-USER jumps to it exactly once. Idempotent by construction: the
+# chain is flushed and repopulated every run, so running this twice
+# leaves the same rules as running it once.
+#
+# Run by ansible on deploy and by bezaforge-docker-firewall.service at
+# boot, ordered after docker.service. Docker does not flush DOCKER-USER
+# on daemon restart, but it DOES recreate the chain if it is missing
+# (e.g. after an iptables flush), so re-asserting the jump at boot is
+# what keeps this from silently lapsing.
+
+set -euo pipefail
+
+CHAIN="{{ docker_firewall_chain }}"
+
+# The chain may not exist yet; -N fails harmlessly if it does.
+iptables -N "${CHAIN}" 2>/dev/null || true
+iptables -F "${CHAIN}"
+
+# DOCKER-USER exists only once dockerd has started. If it is missing,
+# fail loudly rather than installing rules nothing jumps to — a firewall
+# that is not reached is worse than one that is absent, because it reads
+# as present.
+if ! iptables -S DOCKER-USER >/dev/null 2>&1; then
+    echo "DOCKER-USER chain does not exist — is docker running?" >&2
+    exit 1
+fi
+
+# Remove every existing jump before adding one, so repeated runs cannot
+# stack duplicates.
+while iptables -D DOCKER-USER -j "${CHAIN}" 2>/dev/null; do :; done
+iptables -I DOCKER-USER 1 -j "${CHAIN}"
+
+# ⚠️ THIS RULE MUST COME FIRST, AND IT IS NOT AN OPTIMISATION.
+# FORWARD sees both directions of a forwarded flow. A reply travelling
+# container -> client still carries the ORIGINAL destination port in its
+# conntrack tuple, so it matches the --ctorigdstport rules below, but its
+# source address is the container's — which matches no `allow` entry. So
+# without this, every ALLOWED connection would have its return traffic
+# dropped by the port's own DROP rule, and the symptom would be a
+# connection that opens and then hangs.
+iptables -A "${CHAIN}" -m conntrack --ctstate RELATED,ESTABLISHED -j RETURN
+
+{% for p in docker_firewall_ports %}
+# --- {{ p.name | default('port ' ~ p.port) }} ({{ p.proto | default('tcp') }}/{{ p.port }}) ---
+{% for src in (p.allow | default(docker_firewall_default_allow)) %}
+iptables -A "${CHAIN}" -s {{ src }} -p {{ p.proto | default('tcp') }} \
+    -m conntrack --ctorigdstport {{ p.port }} -j RETURN
+{% endfor %}
+iptables -A "${CHAIN}" -p {{ p.proto | default('tcp') }} \
+    -m conntrack --ctorigdstport {{ p.port }} \
+    -m comment --comment "bezaforge: {{ p.name | default(p.port) }} not permitted from here" \
+    -j DROP
+{% endfor %}
+
+# Anything not named above is left exactly as Docker intended — this
+# chain only ever constrains the ports it is given.
+exit 0

@@ -87,6 +87,14 @@
       tags: fail2ban
     - role: docker
       tags: docker
+    # Source-restricts Docker-PUBLISHED ports (#963). Immediately after
+    # `docker` because it needs the DOCKER-USER chain to exist, and
+    # before every role that publishes a port, so a container is never
+    # up and unfiltered between the two. Opt-in per host_vars; UFW in
+    # `common` above structurally cannot cover these — Docker's rules
+    # bypass its INPUT chain entirely.
+    - role: docker-firewall
+      tags: docker-firewall
     - role: traefik
       tags: traefik
     - role: adguard
