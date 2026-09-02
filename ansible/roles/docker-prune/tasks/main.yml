@@ -1,0 +1,87 @@
+---
+# ============================================================
+# docker-prune role — weekly image and build-cache reclaim
+#
+# Deploys the prune script, a oneshot service that runs it, and
+# a weekly timer. Runs on every Docker host: forge-ops (via the
+# docker_hosts play) and forge-erp (via the erp_hosts play).
+# forge-ai has neither docker nor containerd installed — it runs
+# Ollama natively — so it is deliberately not in scope.
+#
+# The metric goes to node_exporter's textfile directory. On
+# forge-erp the native package reads that path directly; on
+# forge-ops the containerised exporter reads the same host path
+# through /rootfs. Both land in the same place.
+# ============================================================
+
+- name: Ensure node_exporter textfile directory exists
+  ansible.builtin.file:
+    path: "{{ docker_prune_metric_file | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: docker_prune_enabled | bool
+
+- name: Deploy bezaforge-docker-prune.sh
+  ansible.builtin.template:
+    src: bezaforge-docker-prune.sh.j2
+    dest: /usr/local/bin/bezaforge-docker-prune.sh
+    owner: root
+    group: root
+    mode: '0755'
+  when: docker_prune_enabled | bool
+
+- name: Deploy bezaforge-docker-prune.service
+  ansible.builtin.template:
+    src: bezaforge-docker-prune.service.j2
+    dest: /etc/systemd/system/bezaforge-docker-prune.service
+    owner: root
+    group: root
+    mode: '0644'
+  when: docker_prune_enabled | bool
+  notify: reload systemd
+
+- name: Deploy bezaforge-docker-prune.timer
+  ansible.builtin.template:
+    src: bezaforge-docker-prune.timer.j2
+    dest: /etc/systemd/system/bezaforge-docker-prune.timer
+    owner: root
+    group: root
+    mode: '0644'
+  when: docker_prune_enabled | bool
+  notify: reload systemd
+
+# systemd has to see the new unit files before the timer can be enabled,
+# so the handler cannot wait until the end of the play.
+- name: Flush handlers (reload systemd)
+  ansible.builtin.meta: flush_handlers
+
+- name: Ensure bezaforge-docker-prune.timer is enabled and running
+  ansible.builtin.systemd:
+    name: bezaforge-docker-prune.timer
+    enabled: true
+    state: started
+  when: docker_prune_enabled | bool
+
+# Turning the flag off must actually stop the prune, not merely stop
+# managing it. A disabled role that leaves a live timer behind is how a
+# host keeps doing something nobody believes it is doing any more.
+- name: Remove the prune timer when disabled
+  ansible.builtin.systemd:
+    name: bezaforge-docker-prune.timer
+    enabled: false
+    state: stopped
+  when: not (docker_prune_enabled | bool)
+  failed_when: false
+
+- name: Remove prune units when disabled
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/systemd/system/bezaforge-docker-prune.timer
+    - /etc/systemd/system/bezaforge-docker-prune.service
+    - /usr/local/bin/bezaforge-docker-prune.sh
+  when: not (docker_prune_enabled | bool)
+  notify: reload systemd

@@ -1,0 +1,14 @@
+[Unit]
+Description=Schedule for BezaForge Docker image and build-cache prune
+Documentation=https://github.com/thejollydev/bezaforge-infrastructure
+
+[Timer]
+OnCalendar={{ docker_prune_schedule }}
+# If the host was off at 03:30 Sunday, run on the next boot rather than
+# skipping the week. Disk pressure does not pause while a host is down.
+Persistent=true
+RandomizedDelaySec={{ docker_prune_randomized_delay }}
+Unit=bezaforge-docker-prune.service
+
+[Install]
+WantedBy=timers.target

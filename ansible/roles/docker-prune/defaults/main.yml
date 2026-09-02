@@ -1,0 +1,42 @@
+---
+# ============================================================
+# docker-prune role defaults
+#
+# Scheduled reclaim of unused container images and build cache
+# on every host that runs Docker.
+#
+# Added for #982. Nothing in the tree pruned anything, so images
+# accumulated for the life of the host: forge-ops reached 120
+# images with 26 in use and 88.9 GB reclaimable, the oldest ten
+# months old and belonging to services retired long ago
+# (taigaio/taiga-front:latest, louislam/uptime-kuma:1). That was
+# 112 G of a 150 G root LV and six days of Disk Space Low firing
+# to Discord.
+# ============================================================
+
+docker_prune_enabled: true
+
+# Only images older than this are eligible. Unused images NEWER
+# than the cutoff are kept deliberately: they are the rollback
+# targets for a recent deploy, and reclaiming a few more GB is
+# not worth having to re-pull during an incident.
+#
+# 720 h = 30 days. Matches the manual prune run on 2026-09-02.
+docker_prune_min_age_hours: 720
+
+# Sunday 03:30 local. Clear of the 02:30 db-dumps timer and the
+# 02:45 backup rsync, and after unattended-upgrades' overnight
+# window so a freshly superseded image is at least a day old
+# before it becomes a candidate.
+docker_prune_schedule: "Sun *-*-* 03:30:00"
+
+# Prune is not urgent to the minute, and every host firing at the
+# same instant would put several image deletions on the same NFS
+# and CPU window. Spread them.
+docker_prune_randomized_delay: "20min"
+
+# A prune that runs but reclaims nothing looks identical to a
+# prune that stopped running. Publish what it actually moved, not
+# just that it fired — the same distinction the sync liveness
+# checks exist for.
+docker_prune_metric_file: /var/lib/prometheus/node-exporter/bezaforge_docker_prune.prom

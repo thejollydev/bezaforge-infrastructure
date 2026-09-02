@@ -247,8 +247,8 @@ on it. The copy under `/var/lib/docker/containerd` can then be removed.
 
 ## What this does not fix
 
-Nothing here prunes anything. Images still accumulate — 120 images with only 26
-in use by 2026-09-02, the oldest ten months old (`taigaio/taiga-front:latest`,
-`louislam/uptime-kuma:1`, `prom/node-exporter:latest`), long after those
-services were retired. The move buys 300 G of headroom instead of 150 G; it does
-not stop the growth. A scheduled prune is proposed separately.
+The move buys 300 G of headroom instead of 150 G; on its own it does not slow
+the growth that filled the volume. `roles/docker-prune` handles that separately
+— a weekly reclaim of unused images older than 30 days, on forge-ops and
+forge-erp both — and the two changes are independent: either is useful without
+the other.

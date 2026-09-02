@@ -95,6 +95,13 @@
     # bypass its INPUT chain entirely.
     - role: docker-firewall
       tags: docker-firewall
+    # Weekly image + build-cache reclaim (#982). Nothing pruned anything
+    # until 2026-09-02, so forge-ops accumulated 120 images with 26 in
+    # use and filled its root LV to 85 %. Placed after `docker` because
+    # it needs the daemon, and before the service roles so a prune is
+    # never scheduled against a host whose Docker was only half set up.
+    - role: docker-prune
+      tags: docker-prune
     - role: traefik
       tags: traefik
     - role: adguard
@@ -218,6 +225,11 @@
       tags: erpnext
     - role: forge-erp
       tags: forge-erp
+    # Same weekly reclaim as the docker_hosts play (#982). forge-erp has
+    # no separate Docker volume — images share the 48 G root LV — so it
+    # has less headroom than forge-ops, not more.
+    - role: docker-prune
+      tags: docker-prune
     # Deploy stamp — must stay LAST, `tags: always` (#671). See the
     # hypervisor play above for why.
     - role: deploy-stamp
