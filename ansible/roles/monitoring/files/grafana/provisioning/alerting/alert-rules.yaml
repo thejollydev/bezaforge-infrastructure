@@ -16,6 +16,18 @@ groups:
         # The prober's own health is scraped as the separate `blackbox-exporter`
         # job with instance="blackbox", so it stays covered here and reads
         # correctly — the thing that cannot measure is still watched.
+        #
+        # ⚠️ SECOND EXCLUSION, SAME REASONING, DIFFERENT CAUSE (#663).
+        # `node-exporter-workstation` is a LAPTOP on Home WiFi. It is off,
+        # asleep, or on another network most of any given day, so its
+        # target is down as a matter of routine rather than as a fault —
+        # and an alert that fires every time a laptop closes trains the
+        # channel to be ignored, which is the #961 lesson. The workstation
+        # is scraped for its DNS-resolver metric, not for liveness: the
+        # "DNS Not Using Primary" rule reads that metric and is what #663
+        # actually wanted. Nothing is silently unwatched by this — the
+        # workstation was never covered by Host Down before, because it
+        # was not scraped at all.
         - uid: afg8q41305tdsd
           title: Host Down
           condition: C
@@ -27,7 +39,7 @@ groups:
               datasourceUid: dfdseqn41ybk0e
               model:
                 editorMode: builder
-                expr: up{job!="blackbox-http"}
+                expr: up{job!~"blackbox-http|node-exporter-workstation"}
                 instant: true
                 intervalMs: 1000
                 legendFormat: __auto

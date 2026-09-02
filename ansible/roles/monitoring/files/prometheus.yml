@@ -47,6 +47,31 @@ scrape_configs:
           instance: 'forge-erp'
 
   # ============================================================
+  # Workstation (#663)
+  # ============================================================
+  # The workstation parks on the secondary resolver after any AdGuard
+  # bounce exactly as the fleet does, but nothing could REPORT it: it is
+  # not in this repo's inventory (it is managed by ansible-arch), so it
+  # runs no roles/dns-client, emits no bezaforge_dns_primary_in_use, and
+  # the "DNS Not Using Primary" alert built for precisely this failure is
+  # blind to the machine it happens to most. It parked three separate
+  # times during the 2026-08-09/10 session and a human noticed every time
+  # by running resolvectl by hand. This job is the missing half; the
+  # metric itself is emitted by the ansible-arch side.
+  #
+  # ⚠️ ADDRESSED ON HOME WIFI, WHICH IS WHY THE JOB IS `up`-EXCLUDED BELOW.
+  # 10.10.40.99 is the laptop's Home-WiFi address (the same one
+  # common_admin_ssh_sources carries). A laptop is off, asleep, or on
+  # another network most of the day, so this target is DOWN as a matter
+  # of routine rather than as a fault.
+  - job_name: 'node-exporter-workstation'
+    static_configs:
+      - targets: ['10.10.40.99:9100']
+        labels:
+          instance: 'jolly-LOQ-arch'
+          role: 'workstation'
+
+  # ============================================================
   # HTTP service probing (#676)
   # ============================================================
   #
