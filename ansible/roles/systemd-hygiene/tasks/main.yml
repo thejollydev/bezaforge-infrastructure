@@ -8,13 +8,48 @@
 # to ignore the one generic signal that would have caught the sharepool
 # outage. Masking the impossible ones is what keeps "a unit failed" meaningful.
 
+# ⚠️ ASK WHICH UNITS EXIST BEFORE MASKING THEM (2026-09-01).
+# The systemd module cannot act on a unit the host does not have: it
+# fails with "Could not find the requested service", and because this
+# role runs near the top of every play, that failure takes the WHOLE
+# host's play with it. It did exactly that to forge-erp — rpcbind was
+# listed for a host that has never had the package, and the ERPNext
+# deploy that play exists to deliver never ran. Masking a unit that is
+# absent is a no-op worth skipping, not a reason to abandon a host.
+# noqa on the command module: ansible-lint suggests the systemd module,
+# which acts on a unit but cannot enumerate unit FILES. The idiomatic
+# alternative, service_facts, enumerates `.service` only — and this list
+# deliberately carries `.socket` units too (masking rpcbind.service
+# without rpcbind.socket leaves socket activation to restart it). So no
+# module covers this; the probe reads state and changes nothing.
+- name: Discover which of the listed units exist on this host # noqa: command-instead-of-module
+  ansible.builtin.command:
+    cmd: systemctl list-unit-files --no-legend --no-pager
+  register: systemd_hygiene_unit_files
+  changed_when: false
+  check_mode: false
+
 - name: Mask units that cannot succeed on this host
   ansible.builtin.systemd_service:
     name: "{{ item }}"
     masked: true
     enabled: false
     state: stopped
-  loop: "{{ systemd_masked_units }}"
+  loop: "{{ systemd_masked_units | select('in', systemd_hygiene_present_units) | list }}"
+
+# Loud, not silent. A listed unit that is absent is usually a stale entry
+# left after a package removal, or a typo — both worth seeing. Skipping it
+# quietly would turn this role into one that reports success for work it
+# did not do, which is the failure class this repo keeps writing alerts
+# against.
+- name: REPORT units listed for masking that do not exist here
+  ansible.builtin.debug:
+    msg: >-
+      NOTE — {{ (systemd_masked_units | reject('in', systemd_hygiene_present_units) | list) | join(', ') }}
+      listed in systemd_masked_units but not present on this host, so
+      nothing was masked for them. Remove them from host_vars, or check
+      the name.
+  when: systemd_masked_units | reject('in', systemd_hygiene_present_units) | list | length > 0
 
 # Masking does NOT clear a unit that has already failed. It stays in
 # `systemctl --failed` -- and therefore in node_systemd_unit_state{state="failed"}

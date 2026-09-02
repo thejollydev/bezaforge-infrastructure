@@ -19,13 +19,17 @@ dns_client_method: netplan
 dns_client_netplan_id: enp6s18
 
 # ------------------------------------------------------------
-# Retired listeners (#963)
+# Retired listeners (#963) — NOT APPLICABLE HERE
 # ------------------------------------------------------------
-# Same reasoning as forge-ops: rpcbind on 0.0.0.0:111, reachable from
-# the Home/guest VLAN through the gateway's default-permit gap, serving
-# nothing — /etc/exports is empty and this host neither serves nor
-# mounts NFS. Masked, not removed, so an nfs-common upgrade cannot
-# resurrect it.
-systemd_masked_units:
-  - rpcbind.service
-  - rpcbind.socket
+# forge-ops masks rpcbind because it genuinely runs it. This host does
+# NOT: the rpcbind package is not installed, nothing listens on 111, and
+# the only rpcbind unit present is the static rpcbind.target that ships
+# with systemd itself. #963's prose says "rpcbind on both hosts", but the
+# listening surface it actually documents for forge-erp is 22, 8080 and
+# 9100 — no 111. The prose was wrong and the evidence was right.
+#
+# Masking it here was added on 2026-09-01 and reverted the same day: the
+# systemd module cannot find a unit that does not exist, so the task
+# failed and took the ENTIRE forge-erp play with it — including the
+# ERPNext fix that play exists to deliver. Caught by --check before it
+# reached a live run.
