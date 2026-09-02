@@ -3,8 +3,12 @@
 ! Syntax: AdGuard DNS filtering rules
 !
 ! Incident-derived indicators observed on THIS network, versioned in
-! git and served to AdGuard via Gitea raw (see roles/adguard
-! defaults/main.yml, #964). Public feeds cover classes of threat;
+! git and served to AdGuard from the PUBLIC GitHub mirror — not from
+! Gitea. AdGuard resolves filter URLs through its own upstreams rather
+! than the rewrite table it serves to clients, so an internal-only name
+! like git.bezaforge.dev is unresolvable to it (learned in deployment,
+! 2026-09-02; see roles/adguard/defaults/main.yml). Public feeds cover
+! classes of threat;
 ! this file covers the specific domains something here actually
 ! queried. HaGeZi TIF was checked on 2026-09-01 and contained NONE
 ! of the domains below — a list's reputation is not evidence about

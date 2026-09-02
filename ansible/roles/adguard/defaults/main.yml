@@ -66,6 +66,23 @@ adguard_blocklists_manage: true
 #            forcing 53 to the local resolver and dropping outbound
 #            853/known-DoH-IPs at the gateway — belongs with #963's ACL
 #            work, not here.
+# ⚠️ THE THIRD LIST MUST BE SERVED FROM A PUBLICLY RESOLVABLE HOST, and
+# that is not a preference — it is a hard constraint discovered in
+# deployment on 2026-09-02. This pointed at git.bezaforge.dev (Gitea, the
+# fetch remote) and AdGuard rejected it with HTTP 400:
+#     Couldn't fetch filter ... no addresses for host "git.bezaforge.dev"
+# AdGuard resolves FILTER URLs through its own configured upstreams, not
+# through the rewrite table it serves to clients — so an internal-only
+# name is invisible to it. The confusing part, and the reason this was
+# not caught earlier: `wget` from inside the very same container resolves
+# git.bezaforge.dev perfectly, because that path uses the container's
+# system resolver, which is AdGuard itself. Testing reachability from the
+# container proves nothing about what AdGuard's own fetcher can resolve.
+#
+# So it is served from the GitHub mirror. Every repository here pushes to
+# GitHub, GitLab and Gitea in one `git push`, so the mirror carries
+# identical content and updating the list is still a git commit.
+#
 # ⚠️ THE THIRD LIST IS THE HONEST ONE. TIF was verified 2026-09-01 to
 # contain NONE of the eleven C2/DGA domains the frame actually queried
 # (checked as ||<registrable-domain>^ against the 2.19M-rule feed). A
@@ -82,7 +99,7 @@ adguard_blocklists:
   - name: "HaGeZi Encrypted DNS Servers"
     url: "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/doh.txt"
   - name: "BezaForge local threat blocklist"
-    url: "https://git.bezaforge.dev/joseph/bezaforge-infrastructure/raw/branch/main/ansible/roles/adguard/files/bezaforge-threat-blocklist.txt"
+    url: "https://raw.githubusercontent.com/thejollydev/bezaforge-infrastructure/main/ansible/roles/adguard/files/bezaforge-threat-blocklist.txt"
 
 # Same deliberate stance as adguard_rewrites_prune: removing a filter
 # list from the fleet's primary resolver on the strength of a list being
