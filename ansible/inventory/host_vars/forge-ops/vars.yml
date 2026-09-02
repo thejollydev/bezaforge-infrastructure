@@ -76,6 +76,19 @@ dns_client_method: resolved
 # gdrive was previously mounted out-of-band during Cognee Phase A — added
 # here 2026-05-17 so it's Ansible-managed (audit drift fix).
 # forge-ops-backup is new 2026-05-17 per ADR 0001 — nightly backup target.
+#
+# ⚠️ THESE ARE HARD MOUNTS, AND FOR THE BACKUP TARGET THAT IS A DECISION,
+# NOT AN ACCIDENT OF THE DEFAULT (#957, settled 2026-09-01). `defaults`
+# means `hard`: when the server stalls, writes BLOCK indefinitely instead
+# of erroring. On 2026-08-31 the hypervisor's failing SATA link did
+# exactly that mid-rsync — the job hung silently until the service's 1h
+# TimeoutStartSec killed it and alerted. That division of labour is the
+# design: the mount guarantees rsync can never half-succeed against a
+# stalled server and report a partial tree as a completed backup (which
+# `soft`'s EIO-after-timeo semantics would permit), and the unit-level
+# timeout owns turning a hang into a loud failure. Do not add `soft`
+# here to make the hang "recover" — for a backup target, failing loudly
+# IS the correct recovery.
 # bezapool/media + bezapool/downloads mounts REMOVED 2026-07-18 (#485):
 # their only consumers were Jellyfin + Seedbox (retired); the datasets were
 # destroyed on the hypervisor and the exports retired with them.
