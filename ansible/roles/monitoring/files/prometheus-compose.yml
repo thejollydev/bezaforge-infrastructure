@@ -45,6 +45,23 @@ services:
     command:
       - '--path.procfs=/host/proc'
       - '--path.sysfs=/host/sys'
+      # THIRD GAP OF THE SAME SHAPE (#982, 2026-09-02). / is bind-mounted at
+      # /rootfs above, but without --path.rootfs the filesystem collector took
+      # device and fstype labels from the host's /proc/mounts while calling
+      # statfs on each path inside the CONTAINER's namespace. forge-ops
+      # reported exactly three filesystems — /, /tmp and /run — and all three
+      # returned 158.2 GB, because all three were reading the container's own
+      # overlay. The host's /tmp is 16 G and /run is 3.2 G. /boot,
+      # /var/lib/docker, /opt/bezaforge and both NFS mounts were absent from
+      # the metrics entirely; the other four hosts run the native package and
+      # were never affected.
+      #
+      # "Disk Space Low" still fired correctly only by coincidence: overlay
+      # statfs passes through to the upperdir, and the upperdir lived on the
+      # root LV. Moving containerd to the docker LV breaks that coincidence,
+      # so this flag MUST land and be verified before the relocation — see
+      # docs/runbooks/forge-ops-containerd-relocation.md.
+      - '--path.rootfs=/rootfs'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
       - '--collector.systemd'
       # Textfile collector (#638, 2026-08-09). SAME GAP AS --collector.systemd

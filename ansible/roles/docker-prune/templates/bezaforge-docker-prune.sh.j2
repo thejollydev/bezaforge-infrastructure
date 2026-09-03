@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }} — roles/docker-prune/templates/bezaforge-docker-prune.sh.j2 (#982)
+#
+# Reclaims unused container images and build cache, then publishes how much
+# it actually reclaimed as a node_exporter textfile metric.
+#
+# ⚠️ THE AGE FILTER IS THE SAFETY, NOT AN OPTIMISATION. DO NOT DROP IT.
+# `docker image prune -a` removes every image no *container* references —
+# including images belonging to a compose service that happens to be
+# stopped at 03:30. The `until` filter keeps anything newer than the cutoff,
+# so a deploy from this week can still be rolled back without a registry
+# round-trip. Reclaiming the last few GB is not worth needing the network
+# during an incident.
+#
+# ⚠️ THIS RUNS ON HOSTS WITH DIFFERENT DOCKER STORAGE LAYOUTS.
+# On forge-ops the images live under containerd's root, which is being moved
+# onto the docker LV (docs/runbooks/forge-ops-containerd-relocation.md); on
+# forge-erp they sit on a single 48 G root volume. The script must not assume
+# where the bytes come from, so it measures the reclaim from docker's own
+# report rather than from a df delta on any particular path.
+
+set -uo pipefail
+
+MIN_AGE_HOURS="{{ docker_prune_min_age_hours }}"
+OUT="{{ docker_prune_metric_file }}"
+TMP="${OUT}.$$"
+
+# Parse docker's own reclaim figure rather than diffing `docker system df`,
+# which reports APPARENT sizes and overstates badly — it called a clickhouse
+# volume 182.5 GB when du measured 10.9 G on disk. The prune output is the
+# only number that reflects what was really freed.
+#
+# ⚠️ THE TWO COMMANDS DO NOT PRINT THE SAME TRAILER.
+# `docker image prune`   ends "Total reclaimed space: 76.57GB"
+# `docker builder prune` ends "Total:\t2.567GB"
+# Matching only the first form silently reports 0 B of build cache reclaimed
+# forever, which reads as "there was nothing to reclaim" rather than as a
+# parsing failure. Both forms are matched deliberately.
+parse_reclaimed_bytes() {
+    awk '
+        /Total reclaimed space:/ || /^Total:/ {
+            v = $NF
+            # Strip the unit, then scale. Docker uses decimal units.
+            unit = v; sub(/^[0-9.]+/, "", unit)
+            num  = v; sub(/[A-Za-z]+$/, "", num)
+            mult = 1
+            if (unit == "kB") mult = 1000
+            else if (unit == "MB") mult = 1000000
+            else if (unit == "GB") mult = 1000000000
+            else if (unit == "TB") mult = 1000000000000
+            printf "%.0f", num * mult
+            found = 1
+        }
+        END { if (!found) print 0 }
+    '
+}
+
+image_out=$(docker image prune -a -f --filter "until=${MIN_AGE_HOURS}h" 2>&1)
+image_rc=$?
+echo "${image_out}" | tail -1
+
+build_out=$(docker builder prune -a -f --filter "until=${MIN_AGE_HOURS}h" 2>&1)
+build_rc=$?
+echo "${build_out}" | tail -1
+
+image_bytes=$(echo "${image_out}" | parse_reclaimed_bytes)
+build_bytes=$(echo "${build_out}" | parse_reclaimed_bytes)
+
+# Non-zero from either prune is reported, not swallowed. A prune that fails
+# every week while the timer reports "activated successfully" is exactly the
+# silent stall this metric exists to make visible.
+rc=0
+if [ "${image_rc}" -ne 0 ] || [ "${build_rc}" -ne 0 ]; then
+    rc=1
+    echo "prune failed: image rc=${image_rc} builder rc=${build_rc}" >&2
+fi
+
+images_total=$(docker images -q 2>/dev/null | wc -l)
+images_in_use=$(docker ps -a --format '{{ "{{" }}.Image{{ "}}" }}' 2>/dev/null | sort -u | wc -l)
+
+umask 022
+{
+    echo "# HELP bezaforge_docker_prune_reclaimed_bytes Bytes reclaimed by the last scheduled docker prune."
+    echo "# TYPE bezaforge_docker_prune_reclaimed_bytes gauge"
+    echo "bezaforge_docker_prune_reclaimed_bytes{kind=\"images\"} ${image_bytes}"
+    echo "bezaforge_docker_prune_reclaimed_bytes{kind=\"build_cache\"} ${build_bytes}"
+    echo "# HELP bezaforge_docker_prune_last_run_timestamp_seconds Unix time the last scheduled docker prune completed."
+    echo "# TYPE bezaforge_docker_prune_last_run_timestamp_seconds gauge"
+    echo "bezaforge_docker_prune_last_run_timestamp_seconds $(date +%s)"
+    echo "# HELP bezaforge_docker_prune_success Whether the last scheduled docker prune exited cleanly."
+    echo "# TYPE bezaforge_docker_prune_success gauge"
+    echo "bezaforge_docker_prune_success $([ "${rc}" -eq 0 ] && echo 1 || echo 0)"
+    echo "# HELP bezaforge_docker_images Container images present on this host after the last prune."
+    echo "# TYPE bezaforge_docker_images gauge"
+    echo "bezaforge_docker_images{state=\"total\"} ${images_total}"
+    echo "bezaforge_docker_images{state=\"referenced\"} ${images_in_use}"
+} > "${TMP}"
+
+# Atomic replace — node_exporter reads this directory on every scrape and a
+# half-written .prom file makes the whole scrape fail, not just this metric.
+mv -f "${TMP}" "${OUT}"
+
+exit "${rc}"

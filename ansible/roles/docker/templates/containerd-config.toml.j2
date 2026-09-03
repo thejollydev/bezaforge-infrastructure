@@ -1,0 +1,26 @@
+# Managed by Ansible (roles/docker) — do not edit on the host.
+#
+# Replaces the stock config.toml shipped by containerd.io, which leaves
+# every setting commented out and therefore takes the default root of
+# /var/lib/containerd. See roles/docker/defaults/main.yml for why that
+# default is wrong on a host with a dedicated Docker volume.
+
+# No `version` key: containerd 2.x wants version 3 and 1.x wants 2, while
+# root, state and disabled_plugins are top-level and identical under both.
+# The stock file Docker ships omits it too, so omitting it here keeps the
+# template correct across a containerd major upgrade.
+
+# Docker does not use containerd's CRI plugin; only Kubernetes does.
+# The stock Docker packaging disables it, and so do we.
+disabled_plugins = ["cri"]
+
+# The image content store and the overlayfs snapshots both live under here.
+# On forge-ops this is the 300 G forge--ops--vg-docker LV rather than the
+# 150 G root LV. Changing this value without moving the data first leaves
+# containerd pointing at an empty store: every image would need re-pulling
+# and every running container would lose its snapshot.
+root = "{{ docker_containerd_data_root }}"
+
+# Runtime state stays on tmpfs — it is rebuilt on every boot and must not
+# follow the data root onto persistent storage.
+state = "/run/containerd"

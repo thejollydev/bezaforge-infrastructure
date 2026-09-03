@@ -7,3 +7,18 @@
     name: docker
     daemon_reload: true
     state: restarted
+
+# containerd's root is read once at start-up, so a config change only takes
+# effect on restart. Restarting containerd orphans the running containers'
+# shims, so docker is restarted with it — this is a full service bounce on
+# the host and is expected to be run during the relocation runbook, not
+# casually. Ordered containerd first so docker reconnects to a daemon that
+# is already using the new root.
+- name: restart containerd and docker
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    daemon_reload: true
+    state: restarted
+  loop:
+    - containerd
+    - docker

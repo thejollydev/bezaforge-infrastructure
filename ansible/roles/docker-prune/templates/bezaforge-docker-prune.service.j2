@@ -1,0 +1,25 @@
+[Unit]
+Description=BezaForge scheduled reclaim of unused Docker images and build cache
+Documentation=https://github.com/thejollydev/bezaforge-infrastructure
+# Docker must be up: the script talks to the daemon and a prune attempted
+# against a dead socket would write a success metric of 0 rather than
+# silently doing nothing, but there is no reason to provoke that weekly.
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/bezaforge-docker-prune.sh
+StandardOutput=journal
+StandardError=journal
+# Deleting 90 GB of overlayfs snapshots is thousands of unlink calls. The
+# 2026-09-02 manual run took well under a minute, but allow slack so a busy
+# host does not false-fail the unit and leave success=0 in the metric.
+TimeoutStartSec=30min
+# Prune is background hygiene; it must never compete with a service serving
+# traffic. Both knobs are best-effort, not guarantees.
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target
