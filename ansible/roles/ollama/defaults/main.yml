@@ -27,7 +27,14 @@ ollama_install_method: script
 # how we keep Ollama current: bump this when a newer stable lands and
 # re-run `--tags ollama`. Bumped 0.20.5 → 0.30.7 on 2026-06-08 (FORGE-5):
 # 0.20.5's llama.cpp was too old to load Unsloth UD Dynamic-2.0 GGUF quants.
-ollama_version: "0.30.7"
+#
+# Bumped 0.30.7 → 0.33.3 on 2026-09-05. Same failure shape as the last bump,
+# one layer up: 0.30.7 cannot pull newer models at all. `ollama pull
+# laguna-xs-2.1` returns `412: The model you are attempting to pull requires
+# a newer version of Ollama`, so the model is unevaluable rather than slow.
+# Renovate now watches this pin (see .github/renovate.json) — it did not
+# before, which is why three minor versions accumulated unnoticed.
+ollama_version: "0.33.3"
 
 # GPU device-node access groups for the `ollama` SERVICE user (created by
 # the install script). System-level ROCm packages + admin-user membership
