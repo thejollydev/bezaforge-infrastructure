@@ -42,6 +42,19 @@
       "depNameTemplate": "ghcr.io/renovatebot/renovate",
       "datasourceTemplate": "docker",
       "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "The Ollama version pinned in the ollama role. It is a bare version string in an Ansible var, not an `image:` line, so neither the container manager above nor any built-in manager saw it -- Ollama sat three minor versions behind (0.30.7 vs 0.33.3) from 2026-06-08 to 2026-09-05 with nothing reporting it. The role comment explains why the pin is load-bearing: an empty value only installs when the binary is MISSING, so the pin IS the update mechanism and a stale pin is a silently stale install. GitHub tags carry a leading `v` the var does not, hence extractVersionTemplate.",
+      "managerFilePatterns": ["/^ansible/roles/ollama/defaults/main\\.ya?ml$/"],
+      "matchStrings": [
+        "ollama_version:\\s+\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ],
+      "autoReplaceStringTemplate": "ollama_version: \"{{{newValue}}}\"",
+      "depNameTemplate": "ollama/ollama",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver",
+      "extractVersionTemplate": "^v(?<version>.+)$"
     }
   ],
   "packageRules": [
@@ -80,6 +93,11 @@
       ],
       "matchUpdateTypes": ["major"],
       "enabled": false
+    },
+    {
+      "description": "Ollama ships -rc prereleases (e.g. v0.34.0-rc1) between stables. forge-ai runs the GPU inference the agents depend on -- take stables only.",
+      "matchPackageNames": ["ollama/ollama"],
+      "ignoreUnstable": true
     },
     {
       "description": "Digest-only refreshes (same tag, re-pushed image) auto-merge — low-risk, still git-visible and not live until an Ansible deploy picks them up.",
