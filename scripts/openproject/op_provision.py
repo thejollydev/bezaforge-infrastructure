@@ -53,7 +53,7 @@ PROJECTS = {
     "description": "BezaCore Labs LLC business-operations hub — the studio's legal, finance, strategy, brand, and consultancy/services layer."},
   # ---- personal / life (no status badge) ----
   "vault-knowledge": {"status": _ON,
-    "description": "Master-Mind Obsidian vault system — structure, Bases/Templater, MOCs, and Gitea-based sync automation."},
+    "description": "never-knowledge Obsidian vault system — structure, Bases/Templater, MOCs, and Gitea-based sync automation. Successor to Master-Mind (retired 2026-08-15)."},
   "recovery": {"description": "AA recovery program — step work, sponsorship, meetings, Big Book / Joe & Charlie study, and service."},
   "education": {"description": "Formal education — UoPeople BS Computer Science (expected 12/2027) and professional certifications."},
   "personal": {"description": "Personal life & home — maintenance, health & fitness, finance, family, admin, and hobbies."},
