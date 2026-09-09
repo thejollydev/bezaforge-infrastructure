@@ -18,6 +18,12 @@
     # so the #552 failed-unit alert only ever fires on real failures.
     - role: systemd-hygiene
       tags: systemd-hygiene
+    # Pins SATA LPM to max_performance (#1101): the kernel's
+    # med_power_with_dipm default flapped the bezapool WD Reds' links for
+    # months across three misdiagnosed incidents (#92, #955, #1101). Early
+    # in the play because everything below it does I/O against bezapool.
+    - role: sata-lpm
+      tags: sata-lpm
     # Secondary internal resolver (#638). Opt-in via dnsmasq_manage. Early
     # in the play because everything after it may need to resolve a name,
     # and because this host is the fleet's DNS backstop when AdGuard (a

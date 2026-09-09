@@ -1,0 +1,38 @@
+---
+# ============================================================
+# sata-lpm — pin the SATA link power management policy
+# ============================================================
+# Two halves, both needed: the udev rule catches hosts that appear later
+# (boot enumerates the AHCI ports as "add" events, so this is what makes
+# the pin survive a reboot or a kernel upgrade), and the runtime loop
+# covers the hosts that already exist, so a play run fixes a live box
+# without waiting for that reboot.
+
+- name: Pin SATA link power management policy
+  when: sata_lpm_manage
+  block:
+    - name: Deploy the udev rule that pins the policy at boot
+      ansible.builtin.template:
+        src: 60-sata-lpm.rules.j2
+        dest: /etc/udev/rules.d/60-sata-lpm.rules
+        owner: root
+        group: root
+        mode: "0644"
+
+    # No udevadm trigger here on purpose: re-triggering "add" on scsi_host
+    # devices is harmless for this attribute but pointless — the loop below
+    # already converges the live hosts, and the rule's job is future events.
+    - name: Apply the policy to SATA hosts that already exist # noqa: command-instead-of-module
+      ansible.builtin.shell: |
+        set -u
+        changed=0
+        for f in /sys/class/scsi_host/host*/link_power_management_policy; do
+          [ -e "$f" ] || continue
+          if [ "$(cat "$f")" != "{{ sata_lpm_policy }}" ]; then
+            echo "{{ sata_lpm_policy }}" > "$f"
+            changed=1
+          fi
+        done
+        echo "changed=$changed"
+      register: sata_lpm_apply
+      changed_when: "'changed=1' in sata_lpm_apply.stdout"

@@ -69,6 +69,18 @@ health_expected_mounts:
   - {path: /bezapool/vault, fstype: zfs}
   - {path: /bezapool/forge-ops-backup, fstype: zfs}
 
+# --- sata-lpm (#1101, 2026-09-09) ---
+# The 7.0 kernel put every occupied AHCI port on med_power_with_dipm and
+# the bezapool WD Reds (WD-WX52D35FYUXK / WD-WX52D35FYY6U — same batch)
+# drop their links coming out of DIPM power states. That one default was
+# behind three incidents chased as hardware (#92 cable swap, #955 port
+# move, #1101 backup timeouts): the flapping followed serial FYUXK across
+# two cables, two ports and both FCH controllers, and the twin showed the
+# same signature the same week. Pinned live 2026-09-08 22:28 EDT → resets
+# stopped instantly; the 02:45 backup ran clean in 3.5 min after two
+# nights of 1 h timeouts. This var makes the pin survive reboots.
+sata_lpm_manage: true
+
 # --- systemd-hygiene ---
 # openipmi.service can never start on this box. forge-hypervisor is an MSI
 # MS-7C84 consumer board with no BMC: `dmidecode --type 38` (IPMI Device
