@@ -76,7 +76,14 @@ dns_client_netplan_id: enp6s18
 # of breaking it with no explanation — the same quiet failure class as
 # the never4ga embedding above (#203).
 ollama_models:
-  - hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q8_0
+  # never4ga's embedder, declared by #203, removed 2026-09-06. Never4gA
+  # ADR-0033 (accepted 2026-09-05) retired the semantic lane outright:
+  # adapters/ollama, the vector index and the [embedding] config table are
+  # all gone, and retrieval is lexical + structural + relational. Nothing
+  # calls this model any more, and at 8 GB it is the largest single item on
+  # a host whose GPU has 21.4 GB to work with.
+  #   - hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q8_0
+  # opencode's models (#953).
   - qwen3-coder:30b
   - qwen2.5-coder:14b
 
