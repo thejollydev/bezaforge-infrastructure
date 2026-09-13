@@ -33,11 +33,12 @@
 # lesson: install-only-when-missing roles rot silently).
 gdrive_replica_rclone_version: "1.74.3"
 
-# Run as the uid-1000 dataset owner. The vaultsync user already
-# exists on this host (vault-sync role) and matches the
-# bezapool/gdrive 1000:1000 chown — reuse it rather than fight
-# uid collisions with a second service user.
+# Run as the uid-1000 dataset owner, matching the bezapool/gdrive
+# 1000:1000 chown. The user is named vaultsync because the retired
+# vault-sync role created it; this role has created it since that role
+# was retired (2026-09-13). Renaming it would mean re-chowning the dataset.
 gdrive_replica_user: vaultsync
+gdrive_replica_user_uid: 1000
 
 # rclone remote name (inside the templated rclone.conf) + dest.
 gdrive_replica_remote: gdrive

@@ -51,6 +51,17 @@
 # Validation of the config we actually serve is worth more than closing a
 # window that only matters to an attacker already on a trusted VLAN.
 
+# /etc/hosts pins: this host resolves its own internal dependencies without
+# AdGuard. Moved from the retired vault-sync role (2026-09-13) with the task
+# unchanged, so the pins it already wrote stay exactly as they are.
+- name: Pin internal bezaforge names in /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ dnsmasq_etc_hosts_ip }} {{ item }}"
+    regexp: '{{ item | regex_escape }}$'
+  loop: "{{ dnsmasq_etc_hosts_pins }}"
+  when: dnsmasq_manage | bool
+
 - name: Install dnsmasq
   ansible.builtin.apt:
     name: dnsmasq

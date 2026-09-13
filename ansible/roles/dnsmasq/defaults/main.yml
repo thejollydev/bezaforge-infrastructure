@@ -12,9 +12,16 @@
 # thing being protected. AdGuard is a container on forge-ops, so any
 # secondary living on forge-ops dies with it. forge-hypervisor also
 # already refuses to depend on AdGuard for its own resolution (see
-# roles/vault-sync's /etc/hosts pins), so it is the natural home.
+# the /etc/hosts pins this role manages), so it is the natural home.
 
 dnsmasq_manage: false
+
+# /etc/hosts pins for names this host must resolve without AdGuard. Moved
+# here from the retired vault-sync role on 2026-09-13.
+dnsmasq_etc_hosts_ip: 10.10.20.20
+dnsmasq_etc_hosts_pins:
+  - git.bezaforge.dev
+  - uptime.bezaforge.dev
 
 # ------------------------------------------------------------
 # Internal zone — the catch-all
