@@ -1,0 +1,244 @@
+---
+# ============================================================
+# comfyui role — ComfyUI image generation on forge-ai (#1188)
+#
+# A git checkout of ComfyUI at a release tag, run from a uv-managed
+# Python 3.13 venv with PyTorch's ROCm wheels, as a systemd service
+# under its own user. Runs after roles/rocm (GPU groups) and
+# roles/ollama (the other tenant of the card).
+#
+# Idempotency:
+#   - uv installs only when the binary is not at the pinned version
+#   - git checkouts only move when the pinned version changes
+#   - uv pip reports "Installed" only when something changed
+#   - get_url skips a model already present with a matching checksum
+# ============================================================
+
+# ------------------------------------------------------------
+# Service user
+# ------------------------------------------------------------
+
+- name: Install ComfyUI prerequisites
+  ansible.builtin.apt:
+    name:
+      - git
+      - curl
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the comfyui service user
+  ansible.builtin.user:
+    name: "{{ comfyui_user }}"
+    system: true
+    home: "{{ comfyui_root }}"
+    create_home: false
+    shell: /usr/sbin/nologin
+    # render + video reach /dev/kfd and /dev/dri/renderD*; roles/rocm
+    # ensures both groups exist.
+    groups:
+      - render
+      - video
+    append: true
+  notify: restart comfyui
+
+- name: Create the ComfyUI root directory
+  ansible.builtin.file:
+    path: "{{ comfyui_root }}"
+    state: directory
+    owner: "{{ comfyui_user }}"
+    group: "{{ comfyui_user }}"
+    mode: "0755"
+
+# ------------------------------------------------------------
+# uv and Python
+# ------------------------------------------------------------
+
+- name: Probe installed uv version
+  ansible.builtin.command: /usr/local/bin/uv --version
+  register: comfyui_uv_probe
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Install uv via upstream script
+  ansible.builtin.shell: >
+    set -o pipefail;
+    curl -LsSf https://astral.sh/uv/{{ comfyui_uv_version }}/install.sh
+    | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh
+  args:
+    executable: /bin/bash
+  when: comfyui_uv_probe.rc != 0 or comfyui_uv_version not in comfyui_uv_probe.stdout
+  changed_when: true
+
+- name: Install the ComfyUI Python interpreter
+  ansible.builtin.command:
+    argv: [/usr/local/bin/uv, python, install, "{{ comfyui_python_version }}"]
+  become: true
+  become_user: "{{ comfyui_user }}"
+  environment:
+    UV_PYTHON_INSTALL_DIR: "{{ comfyui_python_dir }}"
+  register: comfyui_python_install
+  changed_when: "'Installed' in comfyui_python_install.stderr"
+
+# ------------------------------------------------------------
+# ComfyUI and custom nodes
+# ------------------------------------------------------------
+
+- name: Check out ComfyUI
+  ansible.builtin.git:
+    repo: "{{ comfyui_repo }}"
+    dest: "{{ comfyui_app_dir }}"
+    version: "{{ comfyui_version }}"
+  become: true
+  become_user: "{{ comfyui_user }}"
+  notify: restart comfyui
+
+- name: Check out custom nodes
+  ansible.builtin.git:
+    repo: "{{ item.repo }}"
+    dest: "{{ comfyui_app_dir }}/custom_nodes/{{ item.name }}"
+    version: "{{ item.version }}"
+  loop: "{{ comfyui_custom_nodes }}"
+  loop_control:
+    label: "{{ item.name }}"
+  become: true
+  become_user: "{{ comfyui_user }}"
+  notify: restart comfyui
+
+# ------------------------------------------------------------
+# Virtualenv
+# ------------------------------------------------------------
+
+- name: Create the ComfyUI venv
+  ansible.builtin.command:
+    argv: [/usr/local/bin/uv, venv, --python, "{{ comfyui_python_version }}", "{{ comfyui_venv }}"]
+    creates: "{{ comfyui_venv }}/bin/python"
+  become: true
+  become_user: "{{ comfyui_user }}"
+  environment:
+    UV_PYTHON_INSTALL_DIR: "{{ comfyui_python_dir }}"
+
+- name: Render the PyTorch constraints
+  ansible.builtin.template:
+    src: torch-constraints.txt.j2
+    dest: "{{ comfyui_root }}/torch-constraints.txt"
+    owner: "{{ comfyui_user }}"
+    group: "{{ comfyui_user }}"
+    mode: "0644"
+
+# The ROCm index alone, so no PyPI build of torch can win the resolution.
+- name: Install PyTorch for ROCm
+  ansible.builtin.command:
+    argv: >-
+      {{ ['/usr/local/bin/uv', 'pip', 'install',
+          '--python', comfyui_venv ~ '/bin/python',
+          '--index-url', comfyui_torch_index]
+         + comfyui_torch_packages }}
+  become: true
+  become_user: "{{ comfyui_user }}"
+  register: comfyui_torch_install
+  changed_when: "'Installed' in comfyui_torch_install.stderr"
+  notify: restart comfyui
+
+- name: List the requirements files to install
+  ansible.builtin.set_fact:
+    comfyui_requirements_files: >-
+      {{ [comfyui_app_dir ~ '/requirements.txt']
+         + (comfyui_custom_nodes | map(attribute='name')
+            | map('regex_replace', '^(.*)$', comfyui_app_dir ~ '/custom_nodes/\1/requirements.txt')
+            | list) }}
+
+# PyPI for everything else. The ROCm index stays reachable and the torch pins
+# ride along as constraints: PyPI has no +rocm7.2 build, so if the resolver
+# ever revisits torch it can only land on the ROCm one.
+- name: Install ComfyUI and custom node requirements
+  ansible.builtin.command:
+    argv: >-
+      {{ ['/usr/local/bin/uv', 'pip', 'install',
+          '--python', comfyui_venv ~ '/bin/python',
+          '--extra-index-url', comfyui_torch_index,
+          '--index-strategy', 'unsafe-best-match',
+          '--constraint', comfyui_root ~ '/torch-constraints.txt']
+         + (comfyui_requirements_files | map('regex_replace', '^', '--requirements=') | list) }}
+  become: true
+  become_user: "{{ comfyui_user }}"
+  register: comfyui_requirements_install
+  changed_when: "'Installed' in comfyui_requirements_install.stderr"
+  notify: restart comfyui
+
+# ------------------------------------------------------------
+# Models
+# ------------------------------------------------------------
+
+- name: Create model folders
+  ansible.builtin.file:
+    path: "{{ comfyui_app_dir }}/models/{{ item }}"
+    state: directory
+    owner: "{{ comfyui_user }}"
+    group: "{{ comfyui_user }}"
+    mode: "0755"
+  loop: "{{ comfyui_models | map(attribute='folder') | unique }}"
+
+- name: Download models
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    dest: "{{ comfyui_app_dir }}/models/{{ item.folder }}/{{ item.url | basename }}"
+    checksum: "sha256:{{ item.sha256 }}"
+    owner: "{{ comfyui_user }}"
+    group: "{{ comfyui_user }}"
+    mode: "0644"
+    timeout: 60
+  loop: "{{ comfyui_models }}"
+  loop_control:
+    label: "{{ item.folder }}/{{ item.url | basename }}"
+
+# ------------------------------------------------------------
+# Service
+# ------------------------------------------------------------
+
+- name: Render comfyui systemd unit
+  ansible.builtin.template:
+    src: comfyui.service.j2
+    dest: /etc/systemd/system/comfyui.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - reload systemd
+    - restart comfyui
+
+- name: Flush handlers before starting ComfyUI
+  ansible.builtin.meta: flush_handlers
+
+- name: Ensure comfyui is enabled and running
+  ansible.builtin.systemd:
+    name: comfyui
+    enabled: true
+    state: started
+
+- name: Open ComfyUI port to approved hosts
+  community.general.ufw:
+    rule: allow
+    from_ip: "{{ item }}"
+    to_port: "{{ comfyui_port | string }}"
+    proto: tcp
+    comment: "comfyui (managed by ansible/roles/comfyui)"
+  loop: "{{ comfyui_ufw_allow_from }}"
+  when: comfyui_ufw_allow_from | length > 0
+
+# Validation, not configuration: ComfyUI falls back to the CPU silently when
+# torch cannot reach the GPU, and every job then takes minutes. Fail the run
+# instead, as roles/rocm does for rocm-smi.
+- name: Verify ComfyUI is serving on the Radeon
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ comfyui_port }}/system_stats"
+    return_content: true
+  register: comfyui_stats
+  until: comfyui_stats.status == 200
+  retries: 30
+  delay: 5
+  failed_when: >-
+    comfyui_stats.status != 200 or
+    'Radeon' not in (comfyui_stats.json.devices | map(attribute='name') | join(' '))
+  check_mode: false

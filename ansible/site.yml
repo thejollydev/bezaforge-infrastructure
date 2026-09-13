@@ -167,6 +167,11 @@
       tags: rocm
     - role: ollama
       tags: ollama
+    # ComfyUI image generation for BezaCore brand work (#1188). After rocm
+    # (its service user joins the GPU groups) and ollama (the card's other
+    # tenant). Downloads about 45 GB of models on first run.
+    - role: comfyui
+      tags: comfyui
     # ADR 0003 Bucket B consumer: mount the hypervisor's `files` SMB
     # share (docs + live two-way Google Drive) at /mnt/bezashare.
     - role: fileshare-client

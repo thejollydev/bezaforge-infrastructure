@@ -1,0 +1,26 @@
+{{ ansible_managed | comment }}
+# ComfyUI for BezaCore brand image generation (#1188). Shares the GPU
+# with ollama.service; see ansible/roles/comfyui/defaults/main.yml.
+
+[Unit]
+Description=ComfyUI image generation
+Documentation=https://github.com/Comfy-Org/ComfyUI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ comfyui_user }}
+Group={{ comfyui_user }}
+WorkingDirectory={{ comfyui_app_dir }}
+Environment=HOME={{ comfyui_root }}
+{% for key, value in comfyui_extra_env.items() %}
+Environment={{ key }}={{ value }}
+{% endfor %}
+ExecStart={{ comfyui_venv }}/bin/python main.py --listen {{ comfyui_listen }} --port {{ comfyui_port }}{% for arg in comfyui_extra_args %} {{ arg }}{% endfor %}
+
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
