@@ -241,4 +241,7 @@
   failed_when: >-
     comfyui_stats.status != 200 or
     'Radeon' not in (comfyui_stats.json.devices | map(attribute='name') | join(' '))
-  check_mode: false
+  # In --check nothing above was installed or started, so there is nothing to
+  # ask. (A --check before the FIRST real run still stops earlier: the checkout
+  # tasks become a comfyui user that check mode never created.)
+  when: not ansible_check_mode

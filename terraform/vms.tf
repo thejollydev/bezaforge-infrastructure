@@ -12,7 +12,7 @@ module "forge_ai" {
   description          = "GPU inference host — ROCm, Ollama"
   node_name            = var.proxmox_node
   cores                = 4
-  memory               = 8192 # 2026-06-21 rebalance: was 16384 — forge-ai uses ~1 GiB system RAM (LLM weights live in the 20 GiB VRAM)
+  memory               = 24576 # raised by hand in Proxmox after the 2026-06-21 rebalance to 8192 and never declared; declared 2026-09-13 (#1188). ComfyUI offloads models to RAM between steps
   disk_size            = 400
   storage_pool         = "vm-fast"
   disk_interface       = "virtio0"
