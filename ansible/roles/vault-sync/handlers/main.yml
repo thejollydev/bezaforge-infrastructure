@@ -1,6 +1,0 @@
----
-- name: Restart vault-sync webhook
-  ansible.builtin.systemd:
-    name: vault-sync-webhook.service
-    state: restarted
-    daemon_reload: true
