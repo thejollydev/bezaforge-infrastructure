@@ -22,17 +22,33 @@
     # No udevadm trigger here on purpose: re-triggering "add" on scsi_host
     # devices is harmless for this attribute but pointless — the loop below
     # already converges the live hosts, and the rule's job is future events.
+    # Only occupied ports count. The kernel applies ALPM to a port with a
+    # device behind it; an empty port keeps reading keep_firmware_settings
+    # whatever is written, so writing to every port reported "changed" on
+    # every run while nothing changed. A port is occupied when its device has
+    # a target directory. An occupied port that refuses the policy fails the
+    # task instead of passing silently.
     - name: Apply the policy to SATA hosts that already exist # noqa: command-instead-of-module
       ansible.builtin.shell: |
         set -u
         changed=0
+        refused=""
         for f in /sys/class/scsi_host/host*/link_power_management_policy; do
           [ -e "$f" ] || continue
-          if [ "$(cat "$f")" != "{{ sata_lpm_policy }}" ]; then
-            echo "{{ sata_lpm_policy }}" > "$f"
+          host_dir="$(dirname "$f")"
+          ls -d "$host_dir"/device/target* >/dev/null 2>&1 || continue
+          [ "$(cat "$f")" = "{{ sata_lpm_policy }}" ] && continue
+          echo "{{ sata_lpm_policy }}" > "$f" 2>/dev/null || true
+          if [ "$(cat "$f")" = "{{ sata_lpm_policy }}" ]; then
             changed=1
+          else
+            refused="$refused $(basename "$host_dir")"
           fi
         done
         echo "changed=$changed"
+        if [ -n "$refused" ]; then
+          echo "occupied ports refused {{ sata_lpm_policy }}:$refused" >&2
+          exit 1
+        fi
       register: sata_lpm_apply
       changed_when: "'changed=1' in sata_lpm_apply.stdout"
