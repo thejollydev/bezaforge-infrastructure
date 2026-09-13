@@ -27,7 +27,7 @@
 | OS | Debian 13 Trixie |
 | Role | Docker host — all production services |
 
-## forge-k3s-worker (Powered Off — Phase 3)
+## forge-k3s-worker (Powered Off — reassigned to the Brizza agent team)
 
 | Component | Spec |
 |-----------|------|
@@ -35,7 +35,7 @@
 | CPU | Intel i5-8500T |
 | RAM | 16GB DDR4 |
 | Storage | 256GB NVMe |
-| Role | K3s worker node (future Kubernetes cluster) |
+| Role | Reassigned 2026-09-13 to host the Brizza agent team; not yet repurposed. Previously the Phase 3 K3s worker |
 
 > Powered off, but its NIC holds link at 10 Mbps for Wake-on-LAN — a lit router port does **not** mean this node is running.
 
