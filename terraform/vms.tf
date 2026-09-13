@@ -12,7 +12,7 @@ module "forge_ai" {
   description          = "GPU inference host — ROCm, Ollama"
   node_name            = var.proxmox_node
   cores                = 8     # raised by hand in Proxmox and never declared; declared 2026-09-13 at Joseph's instruction
-  memory               = 24576 # raised by hand in Proxmox after the 2026-06-21 rebalance to 8192 and never declared; declared 2026-09-13 (#1188). ComfyUI offloads models to RAM between steps
+  memory               = 32768 # 2026-09-13: 24576 -> 32768 for ComfyUI's Qwen-Image (#1188), whose release step moves a 14.4 GB model into RAM beside its 7.9 GB text encoder and exhausted 24 GB. Passthrough pins all of it on the host; takes effect on `qm reboot 101`
   disk_size            = 400
   storage_pool         = "vm-fast"
   disk_interface       = "virtio0"

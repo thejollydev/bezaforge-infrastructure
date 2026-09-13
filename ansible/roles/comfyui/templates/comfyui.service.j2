@@ -19,6 +19,9 @@ Environment={{ key }}={{ value }}
 {% endfor %}
 ExecStart={{ comfyui_venv }}/bin/python main.py --listen {{ comfyui_listen }} --port {{ comfyui_port }}{% for arg in comfyui_extra_args %} {{ arg }}{% endfor %}
 
+MemoryMax={{ comfyui_memory_max }}
+MemorySwapMax={{ comfyui_memory_swap_max }}
+
 Restart=on-failure
 RestartSec=10
 
