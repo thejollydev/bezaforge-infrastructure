@@ -56,13 +56,20 @@ comfyui_port: 8188
 comfyui_ufw_allow_from:
   - 10.10.40.99  # jolly-LOQ-arch over WiFi, where imagegen runs (matches roles/ollama)
 
-# --disable-smart-memory: offload models to RAM after a job instead of holding
-# VRAM, so Ollama's next caller finds the card free.
+# No --disable-smart-memory. It was here to give the card back to Ollama after
+# every job, and it crashed the first Qwen-Image run (2026-09-13): it offloads
+# each finished model to system RAM, and Qwen-Image's 14.4 GB diffusion model
+# plus its 7.9 GB text encoder filled forge-ai's 22 GB RAM and 4 GB swap
+# (systemd: "21.9G memory peak, 3.9G memory swap peak"). The VAE decode then
+# failed ("amdgpu: SVM mapping failed, exceeds resident system memory limit")
+# and ComfyUI segfaulted. With smart memory on, the diffusion model stays in
+# VRAM through the decode and only the text encoder spills to RAM. The card
+# still goes back to Ollama: the imagegen script calls POST /free after a set.
+#
 # Not --disable-dynamic-vram: on the ROCm 7.2 wheels ComfyUI leaves dynamic
 # VRAM off already (it enables it for AMD only at ROCm >= 7.14), which is what
 # avoids the black-output and slowdown bugs (#15452, #15661).
-comfyui_extra_args:
-  - --disable-smart-memory
+comfyui_extra_args: []
 comfyui_extra_env: {}
 
 # Apache-2.0 models only; the FLUX dev / klein 9B and Ideogram 4 licences are
