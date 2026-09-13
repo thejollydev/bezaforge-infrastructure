@@ -1,0 +1,5 @@
+{{ ansible_managed | comment }}
+# PyTorch's ROCm builds, pinned so no requirement install replaces them.
+{% for package in comfyui_torch_packages %}
+{{ package }}
+{% endfor %}
