@@ -23,6 +23,11 @@
     name:
       - git
       - curl
+      # setfacl. Several tasks below become the unprivileged comfyui user, and
+      # Ansible shares its temporary module files with that user through POSIX
+      # ACLs. Without setfacl it falls through to macOS-only `chmod +a`, which
+      # failed the first run on forge-ai ("chmod: invalid operator").
+      - acl
     state: present
     update_cache: true
     cache_valid_time: 3600
