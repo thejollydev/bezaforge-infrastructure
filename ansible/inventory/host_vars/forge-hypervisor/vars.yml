@@ -30,7 +30,7 @@ zfs_pool: bezapool
 #
 # This host is the right home for the secondary because it is the only one
 # NOT downstream of the failure, and it already refuses to depend on AdGuard
-# for its own resolution (see roles/vault-sync's /etc/hosts pins).
+# for its own resolution (see the /etc/hosts pins in roles/dnsmasq).
 #
 # Reachability confirmed 2026-08-08 against the live Omada gateway ACL
 # (8 rules, read from the controller — the vault doc listed 7): nothing
@@ -48,15 +48,6 @@ dnsmasq_manage: true
 # ------------------------------------------------------------
 gcs_project_id: bezaforge-backups
 gcs_bucket: bezaforge-backups-95d56ebe
-
-# ------------------------------------------------------------
-# vault-sync webhook trigger token (ADR 0002 v1.2).
-# Low-sensitivity (it only gates "start the idempotent sync the
-# 1-min timer runs anyway"), but it IS a Bearer token, so it lives
-# in ansible-vault for defense-in-depth rather than plaintext here
-# (FORGE-41). Defined as `vault_sync_webhook_token` in the sibling
-# vault.yml. Gitea's webhook config holds the same value server-side.
-# ------------------------------------------------------------
 
 # --- health-check expectations (health.yml) ---
 # sharepool is the one that silently failed to import after the 2026-07-25

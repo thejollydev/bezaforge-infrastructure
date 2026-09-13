@@ -8,6 +8,16 @@
   ansible.builtin.apt:
     deb: "https://downloads.rclone.org/v{{ gdrive_replica_rclone_version }}/rclone-v{{ gdrive_replica_rclone_version }}-linux-amd64.deb"
 
+- name: Ensure the replica service user exists
+  # Unchanged from the retired vault-sync role's user task, so an existing
+  # host sees no difference.
+  ansible.builtin.user:
+    name: "{{ gdrive_replica_user }}"
+    uid: "{{ gdrive_replica_user_uid }}"
+    shell: /bin/bash
+    create_home: true
+    system: false
+
 - name: Ensure rclone config dir for {{ gdrive_replica_user }}
   ansible.builtin.file:
     path: "/home/{{ gdrive_replica_user }}/.config/rclone"

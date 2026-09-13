@@ -34,10 +34,10 @@
       tags: sanoid
     - role: restic-gcs
       tags: restic-gcs
-    # ADR 0002 v1.2: the vault git actor lives on the dataset owner —
-    # local ZFS IO only (git-over-NFS wedged on brizza's 7.0 kernel).
-    - role: vault-sync
-      tags: vault-sync
+    # vault-sync retired 2026-09-13: Ansible no longer manages a bezapool git
+    # clone of the vault or its timer. bezapool/vault stays (sanoid + restic
+    # keep it) and will hold the vault's Syncthing copy. The service user and
+    # /etc/hosts pins that role created moved to gdrive-replica and dnsmasq.
     # FORGE-35 Phase 5: one-way Drive→bezapool/gdrive nightly rclone
     # mirror, replacing retired Insync. Also on the dataset owner
     # (local IO beats walking 177 GB over NFS) — ADR 0002 D4 as
@@ -45,8 +45,8 @@
     - role: gdrive-replica
       tags: gdrive-replica
     # ADR 0003 Bucket B: one Samba share + a live RW rclone Google Drive
-    # mount, on the hypervisor directly (already the rclone/vault-sync
-    # services host — avoids the FUSE-in-unprivileged-LXC unknown).
+    # mount, on the hypervisor directly (already the rclone services
+    # host — avoids the FUSE-in-unprivileged-LXC unknown).
     - role: fileshare
       tags: fileshare
     # ⚠️ MUST STAY LAST IN EVERY PLAY, and `tags: always` so a tag-scoped
