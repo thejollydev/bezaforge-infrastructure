@@ -44,10 +44,25 @@ comfyui_torch_packages:
   - torchaudio==2.11.0+rocm7.2
 
 # Core ComfyUI does not load GGUF. The Qwen-Image quant below needs this node.
+#
+# ComfyUI-ToSVG traces a raster logo into colour SVG with vtracer, for
+# BezaCore's vector masters (#1193). Chosen 2026-09-13 as the free route: the
+# only free text-to-SVG model that fits this card, OmniSVG 1.1 4B, is built on
+# Qwen2.5-VL-3B-Instruct, whose licence is non-commercial. The node and vtracer
+# are MIT. Its requirements also pull PyMuPDF (AGPL-3.0 or Artifex commercial)
+# and potracer (GPL-2.0+); those licences cover the software, not the SVGs it
+# writes. Its unpinned `torch` requirement cannot replace the ROCm build: the
+# requirements install runs with the PyTorch constraints below.
+# ⚠️ Upgrade hazard: svgnode.py imports `SVG` from comfy_extras.nodes_images,
+# which v0.35.0 keeps only as "temporary solution for backward compatibility,
+# will be removed later". Check the node still loads after any ComfyUI bump.
 comfyui_custom_nodes:
   - name: ComfyUI-GGUF
     repo: https://github.com/city96/ComfyUI-GGUF.git
     version: 6ea2651e7df66d7585f6ffee804b20e92fb38b8a  # main, 2026-01-12
+  - name: ComfyUI-ToSVG
+    repo: https://github.com/Yanick112/ComfyUI-ToSVG.git
+    version: 1022ba05318dccb4fe586ce5bbd09f1f0b3c7909  # main, 2025-06-20
 
 # --listen on all interfaces so the laptop can reach it; UFW below is the only
 # gate, because ComfyUI has no authentication.
