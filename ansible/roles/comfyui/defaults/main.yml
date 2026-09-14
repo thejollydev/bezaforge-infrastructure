@@ -104,7 +104,14 @@ comfyui_memory_swap_max: "0"
 # a file already in place.
 #   Qwen-Image-2512 (lettering): GGUF Q5_K_M, because the fp8 file (20.4 GB)
 #   is the whole card. Z-Image Turbo: fast variations.
-# About 45 GB on disk in total.
+#   Image editing (decided 2026-09-13): Qwen-Image-Edit-2511 as GGUF Q5_K_M
+#   (ComfyUI's template file is 20.5 GB fp8) with its Apache Lightning 4-step
+#   LoRA, reusing Qwen-Image's text encoder and VAE, for placing a logo into a
+#   scene and recolouring; FLUX.2 klein 4B fp8 (Apache 2.0, unlike the klein 9B
+#   and FLUX.2 dev) for fast variations and sketch clean-up, reusing Z-Image's
+#   qwen_3_4b encoder. Its decoder is BFL's Apache "small decoder", not the
+#   template's flux2-vae, which comes from the non-commercial FLUX.2 dev repo.
+# About 65 GB on disk in total.
 comfyui_models:
   - folder: unet
     url: https://huggingface.co/unsloth/Qwen-Image-2512-GGUF/resolve/main/qwen-image-2512-Q5_K_M.gguf
@@ -124,3 +131,15 @@ comfyui_models:
   - folder: vae
     url: https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors
     sha256: afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38
+  - folder: unet
+    url: https://huggingface.co/unsloth/Qwen-Image-Edit-2511-GGUF/resolve/main/qwen-image-edit-2511-Q5_K_M.gguf
+    sha256: c257def934d25562e1dcb7e8710eb5457a23c1ae7218f7a5ea3174e773421d29
+  - folder: loras
+    url: https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning/resolve/main/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors
+    sha256: 22226e8d05d354bb356627d428809f5afd7819399b077238a2b70a82883a904f
+  - folder: diffusion_models
+    url: https://huggingface.co/black-forest-labs/FLUX.2-klein-4b-fp8/resolve/main/flux-2-klein-4b-fp8.safetensors
+    sha256: 97ed34fe0567e436200f2faee3939b88f2b5d99f8af2a4dc16532c4245c0ccb6
+  - folder: vae
+    url: https://huggingface.co/black-forest-labs/FLUX.2-small-decoder/resolve/main/full_encoder_small_decoder.safetensors
+    sha256: ea4273f02d1fafbf8e1d1c2cf6018ed8748652eb0bf34f2dd91171f16f15ab62
