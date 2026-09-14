@@ -72,6 +72,17 @@ comfyui_ufw_allow_from:
 comfyui_extra_args: []
 comfyui_extra_env: {}
 
+# Memory cap for the service (systemd MemoryMax, MemorySwapMax). On 2026-09-13
+# a Qwen-Image set's /free moved its 14.4 GB diffusion model into RAM beside the
+# 7.9 GB text encoder; ComfyUI reached 23.6 GB RAM plus 4.2 GB swap, forge-ai was
+# left with 38 MB available and stopped answering until ComfyUI was restarted by
+# hand. With a cap and no swap, ComfyUI is OOM-killed and restarted instead,
+# and the rest of forge-ai (Ollama, sshd, the file-share mount) keeps its memory.
+# 27G is sized for 32 GB of guest RAM (terraform/vms.tf), leaving about 4 GB for
+# everything else; it is an estimate until a Qwen-Image set has run under it.
+comfyui_memory_max: 27G
+comfyui_memory_swap_max: "0"
+
 # Apache-2.0 models only; the FLUX dev / klein 9B and Ideogram 4 licences are
 # non-commercial and these images are for a company. Checksums are the
 # Hugging Face LFS sha256 values, so get_url verifies every download and skips
