@@ -127,3 +127,47 @@ bezaforge_dns_rewrites:
   # it, so this is a placeholder rather than stale config, and the two
   # resolvers agreeing matters more than the record being live.
   - {domain: "forge-dev.bezaforge.dev", answer: "10.10.30.10"}
+
+# ------------------------------------------------------------
+# Vault sync by Syncthing (roles/syncthing, #1216)
+# ------------------------------------------------------------
+# BezaForge ADR 0012: vault FILES sync two-way between the laptop, bezapool
+# (forge-hypervisor) and forge-agents. The laptop is the only git actor.
+#
+# This is the one definition of the set. Every host running roles/syncthing
+# reads it, and the laptop is configured by hand to match
+# (docs/runbooks/vault-syncthing.md). ADR 0012 keeps the folder id, device
+# IDs and ignore patterns under version control.
+#
+# Device IDs are identifiers, not secrets: a peer is accepted because its
+# ID is listed here, and with discovery and relays off (roles/syncthing
+# defaults) nothing is announced outside the network. A managed host's ID
+# is read from its own host_vars (syncthing_device_id), recorded after its
+# first run generates the identity. An empty ID leaves that device out.
+syncthing_folder_id: never-knowledge
+syncthing_folder_label: never-knowledge
+
+# Syncthing's syntax: no leading slash matches at any depth, a leading
+# slash only at the folder root. `.git` is excluded everywhere, so a nested
+# repository never syncs either.
+syncthing_ignore_patterns:
+  - .git
+  - /.obsidian
+  - /.trash
+
+# `addresses` are where the others dial a device, and for a managed host
+# also what it listens on. `required: false` for the laptop, which is off or
+# away most of the day: the sync check only counts it while it is connected.
+syncthing_devices:
+  - name: jolly-LOQ-arch
+    id: QMHDJY4-EMFDOSG-3ILTR3D-LRT6252-3NS4QZ6-A2WMOR7-UROF2ZQ-LHNKKQP
+    addresses: [dynamic]
+    required: false
+  - name: forge-hypervisor
+    id: "{{ hostvars['forge-hypervisor']['syncthing_device_id'] | default('') }}"
+    addresses: ["tcp://10.10.10.10:22000", "quic://10.10.10.10:22000"]
+    required: true
+  - name: forge-agents
+    id: "{{ hostvars['forge-agents']['syncthing_device_id'] | default('') }}"
+    addresses: ["tcp://10.10.50.20:22000", "quic://10.10.50.20:22000"]
+    required: true

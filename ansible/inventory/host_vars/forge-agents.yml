@@ -34,3 +34,19 @@ nfs_client: false
 #     sudo netplan get ethernets
 dns_client_method: netplan
 dns_client_netplan_id: eno2
+
+# ------------------------------------------------------------
+# Vault sync (roles/syncthing, #1216)
+# ------------------------------------------------------------
+# The same path as the laptop's copy, so Never4gA's configuration carries
+# over in build step 4. Runs as joseph, as Brizza v1's agent did. If the
+# agents get users of their own they will need a shared group, and the
+# packaged unit's UMask=7027 creates files without group write.
+syncthing_user: joseph
+syncthing_folder_path: /home/joseph/Vaults/never-knowledge
+# Empty until the first run generates the identity and prints the ID to
+# record here (docs/runbooks/vault-syncthing.md).
+syncthing_device_id: ""
+# UFW is default-deny here: the hypervisor, and the laptop on Home WiFi and
+# over WireGuard.
+syncthing_ufw_allow_from: "{{ ['10.10.10.10'] + common_admin_ssh_sources }}"

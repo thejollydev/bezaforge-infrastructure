@@ -101,7 +101,7 @@ Ansible automates all post-provisioning configuration for forge-ops. A single co
 | `ollama` | GPU LLM inference on forge-ai (version-pinned install, env-file, UFW rules to VLANs 50/20/30, model seed list, custom Modelfile builds) |
 | `fail2ban` | SSH brute-force protection (forge-ops, forge-ai, forge-agents) |
 | `node-exporter` | The distro `prometheus-node-exporter` with the systemd collector, on forge-agents. forge-ai and forge-erp run the same package, installed by hand |
-| `vault-sync` | Knowledge vault git sync (ADR 0002, `never-knowledge`) — canonical clone on the hypervisor (webhook + timer, GitHub/GitLab mirror fan-out). Single-host since forge-brizza's retirement; the deployment-shape parametrization is kept for Brizza v2 |
+| `syncthing` | Knowledge vault files synced two-way by Syncthing between the laptop, `bezapool/vault` on the hypervisor and forge-agents (ADR 0012; `.git`, `.obsidian`, `.trash` excluded; the laptop is the only git actor), plus a sync check that pushes "in sync" and "conflict copies" monitors to Uptime Kuma. Replaced the `vault-sync` git clone, retired 2026-09-13. Runbook: `docs/runbooks/vault-syncthing.md` |
 | `gdrive-replica` | One-way nightly rclone mirror of Google Drive → `bezapool/gdrive` on the hypervisor (drive.readonly scope; replaces retired Insync — FORGE-35) |
 | `sanoid` | ZFS auto-snapshots on forge-hypervisor — per-dataset retention on `bezapool` **and `sharepool`** (vault 24h/14d/8w/12m, gdrive 24h/14d/8w/12m, forge-ops-backup 7d/4w/6m, forge-erp-backup, forge-agents-backup 7d/4w/6m, sharepool/files; backup datasets deliberately not snapshotted). Also owns the nightly `syncoid` replica `sharepool/files` → `bezapool/sharepool-backup`. |
 | `db-dumps` | Nightly 02:30 EDT `pg_dumpall` per Postgres container on forge-ops → NFS-mounted `bezapool/forge-ops-backup` |
@@ -224,7 +224,7 @@ Models served locally — no external API calls for LLM inference.
 
 **bezapool** — ZFS mirror pool on forge-hypervisor:
 - 2× 4TB HDDs in mirror configuration
-- Datasets: `vault` (knowledge vault git clone — ADR 0002, `never-knowledge` synced from Gitea by `roles/vault-sync`), `gdrive` (Google Drive docs replica — nightly one-way rclone via `roles/gdrive-replica`), `forge-ops-backup` (nightly app-state mirror), `forge-erp-backup` (ERPNext bench backups), `forge-agents-backup` (the agent team's nightly backup; root-only, as it will hold credentials), `sharepool-backup` (syncoid replica), `vzdump` (Proxmox VM backups — deliberately not snapshotted)
+- Datasets: `vault` (knowledge vault files — the Syncthing copy, ADR 0012, `roles/syncthing`), `gdrive` (Google Drive docs replica — nightly one-way rclone via `roles/gdrive-replica`), `forge-ops-backup` (nightly app-state mirror), `forge-erp-backup` (ERPNext bench backups), `forge-agents-backup` (the agent team's nightly backup; root-only, as it will hold credentials), `sharepool-backup` (syncoid replica), `vzdump` (Proxmox VM backups — deliberately not snapshotted)
 - NFS exports: `bezapool/{gdrive,forge-ops-backup}` mounted on forge-ops at `/mnt/bezapool/`
 
 > The `media` + `downloads` datasets and their NFS exports were **destroyed 2026-07-18** when the Jellyfin/Seedbox media stack was retired (~106 GB reclaimed). Ebooks are served by Calibre-Web-Automated from `/opt/bezaforge/calibre-web/` bind mounts, **not** from an NFS-mounted dataset.
@@ -293,7 +293,7 @@ bezaforge-infrastructure/
 │       ├── minio-exports/             # LangFuse MinIO logical exports
 │       ├── guest-agent/               # qemu-guest-agent on Proxmox VMs
 │       ├── rocm/                      # forge-ai ROCm as-built
-│       ├── vault-sync/                # Knowledge vault git sync (hypervisor)
+│       ├── syncthing/                 # Vault sync by Syncthing (hypervisor, forge-agents)
 │       ├── gdrive-replica/            # Nightly rclone Drive→bezapool mirror (hypervisor)
 │       ├── sanoid/                    # ZFS auto-snapshots on forge-hypervisor (bezapool)
 │       ├── db-dumps/                  # Nightly pg_dumpall per Postgres container → NFS

@@ -1,0 +1,6 @@
+// {{ ansible_managed }}
+// Syncthing never syncs this file: every copy of the folder keeps its own,
+// and the laptop's is written by hand to the same patterns.
+{% for pattern in syncthing_ignore_patterns %}
+{{ pattern }}
+{% endfor %}

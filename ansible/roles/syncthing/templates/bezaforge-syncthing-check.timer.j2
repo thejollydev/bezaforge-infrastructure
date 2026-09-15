@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Run the vault sync check every {{ syncthing_check_interval }} (#1216)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec={{ syncthing_check_interval }}
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Vault sync check: Syncthing state and conflict copies, pushed to Uptime Kuma (#1216)
+After=syncthing@{{ syncthing_user }}.service
+
+[Service]
+Type=oneshot
+User={{ syncthing_user }}
+StateDirectory=bezaforge-syncthing-check
+ExecStart=/usr/local/bin/bezaforge-syncthing-check.py
+Nice=10

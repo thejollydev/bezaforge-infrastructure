@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+# {{ ansible_managed }}
+"""Vault sync check (#1216; BezaForge ADR 0012).
+
+Runs every {{ syncthing_check_interval }} and pushes two Uptime Kuma monitors:
+
+  in sync    Syncthing answers, the folder reports no errors, every required
+             device is connected and sharing the folder, and no connected
+             device has stayed behind for longer than
+             {{ syncthing_check_grace_minutes }} minutes.
+  conflicts  no *.sync-conflict-* copy exists anywhere in the folder.
+
+It pushes on every run, up or down, so a check that stops running goes quiet
+and Kuma marks both monitors down by itself. That is the failure the retired
+vault clone had (#791): a sync that does nothing looked like one that worked.
+
+One host sees the whole set: its own folder, and the completion Syncthing
+tracks for each peer. The laptop is optional. Being off or away is its normal
+state, so it only counts while it is connected.
+
+Exits 0 whatever it finds; the monitors carry the findings. A non-zero exit
+means the check itself broke, which the "Systemd Unit Failed" alert reports.
+"""
+
+import json
+import os
+import re
+import sys
+import time
+import urllib.parse
+import urllib.request
+
+CONFIG_XML = {{ (syncthing_home ~ '/config.xml') | to_json }}
+API = {{ ('http://' ~ syncthing_gui_address) | to_json }}
+FOLDER_ID = {{ syncthing_folder_id | to_json }}
+FOLDER_PATH = {{ syncthing_folder_path | to_json }}
+GRACE_S = {{ (syncthing_check_grace_minutes | int) * 60 }}
+PEERS = json.loads({{ syncthing_peers | to_json | to_json }})
+INSYNC_URL = {{ syncthing_check_insync_push_url | to_json }}
+CONFLICTS_URL = {{ syncthing_check_conflicts_push_url | to_json }}
+STATE_FILE = os.path.join(
+    os.environ.get("STATE_DIRECTORY", "/var/lib/bezaforge-syncthing-check"),
+    "behind.json",
+)
+# Matches .stignore: `.git` anywhere, `.obsidian` and `.trash` at the root.
+SKIP_AT_ROOT = {".git", ".obsidian", ".trash", ".stfolder"}
+
+
+def api_key():
+    with open(CONFIG_XML, encoding="utf-8") as f:
+        match = re.search(r"<apikey>([^<]+)</apikey>", f.read())
+    if not match:
+        raise ValueError(f"no API key in {CONFIG_XML}")
+    return match.group(1)
+
+
+def get(key, path, **params):
+    url = API + path
+    if params:
+        url += "?" + urllib.parse.urlencode(params)
+    request = urllib.request.Request(url, headers={"X-API-Key": key})
+    with urllib.request.urlopen(request, timeout=15) as response:
+        return json.load(response)
+
+
+def load_behind():
+    try:
+        with open(STATE_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def save_behind(behind):
+    with open(STATE_FILE, "w", encoding="utf-8") as f:
+        json.dump(behind, f)
+
+
+def check_sync():
+    try:
+        key = api_key()
+        status = get(key, "/rest/db/status", folder=FOLDER_ID)
+        connections = get(key, "/rest/system/connections")["connections"]
+    except (OSError, ValueError, KeyError) as exc:
+        return False, f"Syncthing API unreachable: {exc}"
+
+    problems = []
+    if status.get("error"):
+        problems.append(f"folder error: {status['error']}")
+    if status.get("pullErrors"):
+        problems.append(f"{status['pullErrors']} pull errors on this host")
+
+    now = time.time()
+    previous = load_behind()
+    behind = {}
+
+    # A device is "behind" from the first run that saw it behind; it only
+    # becomes a problem once that has lasted longer than the grace period.
+    def note_behind(ident, label, items):
+        since = previous.get(ident, now)
+        behind[ident] = since
+        if now - since >= GRACE_S:
+            minutes = int((now - since) / 60)
+            problems.append(f"{label} behind by {items} items for {minutes} min")
+
+    if status.get("needTotalItems"):
+        note_behind("local", "this host", status["needTotalItems"])
+
+    for peer in PEERS:
+        if not connections.get(peer["id"], {}).get("connected"):
+            if peer.get("required"):
+                problems.append(f"{peer['name']} not connected")
+            continue
+        try:
+            completion = get(
+                key, "/rest/db/completion", folder=FOLDER_ID, device=peer["id"]
+            )
+        except (OSError, ValueError) as exc:
+            problems.append(f"no completion for {peer['name']}: {exc}")
+            continue
+        if completion.get("remoteState") in ("notSharing", "paused"):
+            problems.append(f"{peer['name']} is {completion['remoteState']} for the folder")
+            continue
+        pending = completion.get("needItems", 0) + completion.get("needDeletes", 0)
+        if pending:
+            note_behind(peer["id"], peer["name"], pending)
+
+    save_behind(behind)
+    if problems:
+        return False, "; ".join(problems)
+    return True, "in sync"
+
+
+def check_conflicts():
+    # Without the marker the dataset is probably not mounted, and an empty
+    # directory would otherwise report "no conflicts".
+    if not os.path.isdir(os.path.join(FOLDER_PATH, ".stfolder")):
+        return False, f"folder marker missing under {FOLDER_PATH}; is it mounted?"
+    found = []
+    for root, dirs, files in os.walk(FOLDER_PATH):
+        if root == FOLDER_PATH:
+            dirs[:] = [d for d in dirs if d not in SKIP_AT_ROOT]
+        dirs[:] = [d for d in dirs if d != ".git"]
+        for name in files:
+            if ".sync-conflict-" in name:
+                found.append(os.path.relpath(os.path.join(root, name), FOLDER_PATH))
+    if found:
+        found.sort()
+        shown = ", ".join(found[:3])
+        more = f" and {len(found) - 3} more" if len(found) > 3 else ""
+        return False, f"{len(found)} conflict copies: {shown}{more}"
+    return True, "no conflict copies"
+
+
+def push(url, name, ok, message):
+    state = "up" if ok else "down"
+    print(f"{name}: {state}: {message}")
+    if not url:
+        print(f"{name}: no push URL configured, not reported", file=sys.stderr)
+        return
+    query = urllib.parse.urlencode({"status": state, "msg": message[:200], "ping": ""})
+    try:
+        with urllib.request.urlopen(url.split("?", 1)[0] + "?" + query, timeout=15):
+            pass
+    except OSError as exc:
+        print(f"{name}: push to Uptime Kuma failed: {exc}", file=sys.stderr)
+
+
+def main():
+    push(INSYNC_URL, "in sync", *check_sync())
+    push(CONFLICTS_URL, "conflicts", *check_conflicts())
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

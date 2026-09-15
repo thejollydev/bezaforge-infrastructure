@@ -84,3 +84,21 @@ sata_lpm_manage: true
 # removal would not survive; masking is durable and idempotent.
 systemd_masked_units:
   - openipmi.service
+
+# --- syncthing (#1216; BezaForge ADR 0012) ---
+# The vault's bezapool copy. Syncthing runs as vaultsync, which has owned
+# bezapool/vault since the retired vault-sync clone. roles/gdrive-replica
+# creates that user and still uses it, so this role runs after it. The
+# folder is only configured while the dataset is mounted.
+syncthing_user: vaultsync
+syncthing_folder_path: /bezapool/vault
+syncthing_folder_require_mount: true
+# Empty until the first run generates the identity and prints the ID to
+# record here (docs/runbooks/vault-syncthing.md).
+syncthing_device_id: ""
+# This host runs the sync check for the whole set. The push URLs carry
+# Uptime Kuma tokens, so they live in vault.yml; until they are there the
+# check runs and logs to the journal but reports nowhere.
+syncthing_check_enabled: true
+syncthing_check_insync_push_url: "{{ vault_syncthing_insync_push_url | default('') }}"
+syncthing_check_conflicts_push_url: "{{ vault_syncthing_conflicts_push_url | default('') }}"
