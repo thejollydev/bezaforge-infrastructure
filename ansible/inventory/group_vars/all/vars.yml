@@ -6,7 +6,7 @@
 # sibling encrypted all/vault.yml can hold fleet-shared secrets.
 # Currently there: vault_fileshare_smb_password (the `files` SMB
 # credential — read by roles/fileshare on the hypervisor AND
-# roles/fileshare-client on forge-brizza/forge-ai).
+# roles/fileshare-client on forge-ai).
 # ============================================================
 
 # Silences the "discovered Python interpreter" warning Ansible
@@ -53,15 +53,14 @@ common_admin_ssh_sources:
 # Fleet node_exporter UFW posture (FORGE-59) — this allow only matters
 # on hosts running an ACTIVE default-deny UFW, which is exactly the
 # `common`-managed set:
-#   - forge-ops, forge-ai  → run `common` → get this allow. ✓
+#   - forge-ops, forge-ai,
+#     forge-agents         → run `common` → get this allow. ✓
 #   - forge-hypervisor     → pve-firewall (disabled), no UFW → reachable.
 #   - forge-erp            → no `common` BY DESIGN (a first-touch UFW
 #                            enable could lock it out, site.yml); no
 #                            active UFW → reachable. If UFW is ever
 #                            enabled here, add a 9100 allow from
 #                            10.10.20.20 alongside it.
-#   - forge-brizza         → own role, no active UFW → reachable. Same
-#                            caveat as forge-erp if UFW is later enabled.
 # So there is no live gap; all six scraped targets in
 # roles/monitoring/files/prometheus.yml are reachable. Documented here
 # (not added as dead gated tasks) so the next firewall change on a
@@ -118,11 +117,11 @@ bezaforge_dns_rewrites:
   - {domain: "omada.bezaforge.dev", answer: "10.10.10.5"}
   - {domain: "forge-ai.bezaforge.dev", answer: "10.10.50.10"}
   - {domain: "forge-erp.bezaforge.dev", answer: "10.10.20.50"}
-  # forge-brizza (VMID 104) was retired 2026-08-30 with Brizza v1. Kept
-  # deliberately, same call as forge-dev below: Brizza v2 is being built
-  # and will reuse this name and address, so this is a reservation rather
-  # than stale config. Resolves to nothing until v2 exists.
-  - {domain: "forge-brizza.bezaforge.dev", answer: "10.10.50.20"}
+  # forge-agents, the Brizza agent team's host (BezaForge ADR 0011). The
+  # address was forge-brizza's, held for Brizza v2 after v1 was retired on
+  # 2026-08-30 (ADR 0010); the reservation followed the name, so the old
+  # forge-brizza record goes rather than sitting beside this one.
+  - {domain: "forge-agents.bezaforge.dev", answer: "10.10.50.20"}
   # forge-dev (VMID 102) does not currently exist — removed from the fleet.
   # Mirrored deliberately on Joseph's call 2026-08-08: he intends to rebuild
   # it, so this is a placeholder rather than stale config, and the two

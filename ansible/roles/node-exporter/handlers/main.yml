@@ -1,0 +1,6 @@
+---
+# Only fires when the arguments change.
+- name: restart prometheus-node-exporter
+  ansible.builtin.systemd:
+    name: prometheus-node-exporter
+    state: restarted

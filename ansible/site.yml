@@ -1,8 +1,7 @@
 ---
 # ============================================================
 # BezaForge Infrastructure — forge-hypervisor + forge-ops +
-# forge-ai + forge-erp
-# (forge-brizza retired 2026-08-30; assistant_hosts is empty)
+# forge-ai + forge-agents + forge-erp
 # ============================================================
 
 - name: Configure BezaForge hypervisor
@@ -182,25 +181,60 @@
       tags: always
 
 # ------------------------------------------------------------
-# forge-brizza (assistant_hosts) — RETIRED 2026-08-30.
+# forge-agents (assistant_hosts) — the Brizza agent team's host.
 #
-# Brizza v1 was torn down whole: the VM, the Hermes agent on it, the
-# brizza-postgres store on forge-ops, the Ollama fallback model on
-# forge-ai, and the ~/.hermes backups. Brizza v2 is being rebuilt from
-# scratch with a different shape (multiple Hermes clients or a swarm,
-# possibly orchestrated from the laptop), so nothing here was worth
-# carrying forward — a v1 play kept "just in case" would have described
-# a machine that no longer exists and a design that no longer applies.
+# The Lenovo M920Q, bare metal, Ubuntu 26.04 at 10.10.50.20 (BezaForge
+# ADR 0011). It took over the identity Brizza v1's forge-brizza held
+# until 2026-08-30: the address and DNS record followed the name, and
+# VMID 104 was released because this host is not a VM.
 #
-# The IDENTITY is held, not freed: VMID 104, 10.10.50.20 and
-# forge-brizza.bezaforge.dev are reserved for v2 (same treatment as
-# forge-dev, 2026-08-08). See terraform/vms.tf and the DNS rewrite in
-# group_vars/all/vars.yml, both of which carry the reservation.
+# This play is the base only (#1215). The team's runtime — Hermes
+# profiles, Never4gA, Syncthing, the tracker sync, the nightly backup
+# push — joins it as roles in later steps of the Brizza build plan.
 #
-# The assistant_hosts group is kept EMPTY in inventory/hosts.yml rather
-# than deleted, so this play can come back by adding a host rather than
-# by rebuilding the group.
+# Left out on purpose:
+#   - monitoring       is the Prometheus/Grafana/Loki STACK on forge-ops,
+#                      not a client. This host's exporter is node-exporter.
+#   - guest-agent      qemu-guest-agent means nothing on bare metal.
+#   - conffile-cleanup clears duplicates a distro UPGRADE leaves behind;
+#                      this host was installed fresh on 26.04.
 # ------------------------------------------------------------
+
+- name: Configure BezaForge assistant hosts
+  hosts: assistant_hosts
+  become: true
+
+  roles:
+    - role: unattended-upgrades
+      tags: unattended-upgrades
+    # Masks units that can never succeed on the host (opt-in per host_vars),
+    # so the #552 failed-unit alert only ever fires on real failures.
+    - role: systemd-hygiene
+      tags: systemd-hygiene
+    # Resolver config (#638) — see the docker_hosts play for why this is
+    # no longer inside `common`.
+    - role: dns-client
+      tags: dns-client
+    # Read-only journal/log access for the admin user (#638 session).
+    - role: admin-access
+      tags: admin-access
+    # Unlike v1's forge-brizza, this host runs `common`. The worry that
+    # keeps forge-erp off it is a first-touch UFW enable locking admin out;
+    # here the laptop's addresses and the Prometheus scrape source are
+    # already in group_vars/all, so UFW comes up with both allowed.
+    - role: common
+      tags: common
+    - role: fail2ban
+      tags: fail2ban
+    # The distro node_exporter, after `common` so UFW already allows the
+    # scrape. forge-ai and forge-erp run the same package, installed by
+    # hand; this is the first host where a role owns it.
+    - role: node-exporter
+      tags: node-exporter
+    # Deploy stamp — must stay LAST, `tags: always` (#671). See the
+    # hypervisor play above for why.
+    - role: deploy-stamp
+      tags: always
 
 - name: Configure BezaForge ERP host
   hosts: erp_hosts

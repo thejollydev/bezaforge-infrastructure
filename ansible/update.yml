@@ -24,7 +24,9 @@
 #
 #   2. the VMs (forge-ai, forge-erp) — freshly booted after step 1.
 #      forge-erp wants a clean container stop for ERPNext/MariaDB.
-#      (forge-brizza was retired 2026-08-30 with Brizza v1.)
+#      Then forge-agents. It is bare metal, so step 1 does not bounce it,
+#      but like the VMs it needs AdGuard to reach its mirrors and must be
+#      done before step 3 takes forge-ops down.
 #
 #   3. forge-ops LAST — it runs AdGuard, which is DNS for EVERY VLAN. While
 #      forge-ops is down nothing else can resolve deb.debian.org, so no other
@@ -36,7 +38,7 @@
 # something restarts the resolver. DNS keeps working, so nothing looks wrong
 # — but AdGuard's query log goes blind for that host and its filtering stops.
 #
-#   ansible forge-ops,forge-ai,forge-erp -i inventory/hosts.yml \
+#   ansible forge-ops,forge-ai,forge-erp,forge-agents -i inventory/hosts.yml \
 #     -m systemd -a "name=systemd-resolved state=restarted" \
 #     --become --ask-become-pass --ask-vault-pass
 #
@@ -73,6 +75,14 @@
     - os-update
   tags: [update, vms]
 
+- name: Update forge-agents (bare metal, before forge-ops)
+  hosts: forge-agents
+  become: true
+  gather_facts: true
+  roles:
+    - os-update
+  tags: [update, agents]
+
 - name: Update forge-ops (last — it is DNS + Traefik for the whole fleet)
   hosts: forge-ops
   become: true
@@ -95,7 +105,7 @@
       ansible.builtin.debug:
         msg:
           - "hosts needing reboot : {{ osu_reboot_hosts | join(', ') if osu_reboot_hosts else 'none' }}"
-          - "reboot order         : forge-hypervisor -> forge-ai/forge-erp -> forge-ops"
+          - "reboot order         : forge-hypervisor -> forge-ai/forge-erp -> forge-agents -> forge-ops"
           - "why forge-ops last   : it runs AdGuard, DNS for every VLAN"
           - "then verify with     : ansible-playbook health.yml"
       vars:

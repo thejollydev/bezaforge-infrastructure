@@ -35,6 +35,10 @@ restic_backup_sources:
   # 2026-06-17). Pushed nightly at 03:30 by forge-erp-backup.sh on forge-erp —
   # inside this 04:00 window, so GCS carries same-night financial dumps. ~1 MB.
   - /bezapool/forge-erp-backup
+  # forge-agents backup (#1215; Brizza ADR 0018). Empty until the nightly
+  # push from forge-agents lands. The archive holds the agents' credentials;
+  # restic encrypts client-side, so they leave the house only as ciphertext.
+  - /bezapool/forge-agents-backup
   # sharepool/files documents share (ADR 0003 Bucket B, FORGE-85). Read from
   # the LIVE dataset (same host — freshest copy; the role's documented v1
   # live-read tradeoff), NOT the bezapool/sharepool-backup syncoid replica

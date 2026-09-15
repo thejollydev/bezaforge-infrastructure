@@ -1,0 +1,36 @@
+---
+# forge-agents: the Brizza agent team's host. The Lenovo M920Q, bare
+# metal, Ubuntu Server 26.04 LTS at 10.10.50.20 on VLAN 50 (BezaForge
+# ADR 0011, Brizza ADR 0018). Installed 2026-09-14 from
+# docs/runbooks/install-forge-agents.md.
+
+# Connection
+ansible_host: 10.10.50.20
+ansible_user: joseph
+
+# Machine identity
+hostname: forge-agents
+timezone: America/Detroit
+locale: en_US.UTF-8
+
+# Feature flags
+# No NFS. The vault reaches this host by Syncthing (ADR 0012), and ADR 0003
+# rules out network mounts for working trees.
+nfs_client: false
+
+# ------------------------------------------------------------
+# Resolver config (roles/dns-client, #638)
+# ------------------------------------------------------------
+# The netplan key is `eno2`, read from the host 2026-09-14 without sudo:
+# networkd's generated units are /run/systemd/network/10-netplan-eno2.*,
+# and netplan names those after the ID key it was given. The installer
+# keyed the mapping on the kernel name it displayed.
+#
+# ⚠️ The NIC also carries two altnames, `enp0s31f6` (the name the install
+# runbook predicted) and `enxe86a64c5f521`. A drop-in keyed on either
+# would not merge into the installer's mapping; it would emit a second
+# unit for the same device, the failure the role defaults warn about.
+# Confirm before changing:
+#     sudo netplan get ethernets
+dns_client_method: netplan
+dns_client_netplan_id: eno2

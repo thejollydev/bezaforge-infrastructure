@@ -2,8 +2,8 @@
 
 Wipes the Lenovo ThinkCentre M920Q (formerly `forge-k3s-worker`) and installs
 Ubuntu Server 26.04 LTS as **forge-agents**, the Brizza agent team's host, at
-**10.10.50.20 on VLAN 50 (AI)**. Decided 2026-09-14: Brizza ADR 0018 and
-BezaForge ADR 0011 (vault).
+**10.10.50.20 on VLAN 50 (AI)**, then brings it under Ansible. Decided
+2026-09-14: Brizza ADR 0018 and BezaForge ADR 0011 (the host).
 
 Everything here is done by Joseph at the machine or from the laptop. Nothing
 on the old install is kept: it is a Proxmox VE 9.2 that was never used and
@@ -61,7 +61,7 @@ supports it). Pick the USB's UEFI entry.
 |---|---|
 | Language, keyboard | English (US) |
 | Type of install | **Ubuntu Server** (not minimized) |
-| Network | Select the wired interface (`enp0s31f6` on this model, but read it off the screen), **Edit IPv4 → Manual**: subnet `10.10.50.0/24`, address `10.10.50.20`, gateway `10.10.50.1`, name servers `10.10.20.20,10.10.10.10`, search domain `bezaforge.dev`. Leave IPv6 automatic. |
+| Network | Select the wired interface (it showed as `eno2` on this machine, altname `enp0s31f6`; read it off the screen), **Edit IPv4 → Manual**: subnet `10.10.50.0/24`, address `10.10.50.20`, gateway `10.10.50.1`, name servers `10.10.20.20,10.10.10.10`, search domain `bezaforge.dev`. Leave IPv6 automatic. |
 | Proxy | none |
 | Mirror | default |
 | Storage | **Use an entire disk**, the 256 GB NVMe. Leave LVM on. Then on the summary screen edit `ubuntu-lv` and set its size to the **maximum**; the default leaves half the disk unallocated. Confirm the destructive action: this is the wipe. |
@@ -81,7 +81,7 @@ ssh-keygen -R 10.10.50.20; ssh-keygen -R forge-agents.bezaforge.dev; ssh-keygen 
 ```
 
 ```bash
-ssh joseph@10.10.50.20 'hostnamectl hostname; ip -br addr; resolvectl status | grep -A3 "Link.*enp"; df -h /'
+ssh joseph@10.10.50.20 'hostnamectl hostname; ip -br addr; resolvectl dns; df -h /'
 ```
 
 Expect the hostname `forge-agents`, `10.10.50.20/24` on the wired interface,
@@ -91,22 +91,147 @@ list before touching the install.
 
 ---
 
-## After the install
+## Bring it under Ansible (build step 2, #1215)
 
-Nothing else is done by hand. The rest is the Ansible role and the build
-plan, in this order:
+The pull request puts forge-agents in the inventory (`assistant_hosts`,
+`host_vars/forge-agents.yml`) with its own `site.yml` play, renames the DNS
+record from `forge-brizza` to `forge-agents`, releases VMID 104, adds the
+Prometheus target, and adds sanoid and restic entries for a backup dataset.
+**Merged is not deployed**: each run below is the deployment, and its output
+is the proof. Run them from the laptop in this order, on a pulled `main`.
 
-1. Inventory PR: `forge-agents` under `assistant_hosts` in `hosts.yml`, its
-   `host_vars`, the DNS rewrite renamed from `forge-brizza` to `forge-agents`
-   (→ 10.10.50.20), the terraform reservation comment closed, VMID 104
-   released.
-2. `ansible-playbook site.yml --limit forge-agents` for the base roles.
-   **Merged is not deployed**: the run is the deployment, and its output is
-   the proof.
-3. The team runtime role (Hermes profiles, Never4gA, Syncthing, backups),
-   per the Brizza build plan.
+Done when the forge-agents play is idempotent on a second run, Prometheus
+scrapes the host, Uptime Kuma sees it, and the dataset exists with its policy.
+
+Every `ansible-playbook` command below prompts for passwords, so it needs your
+own terminal.
+
+### 6. Select classic sudo on forge-agents (once)
+
+Ubuntu 26.04 makes sudo-rs the default, and no released ansible-core can drive
+it (FORGE-36, see `roles/common`). `common` keeps classic sudo selected from
+then on, but the first run cannot escalate far enough to select it. It prompts
+for your password:
+
+```bash
+ssh -t joseph@10.10.50.20 'sudo update-alternatives --set sudo /usr/bin/sudo.ws && readlink -f /usr/bin/sudo'
+```
+
+Expect `/usr/bin/sudo.ws`.
+
+### 7. Create the backup dataset (forge-hypervisor)
+
+Every bezapool dataset is created by hand. This one is root-only (`0700`, where
+the other backup datasets are `755`) because the nightly archive it will hold
+carries the agents' credentials. It is not shared: bezapool has
+`sharenfs=off`, and no `/etc/exports` stanza is added. Create it **before**
+step 9, because sanoid errors on a dataset it cannot find.
+
+```bash
+ssh root@10.10.10.10 'zfs create bezapool/forge-agents-backup && chmod 0700 /bezapool/forge-agents-backup && zfs get -H -o property,value compression,sharenfs,mountpoint bezapool/forge-agents-backup && stat -c "%U:%G %a" /bezapool/forge-agents-backup'
+```
+
+Expect `lz4`, `off`, `/bezapool/forge-agents-backup`, then `root:root 700`.
+
+### 8. DNS: the record follows the name
+
+```bash
+cd ~/Projects/bezaforge-infrastructure/ansible && ansible-playbook site.yml -l forge-ops,forge-hypervisor --tags adguard,dnsmasq --ask-become-pass --ask-vault-pass
+```
+
+dnsmasq's file is rendered whole, so `forge-brizza` leaves it. AdGuard is
+different: the `adguard` role adds `forge-agents` but **prunes nothing unless
+told to**, so the old `forge-brizza` rewrite stays. Read the role's *rewrite
+reconciliation plan* output. If `forge-brizza.bezaforge.dev` is the only
+unmanaged extra, remove it:
+
+```bash
+cd ~/Projects/bezaforge-infrastructure/ansible && ansible-playbook site.yml -l forge-ops --tags adguard -e adguard_rewrites_prune=true --ask-become-pass --ask-vault-pass
+```
+
+If the plan lists anything else, stop and look first: pruning deletes every
+extra it lists. Then check both resolvers agree:
+
+```bash
+dig +short forge-agents.bezaforge.dev @10.10.20.20; dig +short forge-agents.bezaforge.dev @10.10.10.10; ~/Projects/bezaforge-infrastructure/scripts/dns-parity-check.sh
+```
+
+Expect `10.10.50.20` twice and the parity check passing.
+
+### 9. Backup policy (forge-hypervisor)
+
+```bash
+cd ~/Projects/bezaforge-infrastructure/ansible && ansible-playbook site.yml -l forge-hypervisor --tags sanoid,restic-gcs --ask-vault-pass
+```
+
+```bash
+ssh root@10.10.10.10 'grep -A2 "^\[bezapool/forge-agents-backup\]" /etc/sanoid/sanoid.conf; grep -c forge-agents-backup /usr/local/bin/bezaforge-restic-backup.sh'
+```
+
+Expect the dataset's sanoid block with `use_template = forge_agents_backup`,
+then `1`. Its first daily snapshot appears after midnight
+(`zfs list -t snapshot bezapool/forge-agents-backup`).
+
+### 10. forge-agents, twice
+
+```bash
+cd ~/Projects/bezaforge-infrastructure/ansible && ansible-playbook site.yml -l forge-agents --ask-become-pass --ask-vault-pass
+```
+
+Run the same command a second time. Its recap must read `changed=0` for
+forge-agents; anything else is a finding, not noise. Then look for failed
+units, since the node_exporter packages bring `openipmi` along and this board
+has no BMC:
+
+```bash
+ssh joseph@10.10.50.20 'systemctl --failed --no-legend; sudo ufw status | head -12'
+```
+
+Expect no failed units, and UFW active with 22 allowed from the laptop's
+addresses and 9100 from `10.10.20.20`. If `openipmi.service` is listed, mask it
+through `systemd_masked_units` in `host_vars/forge-agents.yml`, as
+`host_vars/forge-hypervisor/vars.yml` does.
+
+### 11. Prometheus scrapes it (forge-ops)
+
+```bash
+cd ~/Projects/bezaforge-infrastructure/ansible && ansible-playbook site.yml -l forge-ops --tags monitoring --ask-become-pass --ask-vault-pass
+```
+
+```bash
+curl -s https://prometheus.bezaforge.dev/api/v1/query --data-urlencode 'query=up{instance="forge-agents"}' | jq -r '.data.result[].value[1]'
+```
+
+Expect `1`. Then `~/Projects/bezaforge-infrastructure/scripts/deploy-drift-check.py --hosts`
+should list forge-agents, which proves step 10's deploy stamps arrive through
+the scrape.
+
+### 12. Uptime Kuma sees it (by hand)
+
+Kuma's monitors live in its UI, not in this repository. At
+<https://uptime.bezaforge.dev> add a **Ping** monitor named `forge-agents` for
+`10.10.50.20`, with the same notification as forge-ai's monitor, and confirm it
+goes green. UFW on Ubuntu answers ping by default.
+
+### 13. Health
+
+```bash
+cd ~/Projects/bezaforge-infrastructure/ansible && ansible-playbook health.yml -l forge-agents --ask-become-pass --ask-vault-pass
+```
+
+## What comes next
+
+Step 3 of the Brizza build plan onward: Syncthing and the vault, Never4gA,
+Hermes and the team, and then the nightly backup push into step 7's dataset
+and the restore drill.
 
 ## Rollback
 
-None needed. Until step 4's storage confirmation the disk is untouched; after
-it, there is nothing on the machine anyone wants back.
+For the install: none needed. Until step 4's storage confirmation the disk is
+untouched; after it, there is nothing on the machine anyone wants back.
+
+For bringing it under Ansible: the play only adds configuration to an empty
+host. The DNS change is undone by reverting the pull request and re-running
+step 8. The dataset stays empty until the backup push exists; to remove it,
+take its rows out of `roles/sanoid` and `roles/restic-gcs`, redeploy step 9,
+then `zfs destroy bezapool/forge-agents-backup`.

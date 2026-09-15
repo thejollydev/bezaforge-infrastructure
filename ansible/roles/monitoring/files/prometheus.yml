@@ -46,6 +46,12 @@ scrape_configs:
         labels:
           instance: 'forge-erp'
 
+  - job_name: 'node-exporter-forge-agents'
+    static_configs:
+      - targets: ['10.10.50.20:9100']
+        labels:
+          instance: 'forge-agents'
+
   # ============================================================
   # Workstation (#663)
   # ============================================================
