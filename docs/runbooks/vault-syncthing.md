@@ -80,8 +80,11 @@ Nothing syncs yet: the laptop has not been told about either server.
 ### 3. Pair the laptop (by hand)
 
 Replace `<HYPERVISOR-ID>` and `<AGENTS-ID>` with the two IDs from step 2.
-Order matters: the ignore file must exist before the folder is added, or the
-laptop would offer `.git` and `.obsidian` to the servers.
+Order matters twice. The ignore file must exist before the folder, or the
+laptop would offer `.git` and `.obsidian` to the servers. And both devices
+must exist before the folder, because **Syncthing silently drops folder
+devices it does not know**: a folder added first ends up shared with nobody,
+and the only symptom is that the servers stay empty.
 
 1. Write the laptop's ignore file and folder marker:
 
@@ -89,16 +92,33 @@ laptop would offer `.git` and `.obsidian` to the servers.
    printf '%s\n' '// Same patterns as roles/syncthing on the servers. Not synced; keep them in step.' '.git' '/.obsidian' '/.trash' > ~/Vaults/never-knowledge/.stignore && mkdir -p ~/Vaults/never-knowledge/.stfolder && cat ~/Vaults/never-knowledge/.stignore
    ```
 
-2. Add both servers as devices, through the laptop's own API:
+2. Add forge-hypervisor as a device. One command per server, with the ID
+   written out: the laptop's shell is zsh, which does not word-split an
+   unquoted variable, so a loop that relies on `set -- $d` posts an empty
+   device ID and fails.
 
    ```bash
-   K=$(grep -o '<apikey>[^<]*' ~/.local/state/syncthing/config.xml | cut -d'>' -f2); for d in 'forge-hypervisor <HYPERVISOR-ID> 10.10.10.10' 'forge-agents <AGENTS-ID> 10.10.50.20'; do set -- $d; curl -fsS -X POST -H "X-API-Key: $K" -H 'Content-Type: application/json' http://127.0.0.1:8384/rest/config/devices -d "{\"deviceID\":\"$2\",\"name\":\"$1\",\"addresses\":[\"tcp://$3:22000\",\"quic://$3:22000\"]}" && echo "added $1"; done
+   K=$(grep -o '<apikey>[^<]*' ~/.local/state/syncthing/config.xml | cut -d'>' -f2); curl -fsS -X POST -H "X-API-Key: $K" -H 'Content-Type: application/json' http://127.0.0.1:8384/rest/config/devices -d '{"deviceID":"<HYPERVISOR-ID>","name":"forge-hypervisor","addresses":["tcp://10.10.10.10:22000","quic://10.10.10.10:22000"]}' && echo "added forge-hypervisor"
    ```
 
-3. Add the folder, shared with both:
+3. Add forge-agents:
+
+   ```bash
+   K=$(grep -o '<apikey>[^<]*' ~/.local/state/syncthing/config.xml | cut -d'>' -f2); curl -fsS -X POST -H "X-API-Key: $K" -H 'Content-Type: application/json' http://127.0.0.1:8384/rest/config/devices -d '{"deviceID":"<AGENTS-ID>","name":"forge-agents","addresses":["tcp://10.10.50.20:22000","quic://10.10.50.20:22000"]}' && echo "added forge-agents"
+   ```
+
+4. Add the folder, shared with all three:
 
    ```bash
    K=$(grep -o '<apikey>[^<]*' ~/.local/state/syncthing/config.xml | cut -d'>' -f2); ME=$(syncthing device-id); curl -fsS -X POST -H "X-API-Key: $K" -H 'Content-Type: application/json' http://127.0.0.1:8384/rest/config/folders -d "{\"id\":\"never-knowledge\",\"label\":\"never-knowledge\",\"path\":\"$HOME/Vaults/never-knowledge\",\"type\":\"sendreceive\",\"fsWatcherEnabled\":true,\"rescanIntervalS\":3600,\"devices\":[{\"deviceID\":\"$ME\"},{\"deviceID\":\"<HYPERVISOR-ID>\"},{\"deviceID\":\"<AGENTS-ID>\"}]}" && echo "folder added"
+   ```
+
+5. Check that all three IDs stuck. If the folder was added before the
+   devices, it will list only the laptop; repair it with the same body
+   through `PATCH .../rest/config/folders/never-knowledge`.
+
+   ```bash
+   K=$(grep -o '<apikey>[^<]*' ~/.local/state/syncthing/config.xml | cut -d'>' -f2); curl -fsS -H "X-API-Key: $K" http://127.0.0.1:8384/rest/config/folders/never-knowledge | jq -c '[.devices[].deviceID]'
    ```
 
 The laptop dials both servers and sends them the vault, about 11 MB without
