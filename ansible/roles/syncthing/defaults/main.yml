@@ -1,0 +1,67 @@
+---
+# ============================================================
+# syncthing role defaults
+#
+# The device list, folder id and ignore patterns are fleet facts and live
+# in group_vars/all (syncthing_devices, syncthing_folder_*). Per-host
+# settings — user, path, device ID, firewall sources, the check — are in
+# each host's host_vars.
+# ============================================================
+
+# Syncthing's own apt repository. The laptop runs 2.x from Arch; Debian 13
+# and Ubuntu 26.04 package 1.29, so the servers take the upstream build to
+# stay on the laptop's major version.
+syncthing_apt_channel: stable-v2
+
+# --- Per host (required) ---
+# The user Syncthing runs as (syncthing@<user>.service). The role does not
+# create it.
+syncthing_user: ""
+# The folder's path on this host.
+syncthing_folder_path: ""
+# true where the path is a ZFS dataset: the role refuses to configure the
+# folder unless it is mounted.
+syncthing_folder_require_mount: false
+# This host's device ID, recorded after its first run generates it. Empty
+# means "not recorded yet": the role prints the ID and the other hosts
+# leave this one out of the folder.
+syncthing_device_id: ""
+
+# Where Syncthing's API listens. Generated configs bind 127.0.0.1:8384;
+# the role only reads it, never changes it.
+syncthing_gui_address: 127.0.0.1:8384
+
+# Hosts allowed to reach Syncthing's port through UFW. Empty on a host
+# without UFW (forge-hypervisor).
+syncthing_ufw_allow_from: []
+syncthing_port: 22000
+
+# Options set through the REST API on every host.
+#
+# No global discovery, no relays, no NAT traversal and no LAN broadcast.
+# Both servers listen on fixed addresses inside the network, and the laptop
+# always dials them (from Home WiFi or over WireGuard), so nothing needs a
+# public discovery server or relay, and no vault traffic or device
+# announcement leaves the house. Usage and crash reports are off, and apt
+# owns upgrades.
+syncthing_options:
+  globalAnnounceEnabled: false
+  localAnnounceEnabled: false
+  relaysEnabled: false
+  natEnabled: false
+  urAccepted: -1
+  crashReportingEnabled: false
+  autoUpgradeIntervalH: 0
+  startBrowser: false
+
+# --- Sync check (forge-hypervisor) ---
+# A timer that pushes two Uptime Kuma monitors: "in sync" and "conflict
+# copies". See templates/bezaforge-syncthing-check.py.j2.
+syncthing_check_enabled: false
+syncthing_check_insync_push_url: ""
+syncthing_check_conflicts_push_url: ""
+syncthing_check_interval: 5min
+# How long a connected device may stay behind before "in sync" goes down.
+# A large write (an agent filing many documents) takes a while to settle;
+# a device stuck behind for this long is not settling.
+syncthing_check_grace_minutes: 15

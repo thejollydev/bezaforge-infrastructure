@@ -35,14 +35,20 @@
       tags: restic-gcs
     # vault-sync retired 2026-09-13: Ansible no longer manages a bezapool git
     # clone of the vault or its timer. bezapool/vault stays (sanoid + restic
-    # keep it) and will hold the vault's Syncthing copy. The service user and
-    # /etc/hosts pins that role created moved to gdrive-replica and dnsmasq.
+    # keep it) and holds the vault's Syncthing copy (roles/syncthing, below).
+    # The service user and /etc/hosts pins that role created moved to
+    # gdrive-replica and dnsmasq.
     # FORGE-35 Phase 5: one-way Drive→bezapool/gdrive nightly rclone
     # mirror, replacing retired Insync. Also on the dataset owner
     # (local IO beats walking 177 GB over NFS) — ADR 0002 D4 as
     # amended v1.4.
     - role: gdrive-replica
       tags: gdrive-replica
+    # The vault's bezapool copy by Syncthing (#1216; ADR 0012), and the sync
+    # check that watches all three copies. After gdrive-replica because it
+    # runs as vaultsync, the user that role creates.
+    - role: syncthing
+      tags: syncthing
     # ADR 0003 Bucket B: one Samba share + a live RW rclone Google Drive
     # mount, on the hypervisor directly (already the rclone services
     # host — avoids the FUSE-in-unprivileged-LXC unknown).
@@ -231,6 +237,10 @@
     # hand; this is the first host where a role owns it.
     - role: node-exporter
       tags: node-exporter
+    # The vault's forge-agents copy by Syncthing (#1216; ADR 0012). After
+    # `common`, which enables the UFW this role adds its port to.
+    - role: syncthing
+      tags: syncthing
     # Deploy stamp — must stay LAST, `tags: always` (#671). See the
     # hypervisor play above for why.
     - role: deploy-stamp

@@ -1,0 +1,448 @@
+---
+# ============================================================
+# syncthing role — the vault's server copies (#1216)
+#
+# BezaForge ADR 0012 / Brizza ADR 0019: vault FILES sync two-way between
+# the laptop, bezapool (on forge-hypervisor) and forge-agents, with `.git`,
+# `.obsidian` and `.trash` excluded. The laptop stays the only git actor;
+# its 15-minute commit picks up whatever the other copies wrote.
+#
+# The device list and folder are defined once in group_vars/all; per-host
+# user, path and device ID are in host_vars. The laptop is configured by
+# hand to match (docs/runbooks/vault-syncthing.md).
+#
+# Configuration goes through Syncthing's REST API, not a templated
+# config.xml: Syncthing rewrites that file itself, and a template would
+# fight it on every run. Each setting is read first and written only when
+# it differs, so a converged host reports no changes.
+#
+# ⚠️ A NEW HOST HAS NO DEVICE ID ON RECORD. Its first run generates the
+# identity and prints the ID to commit to its host_vars. Until that is
+# merged and deployed, the other hosts leave it out of the folder. That
+# two-step start is the price of keeping device IDs in version control,
+# which ADR 0012 asks for.
+#
+# The API key is read from the host's own config.xml. It is not no_log'd:
+# the API only listens on 127.0.0.1, so anyone who can read this play's
+# verbose output already has a shell on the host.
+# ============================================================
+
+- name: Work out this host's entry and its peers
+  ansible.builtin.set_fact:
+    syncthing_self: "{{ syncthing_devices | selectattr('name', 'equalto', inventory_hostname) | list }}"
+    syncthing_peers: "{{ syncthing_devices | rejectattr('name', 'equalto', inventory_hostname) | selectattr('id') | list }}"
+    syncthing_api: "http://{{ syncthing_gui_address }}"
+
+- name: Check the role's inputs
+  ansible.builtin.assert:
+    that:
+      - syncthing_user | length > 0
+      - syncthing_folder_path | length > 0
+      - syncthing_self | length == 1
+    fail_msg: >-
+      roles/syncthing needs syncthing_user and syncthing_folder_path in
+      host_vars, and exactly one entry named {{ inventory_hostname }} in
+      syncthing_devices (group_vars/all).
+    quiet: true
+
+# ------------------------------------------------------------
+# Install from Syncthing's apt repository
+# ------------------------------------------------------------
+
+- name: Create the apt keyrings directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+# Served as a binary OpenPGP key, which is what signed_by expects, so
+# unlike the Docker key it needs no dearmoring.
+- name: Install the Syncthing release key
+  ansible.builtin.get_url:
+    url: https://syncthing.net/release-key.gpg
+    dest: /etc/apt/keyrings/syncthing-archive-keyring.gpg
+    mode: '0644'
+
+- name: Add the Syncthing apt repository
+  ansible.builtin.deb822_repository:
+    name: syncthing
+    uris: https://apt.syncthing.net/
+    suites: syncthing
+    components: "{{ syncthing_apt_channel }}"
+    signed_by: /etc/apt/keyrings/syncthing-archive-keyring.gpg
+    state: present
+    enabled: true
+
+- name: Install Syncthing
+  ansible.builtin.apt:
+    name: syncthing
+    state: present
+    update_cache: true
+
+- name: Read the installed Syncthing version
+  ansible.builtin.command:
+    cmd: syncthing --version
+  register: syncthing_version
+  changed_when: false
+  check_mode: false
+
+# apt prefers the upstream build only because 2.x sorts above the distro's
+# 1.29. If that ever stopped being true, a 1.x server would quietly join a
+# 2.x set; fail instead.
+- name: Check that Syncthing is a 2.x release
+  ansible.builtin.assert:
+    that: syncthing_version.stdout is match('syncthing v2[.]')
+    fail_msg: "Expected Syncthing 2.x from apt.syncthing.net, found: {{ syncthing_version.stdout }}"
+    quiet: true
+
+# ------------------------------------------------------------
+# The folder on disk
+# ------------------------------------------------------------
+
+- name: Look up the Syncthing user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ syncthing_user }}"
+
+- name: Record the Syncthing user's state directory and group
+  ansible.builtin.set_fact:
+    syncthing_home: "{{ ansible_facts['getent_passwd'][syncthing_user][4] }}/.local/state/syncthing"
+    syncthing_gid: "{{ ansible_facts['getent_passwd'][syncthing_user][2] }}"
+
+- name: Check whether the folder's dataset is mounted
+  ansible.builtin.command:
+    cmd: findmnt --mountpoint {{ syncthing_folder_path }}
+  register: syncthing_folder_mount
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: syncthing_folder_require_mount | bool
+
+- name: Refuse to set up the folder on an unmounted dataset
+  ansible.builtin.assert:
+    that: syncthing_folder_mount.rc == 0
+    fail_msg: >-
+      {{ syncthing_folder_path }} is not a mountpoint. The folder marker
+      would be written into the empty directory underneath, and Syncthing
+      would then sync into it whenever the dataset failed to mount. Mount
+      the dataset first.
+    quiet: true
+  when: syncthing_folder_require_mount | bool
+
+# Only where the folder is a plain directory. On forge-agents the parent is
+# ~/Vaults; on the hypervisor it would be /bezapool, which is not ours.
+- name: Create the folder's parent directory
+  ansible.builtin.file:
+    path: "{{ syncthing_folder_path | dirname }}"
+    state: directory
+    owner: "{{ syncthing_user }}"
+    group: "{{ syncthing_gid }}"
+    mode: '0755'
+  when: not syncthing_folder_require_mount | bool
+
+# .stfolder is Syncthing's marker. It will not sync a folder whose marker
+# is missing, which is what stops it treating an unmounted dataset as a
+# folder whose files were all deleted.
+- name: Create the folder and its marker
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ syncthing_user }}"
+    group: "{{ syncthing_gid }}"
+    mode: '0755'
+  loop:
+    - "{{ syncthing_folder_path }}"
+    - "{{ syncthing_folder_path }}/.stfolder"
+
+# Written before the folder is added, so the first scan already ignores
+# what it should.
+- name: Write the folder's ignore patterns
+  ansible.builtin.template:
+    src: stignore.j2
+    dest: "{{ syncthing_folder_path }}/.stignore"
+    owner: "{{ syncthing_user }}"
+    group: "{{ syncthing_gid }}"
+    mode: '0644'
+
+# ------------------------------------------------------------
+# Identity and service
+# ------------------------------------------------------------
+
+- name: Generate this host's Syncthing identity (first run only)
+  ansible.builtin.command:
+    cmd: runuser -u {{ syncthing_user }} -- syncthing generate --home {{ syncthing_home }} --no-port-probing
+    creates: "{{ syncthing_home }}/cert.pem"
+
+- name: Read this host's device ID
+  ansible.builtin.command:
+    cmd: runuser -u {{ syncthing_user }} -- syncthing device-id --home {{ syncthing_home }}
+  register: syncthing_device_id_live
+  changed_when: false
+  check_mode: false
+
+- name: Stop if this host's identity is not the one on record
+  ansible.builtin.assert:
+    that: syncthing_device_id | length == 0 or syncthing_device_id == syncthing_device_id_live.stdout | trim
+    fail_msg: >-
+      Syncthing on {{ inventory_hostname }} has device ID
+      {{ syncthing_device_id_live.stdout | trim }}, but host_vars records
+      {{ syncthing_device_id }}. A rebuilt host gets a new identity that no
+      peer trusts. Restore cert.pem and key.pem into {{ syncthing_home }}
+      from backup, or record the new ID and re-pair the laptop
+      (docs/runbooks/vault-syncthing.md).
+    quiet: true
+
+- name: Show the device ID to record in host_vars
+  ansible.builtin.debug:
+    msg: >-
+      RECORD THIS: {{ inventory_hostname }} syncthing_device_id:
+      {{ syncthing_device_id_live.stdout | trim }} — until it is in this
+      host's host_vars and deployed, the other hosts leave
+      {{ inventory_hostname }} out of the folder.
+  when: syncthing_device_id | length == 0
+
+- name: Enable and start Syncthing
+  ansible.builtin.systemd:
+    name: "syncthing@{{ syncthing_user }}.service"
+    enabled: true
+    state: started
+
+- name: Read the Syncthing API key
+  ansible.builtin.slurp:
+    src: "{{ syncthing_home }}/config.xml"
+  register: syncthing_config_xml
+  no_log: true
+
+- name: Keep the API key for the calls below
+  ansible.builtin.set_fact:
+    syncthing_api_key: "{{ syncthing_config_xml.content | b64decode | regex_search('<apikey>([^<]+)</apikey>', '\\1') | first }}"
+  no_log: true
+
+- name: Wait for the Syncthing API
+  ansible.builtin.uri:
+    url: "{{ syncthing_api }}/rest/system/ping"
+    headers:
+      X-API-Key: "{{ syncthing_api_key }}"
+  register: syncthing_ping
+  until: syncthing_ping.status == 200
+  retries: 30
+  delay: 2
+  check_mode: false
+
+# ------------------------------------------------------------
+# Options
+# ------------------------------------------------------------
+
+- name: Read Syncthing's options
+  ansible.builtin.uri:
+    url: "{{ syncthing_api }}/rest/config/options"
+    headers:
+      X-API-Key: "{{ syncthing_api_key }}"
+  register: syncthing_options_live
+  check_mode: false
+
+- name: Set Syncthing's options
+  ansible.builtin.uri:
+    url: "{{ syncthing_api }}/rest/config/options"
+    method: PATCH
+    headers:
+      X-API-Key: "{{ syncthing_api_key }}"
+    body_format: json
+    body: "{{ syncthing_options_wanted }}"
+  changed_when: true
+  when: syncthing_options_live.json | combine(syncthing_options_wanted) != syncthing_options_live.json
+  vars:
+    syncthing_options_wanted: "{{ syncthing_options | combine({'listenAddresses': syncthing_self[0].addresses}) }}"
+
+# ------------------------------------------------------------
+# Devices
+# ------------------------------------------------------------
+
+- name: Read Syncthing's devices
+  ansible.builtin.uri:
+    url: "{{ syncthing_api }}/rest/config/devices"
+    headers:
+      X-API-Key: "{{ syncthing_api_key }}"
+  register: syncthing_devices_live
+  check_mode: false
+
+- name: Note which devices Syncthing already knows
+  ansible.builtin.set_fact:
+    syncthing_known_ids: "{{ syncthing_devices_live.json | map(attribute='deviceID') | list }}"
+
+- name: Add devices Syncthing does not know yet
+  ansible.builtin.uri:
+    url: "{{ syncthing_api }}/rest/config/devices"
+    method: POST
+    headers:
+      X-API-Key: "{{ syncthing_api_key }}"
+    body_format: json
+    body:
+      deviceID: "{{ item.id }}"
+      name: "{{ item.name }}"
+      addresses: "{{ item.addresses }}"
+      introducer: false
+      autoAcceptFolders: false
+  loop: "{{ syncthing_peers }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.id not in syncthing_known_ids
+  changed_when: true
+
+- name: Correct devices whose name or addresses have drifted
+  ansible.builtin.uri:
+    url: "{{ syncthing_api }}/rest/config/devices/{{ item.id }}"
+    method: PATCH
+    headers:
+      X-API-Key: "{{ syncthing_api_key }}"
+    body_format: json
+    body:
+      name: "{{ item.name }}"
+      addresses: "{{ item.addresses }}"
+  loop: "{{ syncthing_peers }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - item.id in syncthing_known_ids
+    - >-
+      (syncthing_devices_live.json | selectattr('deviceID', 'equalto', item.id) | map(attribute='name') | first) != item.name
+      or (syncthing_devices_live.json | selectattr('deviceID', 'equalto', item.id) | map(attribute='addresses') | first) != item.addresses
+  changed_when: true
+
+# ------------------------------------------------------------
+# The folder
+# ------------------------------------------------------------
+
+- name: Describe the folder as it should be
+  ansible.builtin.set_fact:
+    syncthing_folder_wanted:
+      id: "{{ syncthing_folder_id }}"
+      label: "{{ syncthing_folder_label }}"
+      path: "{{ syncthing_folder_path }}"
+      type: sendreceive
+      fsWatcherEnabled: true
+      rescanIntervalS: 3600
+      devices: >-
+        {{ ([syncthing_device_id_live.stdout | trim] + (syncthing_peers | map(attribute='id') | list))
+           | map('community.general.dict_kv', 'deviceID') | list }}
+
+- name: Read the folder's configuration
+  ansible.builtin.uri:
+    url: "{{ syncthing_api }}/rest/config/folders/{{ syncthing_folder_id }}"
+    headers:
+      X-API-Key: "{{ syncthing_api_key }}"
+    status_code: [200, 404]
+  register: syncthing_folder_live
+  check_mode: false
+
+- name: Add the folder
+  ansible.builtin.uri:
+    url: "{{ syncthing_api }}/rest/config/folders"
+    method: POST
+    headers:
+      X-API-Key: "{{ syncthing_api_key }}"
+    body_format: json
+    body: "{{ syncthing_folder_wanted }}"
+  when: syncthing_folder_live.status == 404
+  changed_when: true
+
+- name: Correct the folder where it has drifted
+  ansible.builtin.uri:
+    url: "{{ syncthing_api }}/rest/config/folders/{{ syncthing_folder_id }}"
+    method: PATCH
+    headers:
+      X-API-Key: "{{ syncthing_api_key }}"
+    body_format: json
+    body: "{{ syncthing_folder_wanted }}"
+  when:
+    - syncthing_folder_live.status == 200
+    - >-
+      syncthing_folder_live.json.label != syncthing_folder_wanted.label
+      or syncthing_folder_live.json.path != syncthing_folder_wanted.path
+      or syncthing_folder_live.json.type != syncthing_folder_wanted.type
+      or syncthing_folder_live.json.fsWatcherEnabled != syncthing_folder_wanted.fsWatcherEnabled
+      or syncthing_folder_live.json.rescanIntervalS != syncthing_folder_wanted.rescanIntervalS
+      or (syncthing_folder_live.json.devices | map(attribute='deviceID') | sort)
+      != (syncthing_folder_wanted.devices | map(attribute='deviceID') | sort)
+  changed_when: true
+
+# Listen addresses only take effect after a restart.
+- name: Ask Syncthing whether a restart is needed
+  ansible.builtin.uri:
+    url: "{{ syncthing_api }}/rest/config/restart-required"
+    headers:
+      X-API-Key: "{{ syncthing_api_key }}"
+  register: syncthing_restart
+  check_mode: false
+
+- name: Restart Syncthing to apply its configuration
+  ansible.builtin.systemd:
+    name: "syncthing@{{ syncthing_user }}.service"
+    state: restarted
+  when: syncthing_restart.json.requiresRestart | bool
+
+- name: Wait for the Syncthing API after the restart
+  ansible.builtin.uri:
+    url: "{{ syncthing_api }}/rest/system/ping"
+    headers:
+      X-API-Key: "{{ syncthing_api_key }}"
+  register: syncthing_ping_after
+  until: syncthing_ping_after.status == 200
+  retries: 30
+  delay: 2
+  when: syncthing_restart.json.requiresRestart | bool
+
+# ------------------------------------------------------------
+# Firewall
+# ------------------------------------------------------------
+
+# TCP for the sync protocol, UDP for QUIC on the same port.
+- name: Allow Syncthing from its peers
+  community.general.ufw:
+    rule: allow
+    from_ip: "{{ item.0 }}"
+    to_port: "{{ syncthing_port | string }}"
+    proto: "{{ item.1 }}"
+    comment: "syncthing (managed by ansible/roles/syncthing)"
+  loop: "{{ syncthing_ufw_allow_from | product(['tcp', 'udp']) | list }}"
+  loop_control:
+    label: "{{ item.0 }}/{{ item.1 }}"
+  when: syncthing_ufw_allow_from | length > 0
+
+# ------------------------------------------------------------
+# Sync check (forge-hypervisor)
+# ------------------------------------------------------------
+
+- name: Deploy the vault sync check
+  when: syncthing_check_enabled | bool
+  block:
+    # Group-readable by the Syncthing user, which runs it; not world-readable,
+    # because the push URLs carry Uptime Kuma tokens.
+    - name: Deploy the sync check script
+      ansible.builtin.template:
+        src: bezaforge-syncthing-check.py.j2
+        dest: /usr/local/bin/bezaforge-syncthing-check.py
+        owner: root
+        group: "{{ syncthing_gid }}"
+        mode: '0750'
+
+    - name: Deploy the sync check units
+      ansible.builtin.template:
+        src: "{{ item }}.j2"
+        dest: "/etc/systemd/system/{{ item }}"
+        owner: root
+        group: root
+        mode: '0644'
+      loop:
+        - bezaforge-syncthing-check.service
+        - bezaforge-syncthing-check.timer
+      notify: reload systemd
+
+    - name: Flush handlers (reload systemd)
+      ansible.builtin.meta: flush_handlers
+
+    - name: Enable and start the sync check timer
+      ansible.builtin.systemd:
+        name: bezaforge-syncthing-check.timer
+        enabled: true
+        state: started
