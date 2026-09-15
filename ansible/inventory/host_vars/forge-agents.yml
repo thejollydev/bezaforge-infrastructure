@@ -46,7 +46,7 @@ syncthing_user: joseph
 syncthing_folder_path: /home/joseph/Vaults/never-knowledge
 # Empty until the first run generates the identity and prints the ID to
 # record here (docs/runbooks/vault-syncthing.md).
-syncthing_device_id: ""
+syncthing_device_id: WV54WLV-YC4BPXG-CB7LGKH-LZSQFZ7-WYXDUAH-XV7SR6L-UKT3XNF-YFNCAQW
 # UFW is default-deny here: the hypervisor, and the laptop on Home WiFi and
 # over WireGuard.
 syncthing_ufw_allow_from: "{{ ['10.10.10.10'] + common_admin_ssh_sources }}"
