@@ -82,24 +82,16 @@ module "forge_erp" {
 }
 
 # ---------------------------------------------------------------------------
-# forge-brizza — VMID 104 — RETIRED 2026-08-30, IDENTITY RESERVED
+# VMID 104 — RELEASED 2026-09-14 (was forge-brizza)
 #
-# Brizza v1 was torn down whole (VM, Hermes agent, brizza-postgres on
-# forge-ops, the Ollama fallback model on forge-ai, the ~/.hermes
-# backups). The module is removed rather than commented out, because a
-# commented module is not state — Terraform would still have destroyed
-# the VM on the next apply either way, and dead HCL only invites someone
-# to uncomment a v1 shape into a v2 world.
+# forge-brizza, Brizza v1's VM, was retired whole on 2026-08-30 and its
+# identity held for v2. v2 runs on bare metal instead: the M920Q as
+# forge-agents (BezaForge ADR 0011). 10.10.50.20 and the DNS record moved
+# with the name to that host; VMID 104 has nothing left to wait for and
+# is free for any VM.
 #
-# ⚠️ VMID 104, 10.10.50.20 and forge-brizza.bezaforge.dev are RESERVED,
-# not freed — Brizza v2 is being built and will take them. Same
-# treatment as forge-dev (VMID 102). Do not hand any of the three to
-# another host.
-#
-# v2 will not be a copy of this: the shape under discussion is multiple
-# Hermes clients or an agent swarm, possibly orchestrated from the
-# laptop, so its resources (4 cores / 16 GB / 100 GB here) should be
-# sized against that design rather than inherited from this one.
+# forge-agents is absent from this file because it is not a Proxmox
+# guest. Ansible manages it (inventory/hosts.yml, assistant_hosts).
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------

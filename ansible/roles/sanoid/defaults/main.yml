@@ -79,6 +79,20 @@ sanoid_templates:
     daily: 14
     weekly: 8
     monthly: 6
+  # forge-agents backup (#1215; Brizza ADR 0018, BezaForge ADR 0011). Will
+  # hold the nightly `hermes backup` archive and the settings it omits, once
+  # the Brizza build plan's backup step lands; empty until then. A nightly
+  # push gains nothing from hourlies, so this takes the posture v1's
+  # brizza_backup had.
+  # ⚠️ Revisit when that push is built. If it keeps a single current copy
+  # (rsync --delete, as forge-ops-backup does), these snapshots ARE the
+  # history and are right. If it keeps dated archives with their own prune,
+  # snapshotting them pins every pruned archive: the FORGE-44 vzdump trap.
+  forge_agents_backup:
+    hourly: 0
+    daily: 7
+    weekly: 4
+    monthly: 6
 
 # ------------------------------------------------------------
 # Datasets covered by sanoid
@@ -110,6 +124,14 @@ sanoid_datasets:
   # snapshots here EXTEND financial history past forge-erp's 14-day local prune).
   - dataset: "bezapool/forge-erp-backup"
     template: "forge_erp_backup"
+    recursive: "no"
+
+  # forge-agents backup (#1215). Created by hand like every dataset here
+  # (docs/runbooks/install-forge-agents.md), root-owned 0700 because the
+  # archive will hold the agents' credentials. It must exist before this row
+  # deploys: sanoid errors on a missing dataset.
+  - dataset: "bezapool/forge-agents-backup"
+    template: "forge_agents_backup"
     recursive: "no"
 
   # bezapool/downloads + bezapool/media datasets destroyed 2026-07-18 (#485)

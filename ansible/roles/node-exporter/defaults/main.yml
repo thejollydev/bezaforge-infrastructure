@@ -1,0 +1,17 @@
+---
+# Installed with apt's default Recommends, to match forge-ai: that brings
+# prometheus-node-exporter-collectors and, through it, ipmitool, jq,
+# nvme-cli and smartmontools.
+#
+# ⚠️ ipmitool depends on openipmi, whose service can only start on a board
+# with a BMC. On forge-hypervisor it sits failed and is masked through
+# systemd_masked_units; on forge-ai (checked 2026-09-14) it is quietly
+# inactive. If the "Systemd Unit Failed" rule names openipmi.service on a
+# host this role manages, mask it the same way in that host's host_vars —
+# not by dropping Recommends here, which would also drop the collectors.
+node_exporter_packages:
+  - prometheus-node-exporter
+
+# Matches /etc/default/prometheus-node-exporter on forge-ai (2026-09-14).
+# The systemd collector feeds the "Systemd Unit Failed" alert.
+node_exporter_args: "--collector.systemd"

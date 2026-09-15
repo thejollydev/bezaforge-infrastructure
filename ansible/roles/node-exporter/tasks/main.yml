@@ -1,0 +1,37 @@
+---
+# ============================================================
+# node-exporter role — the distro Prometheus node_exporter
+#
+# Installs Debian/Ubuntu's prometheus-node-exporter the way forge-ai and
+# forge-erp already run it (by hand, before this role existed): the
+# package with its default Recommends, which bring the collectors package
+# and its apt/nvme/smartmon textfile timers, and the systemd collector
+# switched on so the "Systemd Unit Failed" rule can see the host.
+#
+# The textfile directory the fleet's own metrics are written to
+# (/var/lib/prometheus/node-exporter, by dns-client and deploy-stamp) is
+# the package's default, so nothing here configures it.
+#
+# Scrape side: roles/monitoring/files/prometheus.yml on forge-ops.
+# Firewall: roles/common allows tcp/9100 from common_monitoring_sources,
+# which is why site.yml places this role after `common`.
+# ============================================================
+
+- name: Install prometheus-node-exporter
+  ansible.builtin.apt:
+    name: "{{ node_exporter_packages }}"
+    state: present
+    update_cache: true
+
+- name: Set the node_exporter arguments
+  ansible.builtin.lineinfile:
+    path: /etc/default/prometheus-node-exporter
+    regexp: '^ARGS='
+    line: 'ARGS="{{ node_exporter_args }}"'
+  notify: restart prometheus-node-exporter
+
+- name: Enable and start prometheus-node-exporter
+  ansible.builtin.systemd:
+    name: prometheus-node-exporter
+    enabled: true
+    state: started
