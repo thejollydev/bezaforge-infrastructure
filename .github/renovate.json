@@ -16,7 +16,49 @@
   },
   "docker-compose": { "enabled": false },
   "dockerfile": { "enabled": false },
+  "customDatasources": {
+    "pytorch-rocm-wheels": {
+      "description": "PyTorch's ROCm wheel index is an HTML listing of .whl links, not a registry any built-in datasource understands. `format: html` turns the links into version candidates; the packageRule below strips the wheel filename down to the version. The index URL carries the ROCm build (rocm7.2), so a ROCm move is a deliberate edit of comfyui_torch_index, never an automatic bump -- ROCm 10 lives on AMD's own index and changes ComfyUI's dynamic-VRAM behaviour (see the role).",
+      "defaultRegistryUrlTemplate": "https://download.pytorch.org/whl/rocm7.2/{{packageName}}/",
+      "format": "html"
+    }
+  },
   "customManagers": [
+    {
+      "customType": "regex",
+      "description": "The PyTorch wheels the comfyui role installs. Bare version strings in an Ansible list, so no built-in manager sees them -- the same blind spot that left ollama_version three minors behind (the manager below). The pin IS the install: roles/comfyui passes these as constraints, so a stale pin is a stale venv that nothing reports. Local versions (+rocm7.2) are part of the wheel filename, which is why this uses the custom HTML datasource rather than pypi: PyPI carries the CUDA build of the same package names, and pointing at it would propose a torch that cannot see this GPU.",
+      "managerFilePatterns": ["/^ansible/roles/comfyui/defaults/main\\.ya?ml$/"],
+      "matchStrings": [
+        "- (?<depName>torch|torchvision|torchaudio)==(?<currentValue>\\d+\\.\\d+\\.\\d+\\+rocm[\\d.]+)"
+      ],
+      "autoReplaceStringTemplate": "- {{{depName}}}=={{{newValue}}}",
+      "datasourceTemplate": "custom.pytorch-rocm-wheels",
+      "versioningTemplate": "pep440"
+    },
+    {
+      "customType": "regex",
+      "description": "The ComfyUI release the role checks out. A bare version string like ollama_version, so no built-in manager sees it. ComfyUI ships often and a release can move the node API the pinned custom nodes call -- the role warns that ComfyUI-ToSVG imports SVG from comfy_extras.nodes_images, which upstream keeps only for backward compatibility -- so this is an update to READ before merging, not a routine bump.",
+      "managerFilePatterns": ["/^ansible/roles/comfyui/defaults/main\\.ya?ml$/"],
+      "matchStrings": [
+        "comfyui_version:\\s+(?<currentValue>v\\d+\\.\\d+\\.\\d+)"
+      ],
+      "autoReplaceStringTemplate": "comfyui_version: {{{newValue}}}",
+      "depNameTemplate": "comfyanonymous/ComfyUI",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "The uv version the role installs from Astral's script. Bare version string, same blind spot. comfyui_python_version is deliberately NOT watched: a Python minor bump rebuilds the venv and every wheel in it, which is a deliberate act, not a dependency update.",
+      "managerFilePatterns": ["/^ansible/roles/comfyui/defaults/main\\.ya?ml$/"],
+      "matchStrings": [
+        "comfyui_uv_version:\\s+\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ],
+      "autoReplaceStringTemplate": "comfyui_uv_version: \"{{{newValue}}}\"",
+      "depNameTemplate": "astral-sh/uv",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver"
+    },
     {
       "customType": "regex",
       "description": "Container images in compose files, Jinja (.j2) templates, and Ansible *_image vars. Handles the FORGE-70 tag@sha256 form, tag-only images, and digest-only (no-tag) images. Skips values containing Jinja {{ }} or ${ } (unresolvable tags). IMAGE VALUES MUST BE UNQUOTED: the regex is unanchored so it also matches `<something>_image: `, and the match would include an opening quote but not the closing one, so autoReplaceStringTemplate would emit a dangling quote and corrupt the YAML. Quote support was therefore removed from matchStrings on purpose -- a quoted value is now silently unmanaged (safe) rather than rewritten into broken YAML (unsafe). autoReplaceStringTemplate is what lets Renovate PIN a digest onto a tag-only image; without it the pin branch failed on every run for 3+ weeks with 'Digest is not updated / update failure' because currentDigest never participated in the match.",
@@ -58,6 +100,12 @@
     }
   ],
   "packageRules": [
+    {
+      "description": "The custom HTML datasource yields wheel filenames; this pulls the version out of them. Also keeps the torch trio together -- torch, torchvision and torchaudio are released as a set and the role installs them as one constraint file, so a PR bumping one alone would produce a venv PyTorch itself refuses to resolve.",
+      "matchDatasources": ["custom.pytorch-rocm-wheels"],
+      "extractVersion": "^(?:torch|torchvision|torchaudio)-(?<version>\\d+\\.\\d+\\.\\d+\\+rocm[\\d.]+)-cp313-cp313-",
+      "groupName": "pytorch rocm wheels"
+    },
     {
       "description": "Pin digests for every managed container image — aligns updates to the FORGE-70 tag@sha256 standard (adds a digest to tag-only images on bump).",
       "matchDatasources": ["docker"],
