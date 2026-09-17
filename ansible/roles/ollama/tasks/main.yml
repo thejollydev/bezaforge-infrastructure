@@ -21,14 +21,30 @@
 # ------------------------------------------------------------
 # Install
 # ------------------------------------------------------------
-# The upstream install script (https://ollama.com/install.sh):
-#   * detects GPU (ROCm/CUDA) and installs the matching binary
-#   * creates the `ollama` system user
-#   * drops a systemd unit at /etc/systemd/system/ollama.service
-#   * starts the service
+# Ollama ships this host two release bundles: the base runtime and the
+# ROCm libraries for the RX 7900 XT. Upstream's install.sh streams both
+# through `curl | zstd | tar` as root.
 #
-# It's idempotent — re-running upgrades in place. We gate it on
-# version drift so the play stays fast and quiet.
+# This fetches them instead (#1225), because a stream can be neither
+# resumed nor verified. Measured on forge-ai 2026-09-16: the release CDN
+# serves 32-47 MB/s in bursts but STALLS on a sustained transfer -- 30,
+# 28, 36 MB/s, then 7.3, then zero for 80 straight seconds. The pipe
+# itself costs nothing (piped and plain transfers measured the same), so
+# the fix is resumability and a checksum, not a different transport.
+
+- name: Install the tools the bundles need
+  ansible.builtin.apt:
+    name: "{{ ollama_install_packages }}"
+    state: present
+    update_cache: true
+
+- name: Create the bundle cache
+  ansible.builtin.file:
+    path: "{{ ollama_cache_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
 
 - name: Probe installed ollama version
   ansible.builtin.command: ollama --version
@@ -41,21 +57,93 @@
   ansible.builtin.set_fact:
     ollama_install_needed: >-
       {{
-        (ollama_install_method == 'script') and (
+        (ollama_install_method == 'bundles') and (
           ollama_version_probe.rc != 0 or
-          (ollama_version | length > 0 and ollama_version not in ollama_version_probe.stdout)
+          ollama_version not in ollama_version_probe.stdout
         )
       }}
 
-- name: Install Ollama via upstream script
-  ansible.builtin.shell: >
-    set -o pipefail;
-    curl -fsSL https://ollama.com/install.sh
-    {% if ollama_version | length > 0 %}| OLLAMA_VERSION={{ ollama_version | quote }} sh{% else %}| sh{% endif %}
-  args:
-    executable: /bin/bash
+- name: Install Ollama from the release bundles
   when: ollama_install_needed | bool
-  changed_when: true
+  block:
+
+    - name: Fetch the release checksums
+      ansible.builtin.get_url:
+        url: "{{ ollama_release_base }}/v{{ ollama_version }}/sha256sum.txt"
+        dest: "{{ ollama_cache_dir }}/sha256sum-{{ ollama_version }}.txt"
+        owner: root
+        group: root
+        mode: "0644"
+        force: true
+
+    # curl rather than get_url, and the flags are the whole point:
+    #   --continue-at -   resumes a partial file; get_url would restart
+    #                     the 1.4 GB bundle from zero.
+    #   --speed-limit/--speed-time  abort a transfer that drops under
+    #                     1 KB/s for two minutes -- that is the stall,
+    #                     which otherwise hangs the play indefinitely.
+    #   --retry-all-errors  retry that aborted transfer, resuming.
+    # No `creates`: a half-downloaded file MUST be revisited, and the
+    # checksum below is what decides whether it is whole.
+    - name: Download the release bundles  # noqa: command-instead-of-module
+      ansible.builtin.command:
+        cmd: >-
+          curl --fail --location --silent --show-error
+          --retry {{ ollama_download_retries }} --retry-all-errors --retry-delay 5
+          --speed-limit 1024 --speed-time 120
+          --continue-at - --output {{ ollama_cache_dir }}/{{ item }}
+          {{ ollama_release_base }}/v{{ ollama_version }}/{{ item }}
+      loop: "{{ ollama_bundles }}"
+      changed_when: true
+
+    # --ignore-missing: the file lists every asset of the release,
+    # including the Windows ones this host never downloads.
+    - name: Verify the bundles against the release checksums
+      ansible.builtin.command:
+        cmd: sha256sum --check --strict --ignore-missing sha256sum-{{ ollama_version }}.txt
+        chdir: "{{ ollama_cache_dir }}"
+      changed_when: false
+
+    - name: Extract the bundles  # noqa: command-instead-of-module
+      ansible.builtin.command:
+        cmd: >-
+          tar --zstd --extract --file {{ ollama_cache_dir }}/{{ item }}
+          --directory {{ ollama_install_dir }}
+      loop: "{{ ollama_bundles }}"
+      changed_when: true
+      notify:
+        - reload systemd
+        - restart ollama
+
+    - name: Drop the cached bundles
+      ansible.builtin.file:
+        path: "{{ ollama_cache_dir }}/{{ item }}"
+        state: absent
+      loop: "{{ ollama_bundles }}"
+      when: not ollama_cache_keep | bool
+
+# The service user upstream's script used to create. Unchanged in shape:
+# a system account with its own group and a home at /usr/share/ollama,
+# which is where models live unless OLLAMA_MODELS says otherwise.
+- name: Create the ollama service user
+  ansible.builtin.user:
+    name: ollama
+    system: true
+    shell: /bin/false
+    home: /usr/share/ollama
+    create_home: true
+    state: present
+
+# Mirrors the unit the script wrote, now under version control. Role
+# configuration still layers on top through ollama.service.d/override.conf
+# rather than being folded in here.
+- name: Render the ollama systemd unit
+  ansible.builtin.template:
+    src: ollama.service.j2
+    dest: /etc/systemd/system/ollama.service
+    owner: root
+    group: root
+    mode: "0644"
   notify:
     - reload systemd
     - restart ollama

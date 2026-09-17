@@ -1,0 +1,21 @@
+# {{ ansible_managed }}
+#
+# Mirrors the unit upstream's install.sh used to write, so the service
+# behaves exactly as before now that the role installs Ollama itself
+# (#1225). Role configuration is layered in ollama.service.d/override.conf
+# (host, models dir, GPU env) rather than edited into this file, which is
+# why this stays a faithful copy of upstream's shape.
+[Unit]
+Description=Ollama Service
+After=network-online.target
+
+[Service]
+ExecStart={{ ollama_install_dir }}/bin/ollama serve
+User=ollama
+Group=ollama
+Restart=always
+RestartSec=3
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+[Install]
+WantedBy=default.target
