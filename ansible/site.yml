@@ -194,9 +194,10 @@
 # until 2026-08-30: the address and DNS record followed the name, and
 # VMID 104 was released because this host is not a VM.
 #
-# This play is the base only (#1215). The team's runtime — Hermes
-# profiles, Never4gA, Syncthing, the tracker sync, the nightly backup
-# push — joins it as roles in later steps of the Brizza build plan.
+# The base (#1215) plus the vault and the way the agents read it:
+# Syncthing (#1216) and Never4gA (#1217). Still to join it as roles in
+# later steps of the Brizza build plan: the Hermes profiles, the tracker
+# sync, and the nightly backup push.
 #
 # Left out on purpose:
 #   - monitoring       is the Prometheus/Grafana/Loki STACK on forge-ops,
@@ -241,6 +242,12 @@
     # `common`, which enables the UFW this role adds its port to.
     - role: syncthing
       tags: syncthing
+    # The vault made readable by the agents (#1217; Brizza ADR 0016).
+    # After `syncthing`, and not merely by preference: the role refuses to
+    # run against a path with no index.md, because Never4gA would take an
+    # empty directory for a new vault and initialise it.
+    - role: never4ga
+      tags: never4ga
     # Deploy stamp — must stay LAST, `tags: always` (#671). See the
     # hypervisor play above for why.
     - role: deploy-stamp

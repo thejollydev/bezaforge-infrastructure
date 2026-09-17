@@ -1,0 +1,34 @@
+# Managed by Ansible (roles/never4ga) — local edits are overwritten.
+#
+# A `systemd --user` unit, which is the shape Never4gA's own service
+# manager reports on and controls (core/05 section 11). It does not
+# install the unit; this role does.
+#
+# The service owns the index and reconciles what its watcher sees. On this
+# host that is the point: documents arrive by Syncthing rather than from a
+# local editor, so without it nothing would notice a file another machine
+# wrote until someone ran `index` by hand.
+
+[Unit]
+Description=Never4gA local knowledge service
+After=default.target
+
+[Service]
+Type=exec
+ExecStart={{ never4ga_bin }}/never4ga --vault {{ never4ga_vault_path }} serve
+Restart=on-failure
+RestartSec=5
+
+# The service writes its derived state and its secret store, and nothing
+# else. The vault is read and written through the same paths a user uses.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths={{ never4ga_vault_path }} %h/.local/share/never4ga %h/.local/state/never4ga
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+IPAddressAllow=localhost
+IPAddressDeny=any
+
+[Install]
+WantedBy=default.target
