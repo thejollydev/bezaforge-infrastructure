@@ -85,7 +85,36 @@ comfyui_ufw_allow_from:
 # VRAM off already (it enables it for AMD only at ROCm >= 7.14), which is what
 # avoids the black-output and slowdown bugs (#15452, #15661).
 comfyui_extra_args: []
-comfyui_extra_env: {}
+# HSA_TOOLS_DISABLE_REGISTER stops the ROCm runtime registering with the
+# profiler libraries the PyTorch wheel bundles (librocprofiler-sdk,
+# libroctracer64, libhsa-amd-aqlprofile64). With that registration in place
+# its async-events thread polls the driver instead of sleeping: ONE trivial
+# GPU op leaves a core pegged for the life of the process, ~16k ioctl/s
+# against KFD with the GPU 0 % busy. ComfyUI touches the GPU at startup, so
+# forge-ai burned a core continuously between image sets — 25 hours of it
+# before this was found, with nothing alerting (no CPU-saturation rule).
+#
+# Measured 2026-09-16 on forge-ai, same venv, `import torch` + one 8-element
+# GPU op, then idle:
+#   baseline                       21.6 s CPU / 20 s wall
+#   HSA_TOOLS_DISABLE_REGISTER=1    1.6 s CPU / 20 s wall
+#   HSA_ENABLE_INTERRUPT=1         21.6 s  (no effect)
+#   HSA_ENABLE_INTERRUPT=0         41.7 s  (two cores — worse)
+#   HSA_TOOLS_LIB= / HSA_ENABLE_SDMA=0     no effect
+#
+# NOT a version problem, which is worth recording because the upstream
+# reports blame one: ROCm 10.0.0 + torch 2.13.0 from AMD's own index
+# reproduces it identically (32.9 s CPU / 30 s wall) on this card, and the
+# bundled ROCR here (1.18.0-rocm-rel-7.2) is the build those reports call
+# clean. Upgrading the wheels does not fix it; this does.
+#
+# Compute is unaffected: 20x 4096² matmuls take 0.13 s (21.7 TFLOP/s) with
+# or without it, same results to 1e-4.
+#
+# ⚠️ The cost: rocprof / roctracer cannot attach to ComfyUI while this is
+# set. Nothing here profiles it — unset it for that session if that changes.
+comfyui_extra_env:
+  HSA_TOOLS_DISABLE_REGISTER: "1"
 
 # Memory cap for the service (systemd MemoryMax, MemorySwapMax). On 2026-09-13
 # a Qwen-Image set's /free moved its 14.4 GB diffusion model into RAM beside the
