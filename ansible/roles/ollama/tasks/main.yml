@@ -104,6 +104,17 @@
         chdir: "{{ ollama_cache_dir }}"
       changed_when: false
 
+    # Upstream's install.sh removes this directory before extracting
+    # (v0.34.0, lines 164-166) and the bundles do not overwrite what a
+    # previous version left. Without it a version bump leaves the old
+    # release's GPU runner libraries alongside the new ones, for the
+    # runtime to load. Inside the gate, so it only runs when a version
+    # is actually being installed -- never against a matching install.
+    - name: Clear the previous version's runner libraries
+      ansible.builtin.file:
+        path: "{{ ollama_install_dir }}/lib/ollama"
+        state: absent
+
     - name: Extract the bundles  # noqa: command-instead-of-module
       ansible.builtin.command:
         cmd: >-
