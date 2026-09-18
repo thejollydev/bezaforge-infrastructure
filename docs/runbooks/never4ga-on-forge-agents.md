@@ -62,6 +62,13 @@ ansible-playbook site.yml --limit forge-agents --tags never4ga --ask-become-pass
 Run it twice. The second run reports no changes, which is the role's
 idempotence test.
 
+**What a check run cannot tell you.** Ansible skips `command` tasks in check
+mode, so the import probe, the wheel install, the mapping read and both
+verification steps are skipped rather than run — a thin check run is the
+expected shape, not a fault. Enabling the service is skipped in check mode
+too, because the unit was never written for systemd to find. The real run is
+where the role converges and where the tests actually run.
+
 ### What the first run does that later ones do not
 
 - Installs `python3.14-venv`. Ubuntu keeps `ensurepip` in that package

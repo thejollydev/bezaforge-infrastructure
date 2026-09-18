@@ -111,7 +111,12 @@
     cmd: >-
       {{ never4ga_venv }}/bin/pip install --force-reinstall
       {{ never4ga_prefix }}/{{ never4ga_wheel | basename }}
-  when: never4ga_wheel_push.changed or never4ga_import_probe.rc != 0
+  # `default(1)` because the probe above is a `command`, which a check run
+  # skips: on a converged host `wheel_push.changed` is false, so the `or`
+  # stops short-circuiting and an undefined `rc` would error rather than
+  # report. Unknown means "assume it needs installing", which in check mode
+  # is the honest answer.
+  when: never4ga_wheel_push.changed or never4ga_import_probe.rc | default(1) != 0
   # The `when` above is the "does anything need doing" test: this task only
   # runs when the wheel changed or the package is not importable, and in
   # both cases running it changes the host.
@@ -229,7 +234,13 @@
   environment:
     XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts.getent_passwd[never4ga_user][1] }}"
     DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ ansible_facts.getent_passwd[never4ga_user][1] }}/bus"
-  when: never4ga_service_enabled
+  # A check run never writes the unit, so there is nothing for systemd to
+  # find and the task fails with "Could not find the requested service".
+  # Skipping it keeps `--check` usable on a host where the service does not
+  # exist yet, which is the run this role is most likely to be read from.
+  when:
+    - never4ga_service_enabled
+    - not ansible_check_mode
 
 - name: Flush handlers so verification sees the running service
   ansible.builtin.meta: flush_handlers
