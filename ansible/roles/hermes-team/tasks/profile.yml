@@ -80,6 +80,13 @@
   failed_when: false
   vars:
     hermes_profile_settings:
+      # All three together or not at all: a model name without the custom
+      # provider and its base_url is the shape that falls through to a
+      # paid API (see defaults).
+      - key: model.provider
+        value: "{{ hermes_model_provider }}"
+      - key: model.base_url
+        value: "{{ hermes_model_base_url }}"
       - key: model.default
         value: "{{ agent.model | default(hermes_model_default) }}"
       - key: memory.write_approval
@@ -105,6 +112,63 @@
 #
 # The role writes no token. It writes the settings around one, and reports
 # whether the credential has arrived.
+
+# ------------------------------------------------------------
+# The profile's .env
+# ------------------------------------------------------------
+#
+# Line by line rather than templated, because the file is shared: the role
+# owns the settings below, and Joseph owns the DISCORD_BOT_TOKEN line. A
+# template would overwrite his token on every run; lineinfile edits only
+# the keys it is given and leaves every other line alone.
+#
+# 0600 because the token will be in here.
+
+- name: "Write the managed settings into the .env for {{ agent.name }}"
+  ansible.builtin.lineinfile:
+    path: "{{ hermes_profiles_dir }}/{{ agent.name }}/.env"
+    regexp: "^{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+    create: true
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_user }}"
+    mode: '0600'
+  loop:
+    - { key: DISCORD_ALLOWED_USERS, value: "{{ hermes_discord_allowed_users }}" }
+    - { key: DISCORD_ALLOW_BOTS, value: "{{ hermes_discord_allow_bots }}" }
+    - { key: DISCORD_HISTORY_BACKFILL, value: "{{ hermes_discord_history_backfill | string | lower }}" }
+    - { key: DISCORD_HISTORY_BACKFILL_LIMIT, value: "{{ hermes_discord_history_backfill_limit }}" }
+    - { key: HERMES_API_TIMEOUT, value: "{{ hermes_api_timeout }}" }
+    - { key: HERMES_STREAM_READ_TIMEOUT, value: "{{ hermes_stream_read_timeout }}" }
+  loop_control:
+    label: "{{ item.key }}"
+  notify: Restart hermes gateways
+
+- name: "Look for a paid-provider key in the .env for {{ agent.name }}"
+  ansible.builtin.command:
+    cmd: >-
+      grep -lE '^({{ hermes_forbidden_env_keys | join('|') }})=.'
+      {{ hermes_profiles_dir }}/{{ agent.name }}/.env
+  become: true
+  become_user: "{{ hermes_user }}"
+  register: hermes_paid_key_probe
+  changed_when: false
+  failed_when: false
+
+# ADR 0014 principle 3, enforced. The provider settings above keep the
+# agents on forge-ai's Ollama; this is what makes a mistake in them fail
+# instead of bill, because a fallback to a paid API has nothing to pay with.
+- name: "Refuse a paid-provider key for {{ agent.name }}"
+  ansible.builtin.assert:
+    that: hermes_paid_key_probe.rc != 0
+    fail_msg: >-
+      {{ hermes_profiles_dir }}/{{ agent.name }}/.env holds one of
+      {{ hermes_forbidden_env_keys | join(', ') }}. ADR 0014 allows no
+      metered API spend, and a key there is what lets a misrouted request
+      bill instead of failing. Remove the line; a subscription such as
+      Codex is added with `hermes -p {{ agent.name }} auth add`, which
+      stores an OAuth login in auth.json rather than a key here.
+    quiet: true
 
 - name: "Check whether a Discord token has been placed for {{ agent.name }}"
   ansible.builtin.command:
@@ -134,6 +198,20 @@
 # only then. An agent with no token or no approval keeps its profile and
 # waits — which is the normal state between Joseph creating one Discord
 # application and the next.
+
+# An approved agent with no allowlist would come online and deny everyone,
+# Joseph included — safe, and indistinguishable from broken. Refuse it here
+# with the reason, rather than let him debug a silent bot.
+- name: "Require an allowlist before starting {{ agent.name }}"
+  ansible.builtin.assert:
+    that: hermes_discord_allowed_users | length > 0
+    fail_msg: >-
+      {{ agent.name }} is approved but hermes_discord_allowed_users is empty,
+      so it would deny every message, yours included. Set it to your Discord
+      user ID in host_vars (Discord: Settings → Advanced → Developer Mode,
+      then right-click your name → Copy User ID).
+    quiet: true
+  when: agent.approved | default(false)
 
 - name: "Install the gateway service for {{ agent.name }}"
   ansible.builtin.command:
