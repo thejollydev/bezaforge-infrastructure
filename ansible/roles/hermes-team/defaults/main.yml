@@ -22,8 +22,16 @@ hermes_user: ""
 # the tag is what `git clone --branch` takes, and the SHA is what proves the
 # tag still points where it did when this was written. A moved tag stops the
 # run instead of installing something else.
+#
+# ⚠️ THE COMMIT, NOT THE TAG OBJECT. v2026.9.14 is an annotated tag, which
+# is an object of its own with its own SHA, pointing at the commit. The
+# first version of this role recorded the tag object's SHA (7a96371…) —
+# what `git/ref/tags/<tag>` returns — so the assertion below could never
+# pass, and the installer would have re-run on every deploy. The commit is
+# what `git rev-parse HEAD` reports after a clone, and what
+# `gh api repos/NousResearch/hermes-agent/commits/<tag> --jq .sha` returns.
 hermes_version: v2026.9.14
-hermes_commit: 7a963716b81be13ba513d4f127633b7da493aff2
+hermes_commit: 345cd2b057a452236de401d3534b8502a7465e8d
 
 # The installer, fetched to a file and checksummed rather than piped into a
 # shell. Same reasoning as roles/ollama (#93a8875): a streamed script runs
@@ -65,12 +73,18 @@ hermes_install_packages:
   - ripgrep
   - ffmpeg
 
-# The longest the installer may run before it is treated as hung. It
-# downloads Node and a Python and installs Hermes' dependencies, so it is
-# not quick — but the failure this guards against is a silent wait of
-# unbounded length, and a bounded one that FAILS with a message is the
-# whole improvement.
-hermes_installer_timeout: 1200
+# The longest the installer may run before it is stopped.
+#
+# Measured on the second deployment, 2026-09-18: GitHub served the clone at
+# 100-160 KB/s (the laptop saw the same, so it was not this host's link),
+# and the run hit the first limit of 1200 s partway through `uv sync` —
+# downloading, not waiting. 1200 was a guess; this is sized so a slow but
+# healthy install finishes and a genuine hang still ends.
+#
+# A stopped install is not wasted: the clone and uv's download cache
+# survive (282 MB of packages that time), so a second run has far less to
+# fetch.
+hermes_installer_timeout: 3600
 
 # `--skip-setup` because setup is interactive and asks for a model and
 # tokens; this role configures the profiles itself and leaves credentials to

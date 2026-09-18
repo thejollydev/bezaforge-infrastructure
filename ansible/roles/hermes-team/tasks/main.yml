@@ -115,6 +115,21 @@
 # `timeout` is the backstop: if some future installer finds another way to
 # wait for a person, the run fails with a message after
 # hermes_installer_timeout seconds instead of waiting forever.
+# The clone is the installer's FIRST step, so a checkout at the pinned
+# commit proves only that an install began. A run stopped partway leaves
+# exactly that: the right commit and no `hermes`. Whether Hermes is
+# installed is answered by `hermes` itself.
+- name: Ask whether the hermes command works
+  ansible.builtin.command:
+    cmd: "{{ hermes_bin }} --version"
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  register: hermes_version_probe
+  changed_when: false
+  failed_when: false
+
 - name: Run the installer, with no terminal to prompt on
   ansible.builtin.shell:
     cmd: >-
@@ -129,9 +144,11 @@
   environment:
     HOME: "{{ hermes_home }}"
   register: hermes_install
-  # The checkout's HEAD is the test: absent or at another commit means
-  # install, and anything else means the pinned version is already here.
-  when: hermes_head.stdout | trim != hermes_commit
+  # Install unless BOTH hold: the checkout is at the pinned commit AND the
+  # command it builds actually runs. Either alone has been wrong once.
+  when: >-
+    hermes_head.stdout | trim != hermes_commit
+    or hermes_version_probe.rc != 0
   changed_when: true
   # 124 is let through so the next task can say what it means; any other
   # failure fails here as usual.
@@ -144,10 +161,15 @@
   ansible.builtin.fail:
     msg: >-
       The installer was still running after {{ hermes_installer_timeout }}
-      seconds and was stopped. It was most likely waiting for input with no
-      one to give it. Look at the last lines of its output above for the
-      prompt, and add whatever it was trying to install to
-      hermes_install_packages.
+      seconds and was stopped. That is one of two things, and they need
+      different fixes. A SLOW DOWNLOAD: run the play again — the clone and
+      uv's package cache survive, so the second run has much less to fetch.
+      A PROMPT: something was waiting for input; the installer's last lines
+      below will show a question, and whatever it wanted belongs in
+      hermes_install_packages. To tell them apart while it runs, look on the
+      host for a `sudo` with no child process (a prompt) versus a busy
+      `git clone` or `uv sync` (a download).
+      Last output: {{ (hermes_install.stdout_lines | default([]))[-5:] | join(' / ') }}
   when:
     - hermes_install is not skipped
     - hermes_install.rc | default(0) == 124
