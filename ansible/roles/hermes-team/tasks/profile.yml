@@ -1,0 +1,168 @@
+---
+# ============================================================
+# One agent's profile. Included per entry in hermes_agents.
+#
+# A profile is a whole Hermes home: its own config.yaml, .env, SOUL.md,
+# memories, sessions, skills, cron and state.db, under
+# ~/.hermes/profiles/<name>/. Nothing is shared with another profile, which
+# is what ADR 0014 wanted and why the roster maps onto profiles one to one.
+#
+# ⚠️ Never point two processes at one profile. Both write memory
+# automatically and they corrupt each other. The role's input check refuses
+# a repeated name for this reason.
+# ============================================================
+
+- name: "See whether the profile exists for {{ agent.name }}"
+  ansible.builtin.stat:
+    path: "{{ hermes_profiles_dir }}/{{ agent.name }}/config.yaml"
+  register: hermes_profile_probe
+
+# Blank rather than cloned. `--clone` would copy another agent's soul and
+# curated memories, and every agent here has its own role card; a clone
+# would start each one as a copy of Brizza with the wrong name.
+- name: "Create the profile for {{ agent.name }}"
+  ansible.builtin.command:
+    cmd: "{{ hermes_bin }} profile create {{ agent.name }}"
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  when: not hermes_profile_probe.stat.exists
+  changed_when: true
+
+# The role card IS the soul (ADR 0014: "the role cards ... are part of this
+# decision"). They are authored in the Brizza plan and travel here as
+# templates so the host's copy is reviewable in a diff rather than pasted
+# into a running agent.
+- name: "Write the soul for {{ agent.name }}"
+  ansible.builtin.template:
+    src: "{{ agent.soul }}"
+    dest: "{{ hermes_profiles_dir }}/{{ agent.name }}/SOUL.md"
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_user }}"
+    mode: '0644'
+  notify: Restart hermes gateways
+
+# ------------------------------------------------------------
+# Configuration
+# ------------------------------------------------------------
+#
+# Through `config set` rather than a templated config.yaml: Hermes writes
+# that file itself, and a template would fight it on every run — the same
+# reason roles/syncthing drives the REST API instead of templating
+# config.xml.
+#
+# Each setting is read first and written only when it differs, so a
+# converged host reports no changes.
+
+# ⚠️ `config get` IS ASSUMED AND UNVERIFIED. The documentation shows
+# `config set` and does not show its counterpart, and Hermes was not
+# installed anywhere when this was written, so it could not be checked.
+#
+# The failure mode is chosen to be loud rather than silent: if `config get`
+# is not a subcommand, these probes return non-zero with empty output, the
+# comparison below can never match, and every run re-sets both settings and
+# reports changed. So the SECOND run is where this shows up — if the
+# idempotence test fails on "set what differs", this is why, and the fix is
+# to read config.yaml directly instead.
+- name: "Read the settings already held by {{ agent.name }}"
+  ansible.builtin.command:
+    cmd: "{{ hermes_bin }} -p {{ agent.name }} config get {{ item.key }}"
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  loop: "{{ hermes_profile_settings }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: hermes_config_probe
+  changed_when: false
+  failed_when: false
+  vars:
+    hermes_profile_settings:
+      - key: model.default
+        value: "{{ agent.model | default(hermes_model_default) }}"
+      - key: memory.write_approval
+        value: "{{ hermes_memory_write_approval | string | lower }}"
+
+- name: "Set what differs for {{ agent.name }}"
+  ansible.builtin.command:
+    cmd: "{{ hermes_bin }} -p {{ agent.name }} config set {{ item.item.key }} {{ item.item.value }}"
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  loop: "{{ hermes_config_probe.results }}"
+  loop_control:
+    label: "{{ item.item.key }} = {{ item.item.value }}"
+  when: item.item.value not in (item.stdout | default(''))
+  changed_when: true
+  notify: Restart hermes gateways
+
+# ------------------------------------------------------------
+# Discord
+# ------------------------------------------------------------
+#
+# The role writes no token. It writes the settings around one, and reports
+# whether the credential has arrived.
+
+- name: "Check whether a Discord token has been placed for {{ agent.name }}"
+  ansible.builtin.command:
+    cmd: "grep -q '^DISCORD_BOT_TOKEN=.' {{ hermes_profiles_dir }}/{{ agent.name }}/.env"
+  become: true
+  become_user: "{{ hermes_user }}"
+  register: hermes_token_probe
+  changed_when: false
+  failed_when: false
+
+- name: "Say what is missing for {{ agent.name }}"
+  ansible.builtin.debug:
+    msg: >-
+      {{ agent.name }} has no DISCORD_BOT_TOKEN in its .env, so its gateway
+      cannot run. Create the application in Discord's developer portal with
+      the Message Content and Server Members intents enabled, then put the
+      token in {{ hermes_profiles_dir }}/{{ agent.name }}/.env. Without
+      those intents the bot receives events with empty text and cannot see
+      what was typed.
+  when: hermes_token_probe.rc != 0
+
+# ------------------------------------------------------------
+# The gateway
+# ------------------------------------------------------------
+#
+# Installed for every approved agent whose token is present, and started
+# only then. An agent with no token or no approval keeps its profile and
+# waits — which is the normal state between Joseph creating one Discord
+# application and the next.
+
+- name: "Install the gateway service for {{ agent.name }}"
+  ansible.builtin.command:
+    cmd: "{{ hermes_bin }} -p {{ agent.name }} gateway install"
+    creates: "{{ hermes_home }}/.config/systemd/user/hermes-gateway-{{ agent.name }}.service"
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  when:
+    - agent.approved | default(false)
+    - hermes_token_probe.rc == 0
+
+# ADR 0014 principle 2, enforced rather than described: an agent runs when
+# Joseph has said so for that agent, and not because the role reached this
+# line.
+- name: "Enable and start the gateway for {{ agent.name }}"
+  ansible.builtin.systemd_service:
+    name: "hermes-gateway-{{ agent.name }}.service"
+    scope: user
+    daemon_reload: true
+    enabled: true
+    state: started
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ hermes_uid }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ hermes_uid }}/bus"
+  when:
+    - agent.approved | default(false)
+    - hermes_token_probe.rc == 0
+    - not ansible_check_mode

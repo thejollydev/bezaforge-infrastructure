@@ -1,0 +1,107 @@
+---
+# ============================================================
+# hermes-team role defaults
+#
+# Brizza ADR 0014: the successor is a team of named Hermes agents, each its
+# own Hermes profile with its own memory, its own Discord bot and its own
+# credentials. This role installs Hermes and creates those profiles.
+#
+# The roster and each agent's role card are the decision, not a detail of
+# this role: the cards live in the Brizza plan and reach the host as each
+# profile's SOUL.md.
+# ============================================================
+
+# --- Per host (required) ---
+# The user Hermes runs as. The role does not create it, and it must be the
+# user that owns the vault copy, because the agents read the vault through
+# Never4gA as that user (ADR 0016, #1217).
+hermes_user: ""
+
+# --- Version ---
+# Upstream tags date-based releases. Pinned by tag AND verified by commit:
+# the tag is what `git clone --branch` takes, and the SHA is what proves the
+# tag still points where it did when this was written. A moved tag stops the
+# run instead of installing something else.
+hermes_version: v2026.9.14
+hermes_commit: 7a963716b81be13ba513d4f127633b7da493aff2
+
+# The installer, fetched to a file and checksummed rather than piped into a
+# shell. Same reasoning as roles/ollama (#93a8875): a streamed script runs
+# as root with no way to notice it changed. Here the checksum is the review
+# gate — when upstream edits the installer the run FAILS, and someone reads
+# the diff before it executes.
+#
+# Recorded 2026-09-18: 173794 bytes.
+hermes_installer_url: https://hermes-agent.nousresearch.com/install.sh
+hermes_installer_sha256: 2de7a1d60a7c0edf685d3b7b875b93a99c8006473a55218688a0075a88637045
+
+# The installer provisions uv, Python 3.11, Node, ripgrep and ffmpeg itself.
+# These are the ones it says it cannot: git universally, curl and xz-utils
+# on Linux.
+hermes_install_packages:
+  - git
+  - curl
+  - xz-utils
+
+# `--skip-setup` because setup is interactive and asks for a model and
+# tokens; this role configures the profiles itself and leaves credentials to
+# Joseph. `--branch` takes the pinned tag.
+hermes_installer_arguments:
+  - --skip-setup
+
+# --- The agents ---
+# One entry per profile. `soul` names a template in this role; `model` is
+# what the profile's model.default is set to.
+#
+# ⚠️ `approved` IS THE GATE, AND IT DEFAULTS TO FALSE EVERYWHERE.
+# ADR 0014 principle 2: nothing starts without Joseph's approval. The role
+# creates the profile, writes its soul and installs its gateway service, but
+# it does not START a gateway until Joseph sets `approved: true` for that
+# agent in host_vars — and not before its Discord token exists on the host.
+# That is the difference between a profile being ready and an agent running.
+hermes_agents: []
+
+# --- Models (ADR 0014 principle 3) ---
+# Local models by default; a frontier model through a subscription Joseph
+# already pays for only where a local one would drastically worsen the
+# result. No metered API spend, ever.
+#
+# forge-ai's Ollama, verified answering 2026-09-17.
+hermes_ollama_base: http://10.10.50.10:11434
+# The default for an agent whose entry does not name one.
+hermes_model_default: ollama/qwen3.8:27b
+
+# --- Memory (ADR 0016) ---
+# Held for approval on every profile. Brizza sends Joseph one list of
+# pending memory writes a day; that digest is a Brizza job, not this role's.
+hermes_memory_write_approval: true
+
+# --- Discord (ADR 0015) ---
+# One application and bot per agent, created by Joseph in the Discord
+# developer portal. Each needs the Message Content and Server Members
+# privileged intents; without them the bot receives events whose text is
+# empty and cannot see what was typed.
+#
+# The role writes NO tokens. Not in git, not ansible-vault'd, not
+# templated: the credential reaches the host through `hermes setup` or
+# Joseph's own hand, and the role's job is to notice whether it is there.
+# Every other secret in this fleet lives in group_vars/all/vault.yml, and
+# this one deliberately does not — step 5 of the build plan asks that the
+# role never hold a token in git, and encrypted-in-git is still in git.
+#
+# ⚠️ `none` is Hermes' own default and ADR 0015's decision. Hermes now
+# documents bot-to-bot handoffs at `mentions` or `all`, guarded against the
+# reply-ping loop by DISCORD_BOTS_REQUIRE_INLINE_MENTION. That is ADR 0015's
+# stated revisit condition and it is Joseph's to rule on; until he does,
+# agents coordinate through the board and Bot Mode rooms as decided.
+hermes_discord_allow_bots: none
+# Default on upstream, and ADR 0015 owes a test of whether the backfill
+# includes other bots' replies.
+hermes_discord_history_backfill: true
+hermes_discord_history_backfill_limit: 50
+
+# --- The service ---
+# Each profile gets its own gateway service. A user manager only runs while
+# the user has a session unless lingering is on, and nobody logs into the
+# team host — the same reason roles/never4ga enables it.
+hermes_enable_linger: true

@@ -1,0 +1,20 @@
+---
+# A soul or a model change is only in effect once the agent rereads it, and
+# an agent rereads it when its gateway restarts. Only approved, running
+# agents are restarted: an unapproved one has nothing running to restart,
+# and starting it here would be the role granting an approval that is
+# Joseph's to give (ADR 0014 principle 2).
+- name: Restart hermes gateways
+  ansible.builtin.systemd_service:
+    name: "hermes-gateway-{{ item.name }}.service"
+    scope: user
+    state: restarted
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ hermes_uid }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ hermes_uid }}/bus"
+  loop: "{{ hermes_agents | selectattr('approved', 'defined') | selectattr('approved') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: not ansible_check_mode

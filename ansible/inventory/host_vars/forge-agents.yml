@@ -90,3 +90,42 @@ never4ga_mappings: []
 # still has to be clean, which is the half that does not need a checkout.
 never4ga_verify_workspace: 01a04efd-1861-7352-8245-8c0c6a001f79
 never4ga_verify_repo: ""
+
+# ------------------------------------------------------------
+# The agent team (roles/hermes-team, #1218)
+# ------------------------------------------------------------
+# Brizza ADRs 0014 and 0015. Same user as the vault copy and Never4gA, so
+# each agent reads the vault as the user that owns it.
+hermes_user: joseph
+
+# Build 5a's three. Brizza first, with the approval flow and the daily
+# memory-write digest, then Samuel and Malachi so a task can be researched
+# and reviewed. Jeremiah, Zechariah, Elijah and Isaiah join in #1219.
+#
+# ⚠️ `approved` IS JOSEPH'S SWITCH AND IT IS OFF. ADR 0014 principle 2:
+# nothing starts until he approves its first run. Each agent also needs a
+# Discord application (Message Content + Server Members intents) and its
+# token placed at ~/.hermes/profiles/<name>/.env, which the role never
+# writes. Until both are true the role creates the profile and leaves it
+# waiting, which is the expected state between one application and the next.
+#
+# Models follow ADR 0014 principle 3 — local by default, a subscription
+# Joseph already pays for only where local would drastically worsen the
+# result, and no metered API spend. Malachi is the exception the role cards
+# make explicitly: Codex for code and anything needing real reasoning.
+hermes_agents:
+  - name: brizza
+    soul: soul-brizza.md.j2
+    model: ollama/qwen3.8:27b
+    approved: false
+  - name: samuel
+    soul: soul-samuel.md.j2
+    model: ollama/qwen3.8:27b
+    approved: false
+  - name: malachi
+    soul: soul-malachi.md.j2
+    # Codex, per Malachi's role card. The exact provider string is set when
+    # his OAuth login is completed — Joseph's to do, and the role does not
+    # guess at a credential it cannot see.
+    model: ollama/qwen3-coder:30b
+    approved: false
