@@ -83,10 +83,17 @@ where the role converges and where the tests actually run.
 Step 4 of the Brizza build plan owes two, and the role runs both read-only
 at the end of every converged run rather than once at acceptance.
 
-**1. `doctor` is clean.** The role fails if it is not.
+**1. `doctor` is clean.** The role fails if it is not — measured on
+`findings`, not on the exit code. Doctor exits 0 on warnings, so the first
+deployment answered `healthy` with `[W] index_is_stale: 1644 new` and an
+exit-code check called that clean. It was not.
+
+A fresh install is legitimately stale until the service has indexed the
+vault, so the check waits for it and fails only if it never settles. On the
+first run here that was 1644 concepts and 59 MB, settled inside a minute.
 
 ```bash
-ssh joseph@forge-agents never4ga doctor
+ssh joseph@forge-agents never4ga --json doctor
 ```
 
 **2. `context startup` from a mapped repository returns the Brizza pack.**

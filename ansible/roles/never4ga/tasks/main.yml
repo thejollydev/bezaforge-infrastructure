@@ -310,9 +310,18 @@
 # two are step 4's, and they run read-only on every converged run rather
 # than once at acceptance.
 
-- name: Run doctor
+# `--json` rather than the human output, and `findings` rather than the
+# exit code. The first real run on forge-agents is why: doctor answered
+# "healthy" with `[W] index_is_stale: 1644 new` and exited 0, so an
+# `rc == 0` assertion passed on a doctor that was not clean. Warnings are
+# what this check is for.
+#
+# A fresh install is legitimately stale for as long as it takes the service
+# to index the vault — 1644 concepts and 59 MB the first time — so this
+# waits rather than failing, and fails only if it never settles.
+- name: Run doctor until the vault reports clean
   ansible.builtin.command:
-    cmd: "{{ never4ga_bin }}/never4ga doctor"
+    cmd: "{{ never4ga_bin }}/never4ga --json doctor"
   become: true
   become_user: "{{ never4ga_user }}"
   environment:
@@ -320,22 +329,36 @@
   register: never4ga_doctor
   changed_when: false
   failed_when: false
+  retries: "{{ never4ga_doctor_retries }}"
+  delay: "{{ never4ga_doctor_delay }}"
+  until:
+    - never4ga_doctor.rc == 0
+    - (never4ga_doctor.stdout | from_json).healthy | default(false)
+    - (never4ga_doctor.stdout | from_json).findings | default([]) | length == 0
   when: never4ga_verify
 
+# `msg` rather than `var`: `var` takes a variable name, and this is an
+# expression.
 - name: Show what doctor said
   ansible.builtin.debug:
-    var: never4ga_doctor.stdout_lines
+    msg: "{{ (never4ga_doctor.stdout | from_json).findings }}"
   when:
     - never4ga_verify
-    - never4ga_doctor.stdout_lines | default([]) | length > 0
+    - never4ga_doctor.stdout | default('') | length > 0
+    - (never4ga_doctor.stdout | from_json).findings | default([]) | length > 0
 
 - name: Require doctor to be clean
   ansible.builtin.assert:
-    that: never4ga_doctor.rc == 0
+    that:
+      - never4ga_doctor.rc == 0
+      - (never4ga_doctor.stdout | from_json).healthy
+      - (never4ga_doctor.stdout | from_json).findings | length == 0
     fail_msg: >-
-      `never4ga doctor` is not clean on {{ inventory_hostname }}. Fix the
-      findings ON THE LAPTOP and let them sync down; `repair --apply` is
-      never run here.
+      `never4ga doctor` is not clean on {{ inventory_hostname }} after
+      {{ never4ga_doctor_retries }} tries. Fix the findings ON THE LAPTOP
+      and let them sync down; `repair --apply` is never run here. If the
+      only finding is a stale index, the service is not keeping up — check
+      `systemctl --user status never4ga.service`.
     quiet: true
   when: never4ga_verify
 

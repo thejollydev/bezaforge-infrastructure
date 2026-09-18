@@ -86,6 +86,11 @@ never4ga_mappings: []
 # vault on this host is a sync replica, and a repair written here races
 # the laptop and reaches it as a conflict copy.
 never4ga_verify: true
+# A fresh install is stale until the service has indexed the vault, so the
+# check waits instead of failing on the first run. Measured 2026-09-17:
+# 1644 concepts and 59 MB settled inside a minute on forge-agents.
+never4ga_doctor_retries: 12
+never4ga_doctor_delay: 10
 # The workspace whose pack proves the install, and the repository the pack
 # is asked for from. Step 4's done-when: `context startup` from a mapped
 # repository returns the Brizza pack. Left empty, the check is skipped.
