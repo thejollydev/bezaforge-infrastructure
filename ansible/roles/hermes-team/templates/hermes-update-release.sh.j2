@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+# Managed by Ansible (roles/hermes-team). Local edits are overwritten.
+#
+# Move Hermes to its newest published release. Run nightly by
+# hermes-update.timer and on every deploy.
+#
+# Why this exists instead of `hermes update`: Hermes' own updater follows a
+# BRANCH (main by default) — it fetches origin/<branch> and resets to it,
+# so it cannot target a release tag, and upstream keeps no branch that
+# tracks releases. Joseph chose releases over main (2026-09-18), so this
+# script decides WHICH code, and hands everything it can to Hermes' own
+# commands.
+#
+# Exit codes: 0 = already current or updated; 1 = update failed and was
+# rolled back; 2 = could not even determine the newest release. A non-zero
+# exit leaves hermes-update.service failed, which the fleet's failed-unit
+# alert reports — a night the update did not happen is never silent.
+
+set -euo pipefail
+unset PYTHONPATH PYTHONHOME
+
+CHECKOUT="{{ hermes_checkout }}"
+HERMES="{{ hermes_bin }}"
+UV="{{ hermes_home }}/.hermes/bin/uv"
+API="{{ hermes_latest_release_api }}"
+
+log() { printf '%s %s\n' "$(date -Is)" "$*"; }
+
+latest="$(curl -fsS --max-time 60 "$API" | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')" || {
+    log "could not read the newest release from $API"; exit 2; }
+[ -n "$latest" ] || { log "the release API returned no tag"; exit 2; }
+
+current="$(git -C "$CHECKOUT" describe --tags --exact-match HEAD 2>/dev/null || echo "none")"
+if [ "$current" = "$latest" ]; then
+    log "hermes is at the newest release, $latest — nothing to do"
+    exit 0
+fi
+
+previous_sha="$(git -C "$CHECKOUT" rev-parse HEAD)"
+log "updating hermes: $current -> $latest"
+
+# The installer's own dependency step, reproduced exactly
+# (run_locked_uv_sync in scripts/install.sh). Two details matter:
+#   UV_PYTHON pins uv to the venv's Python. Without it uv finds the host's
+#     newer Python and rebuilds the venv on it, and the native build fails
+#     for want of wheels.
+#   --locked verifies every package against the SHA-256 recorded in this
+#     release's lockfile — the integrity check that moves with the release.
+sync_dependencies() {
+    local isolated
+    isolated="$(mktemp -d)"
+    (
+        cd "$CHECKOUT"
+        unset UV_NO_CONFIG UV_CONFIG_FILE
+        export XDG_CONFIG_HOME="$isolated" XDG_CONFIG_DIRS="$isolated"
+        export UV_PYTHON="$CHECKOUT/venv/bin/python"
+        UV_PROJECT_ENVIRONMENT="$CHECKOUT/venv" "$UV" sync --extra all --locked
+    )
+    local rc=$?
+    rmdir "$isolated" 2>/dev/null || true
+    return "$rc"
+}
+
+# Settings that a release retires or renames. Run with no terminal so any
+# question takes its default instead of waiting for someone at 4 a.m.
+#
+# Every profile that EXISTS, read from disk rather than from the roster: a
+# deploy that adds an agent runs this before it creates that agent's
+# profile, and migrating a profile that is not there yet would fail — and
+# roll back a good update — for no reason.
+migrate_configs() {
+    setsid --wait "$HERMES" config migrate </dev/null
+    local dir
+    for dir in "{{ hermes_profiles_dir }}"/*/; do
+        [ -f "$dir/config.yaml" ] || continue
+        setsid --wait "$HERMES" -p "$(basename "$dir")" config migrate </dev/null
+    done
+}
+
+# Only agents that are already running are restarted. An agent Joseph has
+# not approved is not running, and an update is no reason to start it.
+restart_running_agents() {
+    systemctl --user try-restart 'hermes-gateway-*.service' || true
+}
+
+rollback() {
+    log "update to $latest FAILED at: $1 — rolling back to ${current} (${previous_sha:0:12})"
+    git -C "$CHECKOUT" checkout --quiet --detach "$previous_sha" \
+        && sync_dependencies \
+        && restart_running_agents \
+        && log "rolled back; hermes is at $current again" \
+        || log "ROLLBACK ALSO FAILED — hermes may be half-updated; run the playbook to repair"
+    exit 1
+}
+
+# A shallow checkout: fetch just the new release's commit and name its tag
+# locally, rather than pulling history or the thousands of upstream
+# branches.
+git -C "$CHECKOUT" fetch --quiet --depth 1 origin "refs/tags/$latest:refs/tags/$latest" || rollback "fetching $latest"
+git -C "$CHECKOUT" checkout --quiet --detach "$latest"                                   || rollback "checking out $latest"
+sync_dependencies                                                                        || rollback "installing dependencies"
+migrate_configs                                                                          || rollback "migrating configuration"
+"$HERMES" --version >/dev/null                                                           || rollback "starting the new version"
+restart_running_agents
+
+log "hermes updated to $latest ($("$HERMES" --version 2>&1 | head -1))"

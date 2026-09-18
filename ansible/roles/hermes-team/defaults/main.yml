@@ -17,31 +17,38 @@
 # Never4gA as that user (ADR 0016, #1217).
 hermes_user: ""
 
-# --- Version ---
-# Upstream tags date-based releases. Pinned by tag AND verified by commit:
-# the tag is what `git clone --branch` takes, and the SHA is what proves the
-# tag still points where it did when this was written. A moved tag stops the
-# run instead of installing something else.
+# --- Staying current (decided by Joseph, 2026-09-18) ---
+# Hermes follows its NEWEST PUBLISHED RELEASE, automatically: on every
+# deploy, and nightly by a timer. Nothing here names a version.
 #
-# ⚠️ THE COMMIT, NOT THE TAG OBJECT. v2026.9.14 is an annotated tag, which
-# is an object of its own with its own SHA, pointing at the commit. The
-# first version of this role recorded the tag object's SHA (7a96371…) —
-# what `git/ref/tags/<tag>` returns — so the assertion below could never
-# pass, and the installer would have re-run on every deploy. The commit is
-# what `git rev-parse HEAD` reports after a clone, and what
-# `gh api repos/NousResearch/hermes-agent/commits/<tag> --jq .sha` returns.
-hermes_version: v2026.9.14
-hermes_commit: 345cd2b057a452236de401d3534b8502a7465e8d
+# The first version of this role pinned v2026.9.14 by tag and commit, and
+# would have sat there until someone edited it — falling behind on
+# features and security fixes, which is the thing Joseph does not want.
+#
+# Releases, not `main`. Upstream publishes a release every 3-7 days and
+# commits to `main` more than a hundred times a day; releases are what it
+# calls ready. So the agents are never more than a day behind a release,
+# and never run work upstream has not shipped.
+#
+# Integrity moves with each release instead of freezing it: the tag comes
+# from GitHub over TLS, and `uv sync --locked` checks every dependency
+# against the SHA-256 recorded in that release's own lockfile.
+hermes_repo: NousResearch/hermes-agent
+hermes_latest_release_api: "https://api.github.com/repos/{{ hermes_repo }}/releases/latest"
 
-# The installer, fetched to a file and checksummed rather than piped into a
-# shell. Same reasoning as roles/ollama (#93a8875): a streamed script runs
-# as root with no way to notice it changed. Here the checksum is the review
-# gate — when upstream edits the installer the run FAILS, and someone reads
-# the diff before it executes.
-#
-# Recorded 2026-09-18: 173794 bytes.
+# The nightly update. A recurring job, which ADR 0014 principle 2 says runs
+# only once Joseph approves it — approved 2026-09-18 when he chose "latest
+# release" with a nightly timer. Persistent, so a night the host was off is
+# caught up at the next boot.
+hermes_update_on_calendar: "*-*-* 04:00:00"
+
+# The installer is used ONLY for a first install; once Hermes exists the
+# updater never touches it. Fetched fresh each time it is needed, with no
+# checksum: a recorded hash of a script upstream edits routinely is a
+# version pin in disguise, and it broke the run every time upstream fixed
+# something. The website's copy is the one proven on forge-agents; it is
+# newer than the copy inside each release.
 hermes_installer_url: https://hermes-agent.nousresearch.com/install.sh
-hermes_installer_sha256: 2de7a1d60a7c0edf685d3b7b875b93a99c8006473a55218688a0075a88637045
 
 # Installed as root BEFORE the installer runs, and the list is longer than
 # the installer's own prerequisites for a reason measured the hard way.

@@ -17,9 +17,10 @@
 #     a model and tokens the role has opinions about and credentials it
 #     refuses to hold.
 #
-# The installer is fetched and checksummed rather than piped into a shell,
-# following roles/ollama: a streamed script executes as the user with no way
-# to notice upstream changed it. Here a changed installer FAILS the run.
+# Hermes follows its newest published release — on every deploy, and
+# nightly by a timer — and nothing here names a version (Joseph,
+# 2026-09-18). The installer is used only for a first install; after that
+# hermes-update-release moves the checkout from release to release.
 # ============================================================
 
 - name: Check the role's inputs
@@ -65,60 +66,23 @@
     update_cache: true
     cache_valid_time: 3600
 
-- name: Create the installer cache
-  ansible.builtin.file:
-    path: "{{ hermes_cache }}"
-    state: directory
-    owner: "{{ hermes_user }}"
-    group: "{{ hermes_user }}"
-    mode: '0755'
-
-# `checksum` is the whole point: get_url fails rather than writing a file
-# whose bytes differ from what was reviewed. When upstream edits the
-# installer this task is where the run stops, and someone reads the diff
-# before 170 KB of shell executes.
-- name: Fetch the installer and verify it is the reviewed one
-  ansible.builtin.get_url:
-    url: "{{ hermes_installer_url }}"
-    dest: "{{ hermes_cache }}/install-{{ hermes_version }}.sh"
-    checksum: "sha256:{{ hermes_installer_sha256 }}"
-    owner: "{{ hermes_user }}"
-    group: "{{ hermes_user }}"
-    mode: '0755'
-  become: true
-  become_user: "{{ hermes_user }}"
-
-# noqa below: ansible.builtin.git manages a repository, and this only asks
-# it a question. Using the module here would put Ansible in charge of a
-# checkout the installer owns, and the two would fight over it.
-- name: Ask what is already checked out  # noqa: command-instead-of-module
-  ansible.builtin.command:
-    cmd: "git -C {{ hermes_checkout }} rev-parse HEAD"
-  become: true
-  become_user: "{{ hermes_user }}"
-  register: hermes_head
+# Which release is newest is asked once per run, on the host, the same way
+# the nightly updater asks — so a deploy and the timer can never disagree
+# about what "current" means.
+- name: Ask GitHub for Hermes' newest release
+  ansible.builtin.uri:
+    url: "{{ hermes_latest_release_api }}"
+    return_content: true
+  register: hermes_latest_release
   changed_when: false
-  failed_when: false
 
-# ⚠️ NO TERMINAL, ON PURPOSE. The first deployment hung here for ten
-# minutes: Ansible's become gave the installer a controlling terminal, so
-# its unguarded `sudo apt-get install libatomic1` sat at a password prompt
-# that nobody could see or answer.
-#
-# `setsid` starts the installer in a new session with no controlling
-# terminal, and stdin is /dev/null. With no terminal, a bare `sudo` fails
-# immediately ("a terminal is required") — which those calls tolerate, each
-# ending in `|| true` — and the installer's own prompts take their
-# defaults, which it documents for exactly this case. Everything those
-# `sudo` calls would have installed is already present (see defaults).
-#
-# `timeout` is the backstop: if some future installer finds another way to
-# wait for a person, the run fails with a message after
-# hermes_installer_timeout seconds instead of waiting forever.
-# The clone is the installer's FIRST step, so a checkout at the pinned
-# commit proves only that an install began. A run stopped partway leaves
-# exactly that: the right commit and no `hermes`. Whether Hermes is
-# installed is answered by `hermes` itself.
+- name: Keep its tag
+  ansible.builtin.set_fact:
+    hermes_latest_tag: "{{ hermes_latest_release.json.tag_name }}"
+
+# Whether Hermes is installed is answered by `hermes` itself. The clone is
+# the installer's first step, so a checkout alone proves only that an
+# install began — a run stopped partway on 2026-09-18 left exactly that.
 - name: Ask whether the hermes command works
   ansible.builtin.command:
     cmd: "{{ hermes_bin }} --version"
@@ -130,33 +94,67 @@
   changed_when: false
   failed_when: false
 
-- name: Run the installer, with no terminal to prompt on
+# --- First install only -------------------------------------------------
+
+- name: Create the installer cache
+  ansible.builtin.file:
+    path: "{{ hermes_cache }}"
+    state: directory
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_user }}"
+    mode: '0755'
+  when: hermes_version_probe.rc != 0
+
+# Fresh each time and with no checksum: see hermes_installer_url.
+- name: Fetch the installer
+  ansible.builtin.get_url:
+    url: "{{ hermes_installer_url }}"
+    dest: "{{ hermes_cache }}/install.sh"
+    force: true
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_user }}"
+    mode: '0755'
+  become: true
+  become_user: "{{ hermes_user }}"
+  when: hermes_version_probe.rc != 0
+
+# ⚠️ NO TERMINAL, ON PURPOSE. The first deployment hung here for ten
+# minutes: Ansible's become gave the installer a controlling terminal, so
+# its unguarded `sudo apt-get install libatomic1` sat at a password prompt
+# that nobody could see or answer.
+#
+# `setsid` starts the installer in a new session with no controlling
+# terminal, and stdin is /dev/null. With no terminal, a bare `sudo` fails
+# immediately ("a terminal is required") — which those calls tolerate, each
+# ending in `|| true` — and the installer's own prompts take their
+# defaults. Everything those `sudo` calls would have installed is already
+# present (see defaults).
+#
+# `timeout` is the backstop against a future installer finding another way
+# to wait for a person.
+- name: Install Hermes at its newest release, with no terminal to prompt on
   ansible.builtin.shell:
     cmd: >-
       timeout {{ hermes_installer_timeout }}
       setsid --wait
-      {{ hermes_cache }}/install-{{ hermes_version }}.sh
+      {{ hermes_cache }}/install.sh
       {{ hermes_installer_arguments | join(' ') }}
-      --branch {{ hermes_version }}
+      --branch {{ hermes_latest_tag }}
       < /dev/null
   become: true
   become_user: "{{ hermes_user }}"
   environment:
     HOME: "{{ hermes_home }}"
   register: hermes_install
-  # Install unless BOTH hold: the checkout is at the pinned commit AND the
-  # command it builds actually runs. Either alone has been wrong once.
-  when: >-
-    hermes_head.stdout | trim != hermes_commit
-    or hermes_version_probe.rc != 0
+  when: hermes_version_probe.rc != 0
   changed_when: true
   # 124 is let through so the next task can say what it means; any other
   # failure fails here as usual.
   failed_when: hermes_install.rc not in [0, 124]
 
 # `timeout` exits 124 when it had to stop the installer. Name that case,
-# because "failed" and "was still waiting for someone after twenty
-# minutes" need different fixes.
+# because "failed" and "was still going when the limit came" need
+# different fixes.
 - name: Say so if the installer had to be stopped
   ansible.builtin.fail:
     msg: >-
@@ -174,25 +172,74 @@
     - hermes_install is not skipped
     - hermes_install.rc | default(0) == 124
 
-- name: Confirm the checkout is at the pinned commit  # noqa: command-instead-of-module
+# --- Every run: the updater, and the timer that runs it nightly ---------
+
+- name: Install the release updater
+  ansible.builtin.template:
+    src: hermes-update-release.sh.j2
+    dest: "{{ hermes_home }}/.local/bin/hermes-update-release"
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_user }}"
+    mode: '0755'
+
+- name: Create the user systemd directory
+  ansible.builtin.file:
+    path: "{{ hermes_home }}/.config/systemd/user"
+    state: directory
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_user }}"
+    mode: '0755'
+
+- name: Install the updater's service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ hermes_home }}/.config/systemd/user/{{ item }}"
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_user }}"
+    mode: '0644'
+  loop:
+    - hermes-update.service
+    - hermes-update.timer
+
+# Nobody logs into the team host, so without lingering the user manager
+# never starts and every gateway service would be enabled against a manager
+# that does not exist. Same reason as roles/never4ga.
+- name: Let the user manager run without a session
   ansible.builtin.command:
-    cmd: "git -C {{ hermes_checkout }} rev-parse HEAD"
+    cmd: "loginctl enable-linger {{ hermes_user }}"
+    creates: "/var/lib/systemd/linger/{{ hermes_user }}"
+  when: hermes_enable_linger
+
+# Approved by Joseph 2026-09-18 (ADR 0014 principle 2).
+- name: Enable the nightly update
+  ansible.builtin.systemd_service:
+    name: hermes-update.timer
+    scope: user
+    daemon_reload: true
+    enabled: true
+    state: started
   become: true
   become_user: "{{ hermes_user }}"
-  register: hermes_head_after
-  changed_when: false
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ hermes_uid }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ hermes_uid }}/bus"
+  when: not ansible_check_mode
 
-# A tag can be moved. This is what notices: the tag is what `--branch`
-# asked for, and the commit is what proves it still means the same thing.
-- name: Require the pinned commit
-  ansible.builtin.assert:
-    that: hermes_head_after.stdout | trim == hermes_commit
-    fail_msg: >-
-      {{ hermes_checkout }} is at {{ hermes_head_after.stdout | trim }}, not
-      the pinned {{ hermes_commit }}. Either the tag {{ hermes_version }}
-      moved upstream or the checkout was changed by hand. Do not deploy
-      agents from it until that is explained.
-    quiet: true
+# A deploy is also an update: the same script the timer runs, so there is
+# exactly one definition of "move to the newest release" and one of
+# "already current".
+- name: Bring Hermes to its newest release
+  ansible.builtin.command:
+    cmd: "{{ hermes_home }}/.local/bin/hermes-update-release"
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+    XDG_RUNTIME_DIR: "/run/user/{{ hermes_uid }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ hermes_uid }}/bus"
+  register: hermes_update
+  changed_when: "'hermes updated to' in hermes_update.stdout"
+  when: not ansible_check_mode
 
 - name: Report the installed version
   ansible.builtin.command:
@@ -206,16 +253,7 @@
 
 - name: Show it
   ansible.builtin.debug:
-    msg: "hermes {{ hermes_installed_version.stdout | trim }} at {{ hermes_commit[:12] }}"
-
-# Nobody logs into the team host, so without lingering the user manager
-# never starts and every gateway service would be enabled against a manager
-# that does not exist. Same reason as roles/never4ga.
-- name: Let the user manager run without a session
-  ansible.builtin.command:
-    cmd: "loginctl enable-linger {{ hermes_user }}"
-    creates: "/var/lib/systemd/linger/{{ hermes_user }}"
-  when: hermes_enable_linger
+    msg: "{{ hermes_installed_version.stdout_lines[0] | default('') }} — newest release is {{ hermes_latest_tag }}"
 
 # ------------------------------------------------------------
 # The default profile
