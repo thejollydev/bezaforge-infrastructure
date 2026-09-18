@@ -1,0 +1,17 @@
+---
+# The unit is a `systemd --user` one, so the handler needs the runtime
+# user and its bus. Guarded on the service being wanted at all: a host
+# that runs the CLI without the service still gets config templated, and
+# the notify must not then fail on a unit that does not exist.
+- name: Restart never4ga
+  ansible.builtin.systemd_service:
+    name: "{{ never4ga_service_name }}"
+    scope: user
+    daemon_reload: true
+    state: restarted
+  become: true
+  become_user: "{{ never4ga_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts.getent_passwd[never4ga_user][1] }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ ansible_facts.getent_passwd[never4ga_user][1] }}/bus"
+  when: never4ga_service_enabled

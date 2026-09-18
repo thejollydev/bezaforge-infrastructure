@@ -1,0 +1,16 @@
+# Managed by Ansible (roles/never4ga) — local edits are overwritten.
+#
+# Never4gA reads this file and never writes it (core/05 section 9), so
+# unlike Syncthing's config.xml a template does not fight the program for
+# ownership of it.
+
+# The vault this machine serves. On this host it is a Syncthing replica of
+# the laptop's copy, not an original: documents are read here and written
+# here, and the laptop's timer commits whatever arrives.
+vault = "{{ never4ga_vault_path }}"
+
+[service]
+# Loopback only; Never4gA refuses anything else. The agents on this host
+# reach it here, and nothing off the host reaches it at all.
+host = "127.0.0.1"
+port = 7377

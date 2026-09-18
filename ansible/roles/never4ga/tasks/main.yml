@@ -1,0 +1,395 @@
+---
+# ============================================================
+# never4ga role — the vault readable by the agents (#1217)
+#
+# Brizza ADR 0016: the boards and the vault are the team's shared memory,
+# and an agent that needs to find something looks in the vault through
+# Never4gA, the same way every other harness does. So every agent host
+# needs Never4gA, which is what this role installs.
+#
+# The package is unreleased and its repository is private. This host has
+# no credential for it and is not given one: the artifact is a wheel built
+# on the control machine and pushed from there, and the wheel is not
+# committed to this repository. `never4ga_wheel` is therefore a control-node
+# path, and the runbook is where the build command lives.
+#
+# ⚠️ `repair --apply` IS NEVER RUN ON THIS HOST. The vault here is a
+# Syncthing replica of the laptop's copy, not an original. A repair written
+# here would race the laptop over the same documents and arrive as
+# `.sync-conflict` files — so this role's verification is read-only, and
+# anything doctor reports is fixed on the laptop and syncs down.
+# ============================================================
+
+- name: Check the role's inputs
+  ansible.builtin.assert:
+    that:
+      - never4ga_user | length > 0
+      - never4ga_vault_path | length > 0
+      - never4ga_wheel | length > 0
+    fail_msg: >-
+      roles/never4ga needs never4ga_user, never4ga_vault_path and
+      never4ga_wheel in host_vars. never4ga_wheel is a path on the machine
+      running ansible-playbook, not on {{ inventory_hostname }}.
+    quiet: true
+
+- name: Read the runtime user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ never4ga_user }}"
+
+- name: Keep the user's home for the paths below
+  ansible.builtin.set_fact:
+    never4ga_home: "{{ ansible_facts.getent_passwd[never4ga_user][4] }}"
+
+# The vault has to be here before Never4gA is pointed at it. On a synced
+# host that means roles/syncthing has run and the folder has arrived; an
+# empty path would otherwise be initialised as a new vault, which is the
+# one destructive thing this role could do by accident.
+- name: Check the vault is present
+  ansible.builtin.stat:
+    path: "{{ never4ga_vault_path }}/index.md"
+  register: never4ga_vault_probe
+
+- name: Refuse to run against a vault that has not arrived
+  ansible.builtin.assert:
+    that: never4ga_vault_probe.stat.exists
+    fail_msg: >-
+      {{ never4ga_vault_path }} has no index.md, so it is not a vault that
+      has finished syncing. Never4gA would treat the path as a new vault.
+      Check syncthing@{{ never4ga_user }} and re-run.
+    quiet: true
+
+# ------------------------------------------------------------
+# Install into a root-owned venv under /opt
+# ------------------------------------------------------------
+
+# Ubuntu keeps ensurepip in this package rather than the stdlib, so
+# `python3 -m venv` reports "ensurepip is not available" without it.
+# Measured on forge-agents 2026-09-17 before this role existed.
+- name: Install the venv package
+  ansible.builtin.apt:
+    name: "{{ never4ga_venv_package }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the install prefix
+  ansible.builtin.file:
+    path: "{{ never4ga_prefix }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create the virtual environment
+  ansible.builtin.command:
+    cmd: "{{ never4ga_python }} -m venv {{ never4ga_venv }}"
+    creates: "{{ never4ga_venv }}/bin/python"
+
+- name: Push the wheel
+  ansible.builtin.copy:
+    src: "{{ never4ga_wheel }}"
+    dest: "{{ never4ga_prefix }}/{{ never4ga_wheel | basename }}"
+    owner: root
+    group: root
+    mode: '0644'
+  register: never4ga_wheel_push
+
+- name: Ask whether the package is importable
+  ansible.builtin.command:
+    cmd: "{{ never4ga_venv }}/bin/python -c 'import never4ga'"
+  register: never4ga_import_probe
+  changed_when: false
+  failed_when: false
+
+# --force-reinstall because the version is 0.1.0.dev0 on every build: pip
+# would see the same version already installed and do nothing, so a new
+# wheel of the same dev version would never land. The wheel changing is the
+# signal, not the version string.
+- name: Install the wheel
+  ansible.builtin.command:
+    cmd: >-
+      {{ never4ga_venv }}/bin/pip install --force-reinstall
+      {{ never4ga_prefix }}/{{ never4ga_wheel | basename }}
+  # `default(1)` because the probe above is a `command`, which a check run
+  # skips: on a converged host `wheel_push.changed` is false, so the `or`
+  # stops short-circuiting and an undefined `rc` would error rather than
+  # report. Unknown means "assume it needs installing", which in check mode
+  # is the honest answer.
+  when: never4ga_wheel_push.changed or never4ga_import_probe.rc | default(1) != 0
+  # The `when` above is the "does anything need doing" test: this task only
+  # runs when the wheel changed or the package is not importable, and in
+  # both cases running it changes the host.
+  changed_when: true
+  notify: Restart never4ga
+
+- name: Link the entry points onto PATH
+  ansible.builtin.file:
+    src: "{{ never4ga_venv }}/bin/{{ item }}"
+    dest: "{{ never4ga_bin }}/{{ item }}"
+    state: link
+    force: true
+  loop: "{{ never4ga_entry_points }}"
+
+# ------------------------------------------------------------
+# Configuration
+# ------------------------------------------------------------
+#
+# Never4gA reads this file and never writes it (core/05 section 9), so a
+# template does not fight the program for ownership the way Syncthing's
+# config.xml does.
+
+- name: Create the user's config directory
+  ansible.builtin.file:
+    path: "{{ never4ga_home }}/.config/never4ga"
+    state: directory
+    owner: "{{ never4ga_user }}"
+    group: "{{ never4ga_user }}"
+    mode: '0755'
+
+- name: Write the configuration
+  ansible.builtin.template:
+    src: config.toml.j2
+    dest: "{{ never4ga_home }}/.config/never4ga/config.toml"
+    owner: "{{ never4ga_user }}"
+    group: "{{ never4ga_user }}"
+    mode: '0644'
+  notify: Restart never4ga
+
+# The build plan's step 4 asks for the index and state to live outside the
+# vault. They do by default — platformdirs puts them under ~/.local/share
+# and ~/.local/state, and no config key moves them — so this checks the
+# property rather than configuring it. It is worth checking because the
+# failure is silent and expensive: a derived database inside the vault
+# would sync to every other copy, and three machines would fight over one
+# write-ahead log.
+- name: Look for derived databases inside the vault
+  ansible.builtin.find:
+    paths: "{{ never4ga_vault_path }}"
+    patterns: '*.sqlite3,*.sqlite3-wal,*.sqlite3-shm'
+    recurse: true
+    file_type: file
+  register: never4ga_stray_db
+
+- name: Refuse a derived database inside the vault
+  ansible.builtin.assert:
+    that: never4ga_stray_db.matched == 0
+    fail_msg: >-
+      {{ never4ga_stray_db.files | map(attribute='path') | join(', ') }}
+      is inside {{ never4ga_vault_path }}. Never4gA's databases belong
+      outside it; these would sync to every other vault copy. Stop here.
+    quiet: true
+
+# ------------------------------------------------------------
+# The service
+# ------------------------------------------------------------
+#
+# `systemd --user`, which is what Never4gA's service manager reports on and
+# controls; it does not install the unit itself.
+#
+# ⚠️ NO VAULT-COMMIT TIMER HERE. ADR 0019 makes the laptop the only git
+# actor on the vault. The laptop's 15-minute commit picks up whatever this
+# host wrote; a committer here would race it over a working tree Syncthing
+# is writing underneath both of them, and `.git` is in the ignore patterns
+# so this copy has no git identity to commit with in the first place.
+
+- name: Create the user systemd directory
+  ansible.builtin.file:
+    path: "{{ never4ga_home }}/.config/systemd/user"
+    state: directory
+    owner: "{{ never4ga_user }}"
+    group: "{{ never4ga_user }}"
+    mode: '0755'
+  when: never4ga_service_enabled
+
+- name: Install the service unit
+  ansible.builtin.template:
+    src: never4ga.service.j2
+    dest: "{{ never4ga_home }}/.config/systemd/user/{{ never4ga_service_name }}"
+    owner: "{{ never4ga_user }}"
+    group: "{{ never4ga_user }}"
+    mode: '0644'
+  when: never4ga_service_enabled
+  notify: Restart never4ga
+
+# Nobody logs into this host, so without lingering the user manager never
+# starts and the unit is enabled against a manager that does not exist.
+- name: Let the user manager run without a session
+  ansible.builtin.command:
+    cmd: "loginctl enable-linger {{ never4ga_user }}"
+    creates: "/var/lib/systemd/linger/{{ never4ga_user }}"
+  when:
+    - never4ga_service_enabled
+    - never4ga_enable_linger
+
+- name: Enable and start the service
+  ansible.builtin.systemd_service:
+    name: "{{ never4ga_service_name }}"
+    scope: user
+    daemon_reload: true
+    enabled: true
+    state: started
+  become: true
+  become_user: "{{ never4ga_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts.getent_passwd[never4ga_user][1] }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ ansible_facts.getent_passwd[never4ga_user][1] }}/bus"
+  # A check run never writes the unit, so there is nothing for systemd to
+  # find and the task fails with "Could not find the requested service".
+  # Skipping it keeps `--check` usable on a host where the service does not
+  # exist yet, which is the run this role is most likely to be read from.
+  when:
+    - never4ga_service_enabled
+    - not ansible_check_mode
+
+- name: Flush handlers so verification sees the running service
+  ansible.builtin.meta: flush_handlers
+
+# ------------------------------------------------------------
+# Repository mappings
+# ------------------------------------------------------------
+#
+# A mapping is what makes `context startup --cwd <repo>` resolve to a
+# workspace. Idempotent by nature: `workspace map` on an already-mapped
+# repository reports the mapping rather than duplicating it.
+
+- name: See which repositories are here
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+  loop: "{{ never4ga_mappings }}"
+  loop_control:
+    label: "{{ item.path }}"
+  register: never4ga_repo_probe
+
+- name: Report repositories that have not arrived yet
+  ansible.builtin.debug:
+    msg: >-
+      {{ item.item.path }} is not on this host yet, so its mapping is
+      skipped. That is expected between build steps.
+  loop: "{{ never4ga_repo_probe.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+  when: not item.stat.exists
+
+- name: Read the mappings this host already holds
+  ansible.builtin.command:
+    cmd: "{{ never4ga_bin }}/never4ga workspace mappings"
+  become: true
+  become_user: "{{ never4ga_user }}"
+  environment:
+    HOME: "{{ never4ga_home }}"
+  register: never4ga_existing_mappings
+  changed_when: false
+
+# Mapping is read first and written only when it is missing, so a
+# converged host reports no changes. Testing the output of `workspace map`
+# for a word like "already" would be guessing at a string the CLI has not
+# promised; the path appearing in `workspace mappings` is a fact.
+- name: Map the repositories to their workspaces
+  ansible.builtin.command:
+    cmd: >-
+      {{ never4ga_bin }}/never4ga workspace map {{ item.item.workspace }}
+      --repo {{ item.item.path }}
+  become: true
+  become_user: "{{ never4ga_user }}"
+  environment:
+    HOME: "{{ never4ga_home }}"
+  loop: "{{ never4ga_repo_probe.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+  when:
+    - item.stat.exists
+    - item.item.path not in never4ga_existing_mappings.stdout
+  changed_when: true
+
+# ------------------------------------------------------------
+# Verification — the test that fails without this role
+# ------------------------------------------------------------
+#
+# The build plan asks every step for a test that fails without it. These
+# two are step 4's, and they run read-only on every converged run rather
+# than once at acceptance.
+
+# `--json` rather than the human output, and `findings` rather than the
+# exit code. The first real run on forge-agents is why: doctor answered
+# "healthy" with `[W] index_is_stale: 1644 new` and exited 0, so an
+# `rc == 0` assertion passed on a doctor that was not clean. Warnings are
+# what this check is for.
+#
+# A fresh install is legitimately stale for as long as it takes the service
+# to index the vault — 1644 concepts and 59 MB the first time — so this
+# waits rather than failing, and fails only if it never settles.
+- name: Run doctor until the vault reports clean
+  ansible.builtin.command:
+    cmd: "{{ never4ga_bin }}/never4ga --json doctor"
+  become: true
+  become_user: "{{ never4ga_user }}"
+  environment:
+    HOME: "{{ never4ga_home }}"
+  register: never4ga_doctor
+  changed_when: false
+  failed_when: false
+  retries: "{{ never4ga_doctor_retries }}"
+  delay: "{{ never4ga_doctor_delay }}"
+  until:
+    - never4ga_doctor.rc == 0
+    - (never4ga_doctor.stdout | from_json).healthy | default(false)
+    - (never4ga_doctor.stdout | from_json).findings | default([]) | length == 0
+  when: never4ga_verify
+
+# `msg` rather than `var`: `var` takes a variable name, and this is an
+# expression.
+- name: Show what doctor said
+  ansible.builtin.debug:
+    msg: "{{ (never4ga_doctor.stdout | from_json).findings }}"
+  when:
+    - never4ga_verify
+    - never4ga_doctor.stdout | default('') | length > 0
+    - (never4ga_doctor.stdout | from_json).findings | default([]) | length > 0
+
+- name: Require doctor to be clean
+  ansible.builtin.assert:
+    that:
+      - never4ga_doctor.rc == 0
+      - (never4ga_doctor.stdout | from_json).healthy
+      - (never4ga_doctor.stdout | from_json).findings | length == 0
+    fail_msg: >-
+      `never4ga doctor` is not clean on {{ inventory_hostname }} after
+      {{ never4ga_doctor_retries }} tries. Fix the findings ON THE LAPTOP
+      and let them sync down; `repair --apply` is never run here. If the
+      only finding is a stale index, the service is not keeping up — check
+      `systemctl --user status never4ga.service`.
+    quiet: true
+  when: never4ga_verify
+
+- name: Ask for the workspace's startup pack
+  ansible.builtin.command:
+    cmd: >-
+      {{ never4ga_bin }}/never4ga --actor ansible/never4ga-role
+      context startup --client ansible --cwd {{ never4ga_verify_repo }}
+  become: true
+  become_user: "{{ never4ga_user }}"
+  environment:
+    HOME: "{{ never4ga_home }}"
+  register: never4ga_pack
+  changed_when: false
+  failed_when: false
+  when:
+    - never4ga_verify
+    - never4ga_verify_workspace | length > 0
+    - never4ga_verify_repo | default('') | length > 0
+
+- name: Require the pack to come back for the expected workspace
+  ansible.builtin.assert:
+    that:
+      - never4ga_pack.rc == 0
+      - never4ga_verify_workspace in never4ga_pack.stdout
+    fail_msg: >-
+      `context startup` from {{ never4ga_verify_repo }} did not return the
+      {{ never4ga_verify_workspace }} pack. Either the repository is not
+      mapped or the vault copy is incomplete.
+    quiet: true
+  when:
+    - never4ga_verify
+    - never4ga_verify_workspace | length > 0
+    - never4ga_verify_repo | default('') | length > 0

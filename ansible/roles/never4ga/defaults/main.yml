@@ -1,0 +1,98 @@
+---
+# ============================================================
+# never4ga role defaults
+#
+# Never4gA is an unreleased package (0.1.0.dev0) in a private repository.
+# The host has no credential for that repository and is not given one, so
+# the artifact is a wheel built on the control machine and pushed from
+# there. `never4ga_wheel` is a path on the CONTROL node, and the wheel is
+# never committed to this repository.
+#
+# Per-host settings — the user, the vault path, whether the service runs —
+# are in each host's host_vars.
+# ============================================================
+
+# --- Per host (required) ---
+# The user Never4gA runs as. The role does not create it, and it must be
+# the user that owns the vault copy (roles/syncthing's syncthing_user on a
+# host where the vault arrives by sync).
+never4ga_user: ""
+# The vault's path on this host.
+never4ga_vault_path: ""
+# The wheel to install, as a path on the control machine. Built by hand
+# before the run; see the runbook for the command and why it is not a
+# release artifact yet.
+never4ga_wheel: ""
+
+# --- Install layout ---
+# A root-owned venv under /opt, with the entry points on PATH through
+# /usr/local/bin. The runtime user can run it and cannot modify it, which
+# is the one thing a home-directory install cannot offer.
+never4ga_prefix: /opt/never4ga
+never4ga_venv: "{{ never4ga_prefix }}/venv"
+never4ga_bin: /usr/local/bin
+# The package's two console scripts, linked onto PATH. The laptop also
+# has a `never4ga-vault-commit` script; it is not a package entry point
+# and not wanted here anyway — see the service section below.
+never4ga_entry_points:
+  - never4ga
+  - never4ga-mcp
+
+# Ubuntu strips ensurepip out of the stdlib into this package, so
+# `python3 -m venv` fails without it. Measured on forge-agents
+# 2026-09-17: ModuleNotFoundError: No module named 'ensurepip'.
+never4ga_python: /usr/bin/python3
+never4ga_venv_package: python3.14-venv
+
+# --- The service ---
+# A `systemd --user` unit for the runtime user, which is what Never4gA's
+# own service manager reports on and controls (it does not install the
+# unit; core/05 section 11).
+#
+# On a host where the vault arrives by Syncthing rather than from a local
+# editor, the service earns its place: it owns the index and reconciles
+# what the watcher sees, so a document another machine wrote is searchable
+# without anyone running `index` by hand.
+never4ga_service_enabled: true
+never4ga_service_name: never4ga.service
+# A user manager only runs while the user has a session unless lingering is
+# enabled, and nobody logs into this host to start one.
+never4ga_enable_linger: true
+
+# ⚠️ NOT SET HERE, AND NOT BY ACCIDENT: the vault-commit timer.
+#
+# ADR 0019 makes the laptop the only git actor on the vault. A second
+# committer would race the laptop's 15-minute timer over the same working
+# tree that Syncthing is writing underneath both of them. Syncthing's
+# ignore patterns exclude `.git` precisely so each copy keeps its own, and
+# only one copy has a git identity at all.
+
+# --- Repository mappings ---
+# The repositories agents work on, mapped to their workspaces so
+# `context startup --cwd` resolves from inside them. Each entry is
+# {workspace: <id>, path: <absolute path on this host>}.
+#
+# A mapping whose path does not exist is skipped with a warning rather
+# than failing the run: the repositories arrive as the agents that need
+# them are stood up, and a half-populated host is the normal state
+# between build steps.
+never4ga_mappings: []
+
+# --- Verification ---
+# `doctor` must be clean and `context startup` must return a pack. Both
+# run read-only at the end of the role and fail it if they do not.
+#
+# `repair --apply` is never run here (ADR 0016 via the build plan): the
+# vault on this host is a sync replica, and a repair written here races
+# the laptop and reaches it as a conflict copy.
+never4ga_verify: true
+# A fresh install is stale until the service has indexed the vault, so the
+# check waits instead of failing on the first run. Measured 2026-09-17:
+# 1644 concepts and 59 MB settled inside a minute on forge-agents.
+never4ga_doctor_retries: 12
+never4ga_doctor_delay: 10
+# The workspace whose pack proves the install, and the repository the pack
+# is asked for from. Step 4's done-when: `context startup` from a mapped
+# repository returns the Brizza pack. Left empty, the check is skipped.
+never4ga_verify_workspace: ""
+never4ga_verify_repo: ""

@@ -50,3 +50,43 @@ syncthing_device_id: WV54WLV-YC4BPXG-CB7LGKH-LZSQFZ7-WYXDUAH-XV7SR6L-UKT3XNF-YFN
 # UFW is default-deny here: the hypervisor, and the laptop on Home WiFi and
 # over WireGuard.
 syncthing_ufw_allow_from: "{{ ['10.10.10.10'] + common_admin_ssh_sources }}"
+
+# ------------------------------------------------------------
+# Never4gA (roles/never4ga, #1217)
+# ------------------------------------------------------------
+# Brizza ADR 0016: the vault is the team's shared memory and every agent
+# reaches it through Never4gA. Same user as the vault copy, so the index
+# it builds is owned by whoever the agents run as.
+#
+# The wheel is a path on the machine running ansible-playbook, and it is
+# built by hand first — the package is unreleased, its repository is
+# private, and this host holds no credential for it. See
+# docs/runbooks/never4ga-on-forge-agents.md.
+never4ga_user: joseph
+never4ga_vault_path: /home/joseph/Vaults/never-knowledge
+never4ga_wheel: "{{ lookup('env', 'HOME') }}/Projects/never4ga/dist/never4ga-0.1.0.dev0-py3-none-any.whl"
+
+# Repositories the agents work on, mapped so `context startup --cwd`
+# resolves from inside them.
+#
+# ⚠️ EMPTY, AND THAT IS WHY STEP 4 IS NOT FULLY PROVABLE YET. This host
+# has no checkout of any project repository and no credential to make one:
+# `brizza` and `never4ga` are private, and `git ls-remote` over HTTPS from
+# here answers "could not read Username". Giving the host a deploy key or
+# a token is a decision in its own right, and step 5's role is explicitly
+# forbidden from holding one in git, so it is not taken here by default.
+#
+# The role skips a mapping whose path is absent with a note rather than
+# failing, so this list can be filled in the moment the decision is made
+# and the checkout exists:
+#
+#   never4ga_mappings:
+#     - workspace: 01a04efd-1861-7352-8245-8c0c6a001f79   # Brizza
+#       path: /home/joseph/Projects/brizza
+never4ga_mappings: []
+
+# Step 4's done-when, asserted on every run once there is a repository to
+# assert it from. never4ga_verify_repo empty skips the pack check; doctor
+# still has to be clean, which is the half that does not need a checkout.
+never4ga_verify_workspace: 01a04efd-1861-7352-8245-8c0c6a001f79
+never4ga_verify_repo: ""
