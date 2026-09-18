@@ -1,0 +1,250 @@
+---
+# ============================================================
+# hermes-team role — the agents themselves (#1218)
+#
+# Brizza ADRs 0014 and 0015. Hermes is the runtime for the whole team; each
+# agent is a profile with its own memory, soul, credentials and Discord bot.
+#
+# WHAT THIS ROLE DOES NOT DO, ON PURPOSE:
+#
+#   - It does not write Discord tokens. Joseph creates one application per
+#     agent and completes each login; the role notices whether the
+#     credential is there and says so.
+#   - It does not start an agent. ADR 0014 principle 2 — nothing runs until
+#     Joseph approves its first run — so a gateway starts only for an agent
+#     whose host_vars entry says `approved: true`.
+#   - It does not run `hermes setup`. That is interactive and would ask for
+#     a model and tokens the role has opinions about and credentials it
+#     refuses to hold.
+#
+# The installer is fetched and checksummed rather than piped into a shell,
+# following roles/ollama: a streamed script executes as the user with no way
+# to notice upstream changed it. Here a changed installer FAILS the run.
+# ============================================================
+
+- name: Check the role's inputs
+  ansible.builtin.assert:
+    that:
+      - hermes_user | length > 0
+      - hermes_agents | length > 0
+      - hermes_agents | map(attribute='name') | list | unique | length == hermes_agents | length
+    fail_msg: >-
+      roles/hermes-team needs hermes_user and a hermes_agents list in
+      host_vars, with one entry per profile and no repeated name. Two
+      profiles with one name would be two processes on one Hermes home,
+      which corrupts both agents' memory.
+    quiet: true
+
+- name: Read the runtime user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ hermes_user }}"
+
+- name: Keep the user's home and uid for the paths below
+  ansible.builtin.set_fact:
+    hermes_home: "{{ ansible_facts.getent_passwd[hermes_user][4] }}"
+    hermes_uid: "{{ ansible_facts.getent_passwd[hermes_user][1] }}"
+
+- name: Set the paths the installer uses
+  ansible.builtin.set_fact:
+    # Per-user install: the installer puts the checkout here and a symlink
+    # at ~/.local/bin/hermes. Profiles then live under ~/.hermes/profiles/.
+    hermes_checkout: "{{ hermes_home }}/.hermes/hermes-agent"
+    hermes_bin: "{{ hermes_home }}/.local/bin/hermes"
+    hermes_profiles_dir: "{{ hermes_home }}/.hermes/profiles"
+    hermes_cache: "{{ hermes_home }}/.cache/bezaforge-hermes"
+
+# ------------------------------------------------------------
+# Install
+# ------------------------------------------------------------
+
+- name: Install what the installer cannot provision itself
+  ansible.builtin.apt:
+    name: "{{ hermes_install_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the installer cache
+  ansible.builtin.file:
+    path: "{{ hermes_cache }}"
+    state: directory
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_user }}"
+    mode: '0755'
+
+# `checksum` is the whole point: get_url fails rather than writing a file
+# whose bytes differ from what was reviewed. When upstream edits the
+# installer this task is where the run stops, and someone reads the diff
+# before 170 KB of shell executes.
+- name: Fetch the installer and verify it is the reviewed one
+  ansible.builtin.get_url:
+    url: "{{ hermes_installer_url }}"
+    dest: "{{ hermes_cache }}/install-{{ hermes_version }}.sh"
+    checksum: "sha256:{{ hermes_installer_sha256 }}"
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_user }}"
+    mode: '0755'
+  become: true
+  become_user: "{{ hermes_user }}"
+
+# noqa below: ansible.builtin.git manages a repository, and this only asks
+# it a question. Using the module here would put Ansible in charge of a
+# checkout the installer owns, and the two would fight over it.
+- name: Ask what is already checked out  # noqa: command-instead-of-module
+  ansible.builtin.command:
+    cmd: "git -C {{ hermes_checkout }} rev-parse HEAD"
+  become: true
+  become_user: "{{ hermes_user }}"
+  register: hermes_head
+  changed_when: false
+  failed_when: false
+
+# ⚠️ NO TERMINAL, ON PURPOSE. The first deployment hung here for ten
+# minutes: Ansible's become gave the installer a controlling terminal, so
+# its unguarded `sudo apt-get install libatomic1` sat at a password prompt
+# that nobody could see or answer.
+#
+# `setsid` starts the installer in a new session with no controlling
+# terminal, and stdin is /dev/null. With no terminal, a bare `sudo` fails
+# immediately ("a terminal is required") — which those calls tolerate, each
+# ending in `|| true` — and the installer's own prompts take their
+# defaults, which it documents for exactly this case. Everything those
+# `sudo` calls would have installed is already present (see defaults).
+#
+# `timeout` is the backstop: if some future installer finds another way to
+# wait for a person, the run fails with a message after
+# hermes_installer_timeout seconds instead of waiting forever.
+# The clone is the installer's FIRST step, so a checkout at the pinned
+# commit proves only that an install began. A run stopped partway leaves
+# exactly that: the right commit and no `hermes`. Whether Hermes is
+# installed is answered by `hermes` itself.
+- name: Ask whether the hermes command works
+  ansible.builtin.command:
+    cmd: "{{ hermes_bin }} --version"
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  register: hermes_version_probe
+  changed_when: false
+  failed_when: false
+
+- name: Run the installer, with no terminal to prompt on
+  ansible.builtin.shell:
+    cmd: >-
+      timeout {{ hermes_installer_timeout }}
+      setsid --wait
+      {{ hermes_cache }}/install-{{ hermes_version }}.sh
+      {{ hermes_installer_arguments | join(' ') }}
+      --branch {{ hermes_version }}
+      < /dev/null
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  register: hermes_install
+  # Install unless BOTH hold: the checkout is at the pinned commit AND the
+  # command it builds actually runs. Either alone has been wrong once.
+  when: >-
+    hermes_head.stdout | trim != hermes_commit
+    or hermes_version_probe.rc != 0
+  changed_when: true
+  # 124 is let through so the next task can say what it means; any other
+  # failure fails here as usual.
+  failed_when: hermes_install.rc not in [0, 124]
+
+# `timeout` exits 124 when it had to stop the installer. Name that case,
+# because "failed" and "was still waiting for someone after twenty
+# minutes" need different fixes.
+- name: Say so if the installer had to be stopped
+  ansible.builtin.fail:
+    msg: >-
+      The installer was still running after {{ hermes_installer_timeout }}
+      seconds and was stopped. That is one of two things, and they need
+      different fixes. A SLOW DOWNLOAD: run the play again — the clone and
+      uv's package cache survive, so the second run has much less to fetch.
+      A PROMPT: something was waiting for input; the installer's last lines
+      below will show a question, and whatever it wanted belongs in
+      hermes_install_packages. To tell them apart while it runs, look on the
+      host for a `sudo` with no child process (a prompt) versus a busy
+      `git clone` or `uv sync` (a download).
+      Last output: {{ (hermes_install.stdout_lines | default([]))[-5:] | join(' / ') }}
+  when:
+    - hermes_install is not skipped
+    - hermes_install.rc | default(0) == 124
+
+- name: Confirm the checkout is at the pinned commit  # noqa: command-instead-of-module
+  ansible.builtin.command:
+    cmd: "git -C {{ hermes_checkout }} rev-parse HEAD"
+  become: true
+  become_user: "{{ hermes_user }}"
+  register: hermes_head_after
+  changed_when: false
+
+# A tag can be moved. This is what notices: the tag is what `--branch`
+# asked for, and the commit is what proves it still means the same thing.
+- name: Require the pinned commit
+  ansible.builtin.assert:
+    that: hermes_head_after.stdout | trim == hermes_commit
+    fail_msg: >-
+      {{ hermes_checkout }} is at {{ hermes_head_after.stdout | trim }}, not
+      the pinned {{ hermes_commit }}. Either the tag {{ hermes_version }}
+      moved upstream or the checkout was changed by hand. Do not deploy
+      agents from it until that is explained.
+    quiet: true
+
+- name: Report the installed version
+  ansible.builtin.command:
+    cmd: "{{ hermes_bin }} --version"
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  register: hermes_installed_version
+  changed_when: false
+
+- name: Show it
+  ansible.builtin.debug:
+    msg: "hermes {{ hermes_installed_version.stdout | trim }} at {{ hermes_commit[:12] }}"
+
+# Nobody logs into the team host, so without lingering the user manager
+# never starts and every gateway service would be enabled against a manager
+# that does not exist. Same reason as roles/never4ga.
+- name: Let the user manager run without a session
+  ansible.builtin.command:
+    cmd: "loginctl enable-linger {{ hermes_user }}"
+    creates: "/var/lib/systemd/linger/{{ hermes_user }}"
+  when: hermes_enable_linger
+
+# ------------------------------------------------------------
+# The profiles
+# ------------------------------------------------------------
+#
+# One include per agent rather than a loop over blocks, so a failure names
+# the agent it happened to and the tasks read as what they are.
+
+- name: Create and configure each agent's profile
+  ansible.builtin.include_tasks: profile.yml
+  loop: "{{ hermes_agents }}"
+  loop_control:
+    loop_var: agent
+    label: "{{ agent.name }}"
+
+# ------------------------------------------------------------
+# What is waiting on Joseph
+# ------------------------------------------------------------
+
+- name: Say which agents are ready but not running
+  ansible.builtin.debug:
+    msg: >-
+      {{ hermes_waiting | join(', ') }} {{ 'has' if hermes_waiting | length == 1 else 'have' }}
+      a profile and a gateway service but {{ 'is' if hermes_waiting | length == 1 else 'are' }}
+      not running. Each needs a Discord application with the Message Content
+      and Server Members intents, its token on the host, and
+      `approved: true` in host_vars. ADR 0014 principle 2: nothing starts
+      until you approve its first run.
+  vars:
+    hermes_waiting: "{{ hermes_agents | rejectattr('approved', 'defined') | map(attribute='name') | list
+                      + hermes_agents | selectattr('approved', 'defined') | rejectattr('approved') | map(attribute='name') | list }}"
+  when: hermes_waiting | length > 0

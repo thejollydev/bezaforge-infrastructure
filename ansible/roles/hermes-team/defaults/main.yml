@@ -1,0 +1,189 @@
+---
+# ============================================================
+# hermes-team role defaults
+#
+# Brizza ADR 0014: the successor is a team of named Hermes agents, each its
+# own Hermes profile with its own memory, its own Discord bot and its own
+# credentials. This role installs Hermes and creates those profiles.
+#
+# The roster and each agent's role card are the decision, not a detail of
+# this role: the cards live in the Brizza plan and reach the host as each
+# profile's SOUL.md.
+# ============================================================
+
+# --- Per host (required) ---
+# The user Hermes runs as. The role does not create it, and it must be the
+# user that owns the vault copy, because the agents read the vault through
+# Never4gA as that user (ADR 0016, #1217).
+hermes_user: ""
+
+# --- Version ---
+# Upstream tags date-based releases. Pinned by tag AND verified by commit:
+# the tag is what `git clone --branch` takes, and the SHA is what proves the
+# tag still points where it did when this was written. A moved tag stops the
+# run instead of installing something else.
+#
+# ⚠️ THE COMMIT, NOT THE TAG OBJECT. v2026.9.14 is an annotated tag, which
+# is an object of its own with its own SHA, pointing at the commit. The
+# first version of this role recorded the tag object's SHA (7a96371…) —
+# what `git/ref/tags/<tag>` returns — so the assertion below could never
+# pass, and the installer would have re-run on every deploy. The commit is
+# what `git rev-parse HEAD` reports after a clone, and what
+# `gh api repos/NousResearch/hermes-agent/commits/<tag> --jq .sha` returns.
+hermes_version: v2026.9.14
+hermes_commit: 345cd2b057a452236de401d3534b8502a7465e8d
+
+# The installer, fetched to a file and checksummed rather than piped into a
+# shell. Same reasoning as roles/ollama (#93a8875): a streamed script runs
+# as root with no way to notice it changed. Here the checksum is the review
+# gate — when upstream edits the installer the run FAILS, and someone reads
+# the diff before it executes.
+#
+# Recorded 2026-09-18: 173794 bytes.
+hermes_installer_url: https://hermes-agent.nousresearch.com/install.sh
+hermes_installer_sha256: 2de7a1d60a7c0edf685d3b7b875b93a99c8006473a55218688a0075a88637045
+
+# Installed as root BEFORE the installer runs, and the list is longer than
+# the installer's own prerequisites for a reason measured the hard way.
+#
+# The installer runs as the agents' user, and on Ubuntu it reaches for
+# `sudo apt-get` for several of these — some carefully (checking `sudo -n`
+# first), some not. The careless ones hung the first deployment on
+# 2026-09-18 for ten minutes at a password prompt nobody could see:
+# `sudo ... apt-get install -y -qq libatomic1`, which it calls on EVERY
+# Ubuntu run whether or not the package is present.
+#
+# The installer now runs with no terminal (see tasks), so those calls fail
+# at once instead of waiting. Everything they would have installed is here
+# so that failing costs nothing:
+#
+#   git, curl, xz-utils        the installer's stated prerequisites
+#   libatomic1                 the Node it downloads will not start without it
+#   build-essential            a C++ compiler, for native Python wheels
+#   python3-dev, libffi-dev    headers for the same
+#   ripgrep, ffmpeg            optional tools it would otherwise skip
+hermes_install_packages:
+  - git
+  - curl
+  - xz-utils
+  - libatomic1
+  - build-essential
+  - python3-dev
+  - libffi-dev
+  - ripgrep
+  - ffmpeg
+
+# The longest the installer may run before it is stopped.
+#
+# Measured on the second deployment, 2026-09-18: GitHub served the clone at
+# 100-160 KB/s (the laptop saw the same, so it was not this host's link),
+# and the run hit the first limit of 1200 s partway through `uv sync` —
+# downloading, not waiting. 1200 was a guess; this is sized so a slow but
+# healthy install finishes and a genuine hang still ends.
+#
+# A stopped install is not wasted: the clone and uv's download cache
+# survive (282 MB of packages that time), so a second run has far less to
+# fetch.
+hermes_installer_timeout: 3600
+
+# `--skip-setup` because setup is interactive and asks for a model and
+# tokens; this role configures the profiles itself and leaves credentials to
+# Joseph. `--branch` takes the pinned tag.
+hermes_installer_arguments:
+  - --skip-setup
+
+# --- The agents ---
+# One entry per profile. `soul` names a template in this role; `model` is
+# what the profile's model.default is set to.
+#
+# ⚠️ `approved` IS THE GATE, AND IT DEFAULTS TO FALSE EVERYWHERE.
+# ADR 0014 principle 2: nothing starts without Joseph's approval. The role
+# creates the profile, writes its soul and installs its gateway service, but
+# it does not START a gateway until Joseph sets `approved: true` for that
+# agent in host_vars — and not before its Discord token exists on the host.
+# That is the difference between a profile being ready and an agent running.
+hermes_agents: []
+
+# --- Models (ADR 0014 principle 3) ---
+# Local models by default; a frontier model through a subscription Joseph
+# already pays for only where a local one would drastically worsen the
+# result. No metered API spend, ever.
+#
+# ⚠️ THE SHAPE MATTERS, AND GETTING IT WRONG COSTS MONEY SILENTLY.
+# Hermes' own local-Ollama guide sets `provider: custom` with a `/v1`
+# base_url and the BARE model name. Upstream issues #57255, #21352 and
+# #14676 each describe a near-miss of that shape — `provider: ollama`, a
+# missing base_url, an auxiliary task that does not recognise the provider
+# — falling through to OpenRouter, a metered API, without an error.
+# `custom` is also what routes Hermes' auxiliary tasks to the same
+# endpoint rather than leaving them to find a default of their own.
+#
+# forge-ai's Ollama, verified answering 2026-09-17.
+hermes_model_provider: custom
+hermes_model_base_url: http://10.10.50.10:11434/v1
+# The default for an agent whose entry does not name one. A bare Ollama
+# model name — no `ollama/` prefix — because the provider is `custom`.
+hermes_model_default: qwen3.8:27b
+
+# Local models answer slowly on a long context, and Hermes' own timeouts
+# are sized for hosted APIs. The local-Ollama guide raises both.
+hermes_api_timeout: 1800
+hermes_stream_read_timeout: 1800
+
+# The defence in depth behind the shape above. If any of these appears in
+# a profile's .env, the run FAILS: a fallback to a paid provider can only
+# bill if it has a key, so refusing the keys means a misrouted request
+# errors instead of costing money. ANTHROPIC_API_KEY is here for RSK-03 as
+# well — no Anthropic credential in a third-party harness.
+#
+# Codex for Malachi is unaffected: an OAuth login lands in the profile's
+# auth.json, not in .env, so it is not an API key and is not refused.
+hermes_forbidden_env_keys:
+  - OPENROUTER_API_KEY
+  - ANTHROPIC_API_KEY
+  - OPENAI_API_KEY
+  - NOUS_API_KEY
+
+# --- Memory (ADR 0016) ---
+# Held for approval on every profile. Brizza sends Joseph one list of
+# pending memory writes a day; that digest is a Brizza job, not this role's.
+hermes_memory_write_approval: true
+
+# --- Discord (ADR 0015) ---
+# One application and bot per agent, created by Joseph in the Discord
+# developer portal. Each needs the Message Content and Server Members
+# privileged intents; without them the bot receives events whose text is
+# empty and cannot see what was typed.
+#
+# The role writes every NON-secret Discord setting into each profile's
+# .env and never touches the DISCORD_BOT_TOKEN line. The token reaches the
+# host by Joseph's hand. Every other secret in this fleet lives in
+# group_vars/all/vault.yml, and this one deliberately does not — step 5 of
+# the build plan asks that the role never hold a token in git, and
+# encrypted-in-git is still in git.
+
+# Joseph's Discord user ID: who each agent takes orders from. A user ID is
+# an identifier, not a secret.
+#
+# ⚠️ EMPTY MEANS EVERY AGENT IGNORES EVERYONE, JOSEPH INCLUDED. Hermes
+# denies all users when neither this nor DISCORD_ALLOWED_ROLES is set —
+# safe, but a bot that comes online and never answers looks exactly like a
+# broken one. The role refuses to start an approved agent until it is set.
+hermes_discord_allowed_users: ""
+
+# ⚠️ `none` is Hermes' own default and ADR 0015's decision. Hermes now
+# documents bot-to-bot handoffs at `mentions` or `all`, guarded against the
+# reply-ping loop by DISCORD_BOTS_REQUIRE_INLINE_MENTION. That is ADR 0015's
+# stated revisit condition and it is Joseph's to rule on; until he does,
+# agents coordinate through the board and Bot Mode rooms as decided.
+hermes_discord_allow_bots: none
+# Default on upstream, and ADR 0015 owes a test of whether the backfill
+# includes other bots' replies.
+hermes_discord_history_backfill: true
+hermes_discord_history_backfill_limit: 50
+
+# --- The service ---
+# Each profile gets its own gateway service. A user manager only runs while
+# the user has a session unless lingering is on, and nobody logs into the
+# team host — the same reason roles/never4ga enables it.
+hermes_enable_linger: true

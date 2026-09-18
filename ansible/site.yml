@@ -248,6 +248,12 @@
     # empty directory for a new vault and initialise it.
     - role: never4ga
       tags: never4ga
+    # The agents themselves (#1218; Brizza ADRs 0014 and 0015). After
+    # `never4ga`, because the vault read through it is what every agent's
+    # soul tells it to use. No agent STARTS from this role — each waits on
+    # its Discord application and Joseph's approval.
+    - role: hermes-team
+      tags: hermes-team
     # Deploy stamp — must stay LAST, `tags: always` (#671). See the
     # hypervisor play above for why.
     - role: deploy-stamp
