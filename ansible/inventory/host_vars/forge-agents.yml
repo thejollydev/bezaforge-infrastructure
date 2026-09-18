@@ -98,13 +98,16 @@ never4ga_verify_repo: ""
 # each agent reads the vault as the user that owns it.
 hermes_user: joseph
 
-# Your Discord user ID — who every agent takes orders from. An identifier,
-# not a secret. Filled in during setup: Discord → Settings → Advanced →
-# Developer Mode on, then right-click your own name → Copy User ID.
+# Joseph's Discord user ID — who every agent takes orders from.
 #
-# Empty means every agent ignores everyone, you included, and the role will
-# refuse to start an approved agent until it is set.
-hermes_discord_allowed_users: ""
+# Held in the encrypted vault.yml, not here: this repository is public, and
+# an ID that points at a personal Discord account is a fact about the person
+# running the estate, which the public-repository standard keeps out. It is
+# not a credential; it is simply not the public's business.
+#
+# Empty means every agent ignores everyone, Joseph included, and the role
+# refuses to start an approved agent until it is set.
+hermes_discord_allowed_users: "{{ vault_hermes_discord_allowed_users }}"
 
 # Build 5a's three. Brizza first, with the approval flow and the daily
 # memory-write digest, then Samuel and Malachi so a task can be researched
