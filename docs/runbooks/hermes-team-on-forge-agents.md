@@ -42,15 +42,29 @@ one application per agent. **Enable both privileged intents:**
   see what you typed.
 - **Server Members Intent** — username resolution and role checks.
 
-Then put the token on the host:
+Then put the token on the host. The `.env` already exists — the role writes
+the non-secret settings into it (`DISCORD_ALLOWED_USERS`, the backfill and
+bot settings, the timeouts) and leaves one line for you. **Add a
+`DISCORD_BOT_TOKEN=` line and change nothing else**; the role edits only its
+own keys and never touches that line.
 
 ```bash
 ssh joseph@forge-agents
-nano ~/.hermes/profiles/brizza/.env    # DISCORD_BOT_TOKEN=...
+nano ~/.hermes/profiles/brizza/.env    # add: DISCORD_BOT_TOKEN=...
 ```
 
+Also set `hermes_discord_allowed_users` in `host_vars` to your Discord user ID.
+Without it every agent denies every message, yours included, and the role
+refuses to start an approved agent rather than let it come up silent.
+
 The profile has to exist first, so the order is: run the role once, create the
-application, place the token, set `approved: true`, run the role again.
+application, place the token, set your user ID and `approved: true`, run the
+role again.
+
+**Paid-provider keys are refused.** If a profile's `.env` ever holds
+`OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or `NOUS_API_KEY`,
+the run fails. That is deliberate: a misrouted request can only bill if there
+is a key to bill with.
 
 ## Deploying it
 
