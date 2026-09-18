@@ -35,13 +35,42 @@ hermes_commit: 7a963716b81be13ba513d4f127633b7da493aff2
 hermes_installer_url: https://hermes-agent.nousresearch.com/install.sh
 hermes_installer_sha256: 2de7a1d60a7c0edf685d3b7b875b93a99c8006473a55218688a0075a88637045
 
-# The installer provisions uv, Python 3.11, Node, ripgrep and ffmpeg itself.
-# These are the ones it says it cannot: git universally, curl and xz-utils
-# on Linux.
+# Installed as root BEFORE the installer runs, and the list is longer than
+# the installer's own prerequisites for a reason measured the hard way.
+#
+# The installer runs as the agents' user, and on Ubuntu it reaches for
+# `sudo apt-get` for several of these — some carefully (checking `sudo -n`
+# first), some not. The careless ones hung the first deployment on
+# 2026-09-18 for ten minutes at a password prompt nobody could see:
+# `sudo ... apt-get install -y -qq libatomic1`, which it calls on EVERY
+# Ubuntu run whether or not the package is present.
+#
+# The installer now runs with no terminal (see tasks), so those calls fail
+# at once instead of waiting. Everything they would have installed is here
+# so that failing costs nothing:
+#
+#   git, curl, xz-utils        the installer's stated prerequisites
+#   libatomic1                 the Node it downloads will not start without it
+#   build-essential            a C++ compiler, for native Python wheels
+#   python3-dev, libffi-dev    headers for the same
+#   ripgrep, ffmpeg            optional tools it would otherwise skip
 hermes_install_packages:
   - git
   - curl
   - xz-utils
+  - libatomic1
+  - build-essential
+  - python3-dev
+  - libffi-dev
+  - ripgrep
+  - ffmpeg
+
+# The longest the installer may run before it is treated as hung. It
+# downloads Node and a Python and installs Hermes' dependencies, so it is
+# not quick — but the failure this guards against is a silent wait of
+# unbounded length, and a bounded one that FAILS with a message is the
+# whole improvement.
+hermes_installer_timeout: 1200
 
 # `--skip-setup` because setup is interactive and asks for a model and
 # tokens; this role configures the profiles itself and leaves credentials to

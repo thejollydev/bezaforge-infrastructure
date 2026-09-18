@@ -100,20 +100,57 @@
   changed_when: false
   failed_when: false
 
-- name: Run the installer
-  ansible.builtin.command:
+# ⚠️ NO TERMINAL, ON PURPOSE. The first deployment hung here for ten
+# minutes: Ansible's become gave the installer a controlling terminal, so
+# its unguarded `sudo apt-get install libatomic1` sat at a password prompt
+# that nobody could see or answer.
+#
+# `setsid` starts the installer in a new session with no controlling
+# terminal, and stdin is /dev/null. With no terminal, a bare `sudo` fails
+# immediately ("a terminal is required") — which those calls tolerate, each
+# ending in `|| true` — and the installer's own prompts take their
+# defaults, which it documents for exactly this case. Everything those
+# `sudo` calls would have installed is already present (see defaults).
+#
+# `timeout` is the backstop: if some future installer finds another way to
+# wait for a person, the run fails with a message after
+# hermes_installer_timeout seconds instead of waiting forever.
+- name: Run the installer, with no terminal to prompt on
+  ansible.builtin.shell:
     cmd: >-
+      timeout {{ hermes_installer_timeout }}
+      setsid --wait
       {{ hermes_cache }}/install-{{ hermes_version }}.sh
       {{ hermes_installer_arguments | join(' ') }}
       --branch {{ hermes_version }}
+      < /dev/null
   become: true
   become_user: "{{ hermes_user }}"
   environment:
     HOME: "{{ hermes_home }}"
+  register: hermes_install
   # The checkout's HEAD is the test: absent or at another commit means
   # install, and anything else means the pinned version is already here.
   when: hermes_head.stdout | trim != hermes_commit
   changed_when: true
+  # 124 is let through so the next task can say what it means; any other
+  # failure fails here as usual.
+  failed_when: hermes_install.rc not in [0, 124]
+
+# `timeout` exits 124 when it had to stop the installer. Name that case,
+# because "failed" and "was still waiting for someone after twenty
+# minutes" need different fixes.
+- name: Say so if the installer had to be stopped
+  ansible.builtin.fail:
+    msg: >-
+      The installer was still running after {{ hermes_installer_timeout }}
+      seconds and was stopped. It was most likely waiting for input with no
+      one to give it. Look at the last lines of its output above for the
+      prompt, and add whatever it was trying to install to
+      hermes_install_packages.
+  when:
+    - hermes_install is not skipped
+    - hermes_install.rc | default(0) == 124
 
 - name: Confirm the checkout is at the pinned commit  # noqa: command-instead-of-module
   ansible.builtin.command:
