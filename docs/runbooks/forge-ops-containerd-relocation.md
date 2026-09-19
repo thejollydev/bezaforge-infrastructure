@@ -120,9 +120,13 @@ still match `/`, the flag is not live; stop and fix that before going further.
 ```bash
 df -h / /var/lib/docker
 sudo du -sh /var/lib/containerd
+docker images -q | sort > /tmp/images-before.txt
+wc -l < /tmp/images-before.txt
 docker ps --format '{{.Names}}' | sort > /tmp/containers-before.txt
 wc -l < /tmp/containers-before.txt
 ```
+
+Keep the `du` figure: step 7 checks against it.
 
 ### 3. Stop Docker and containerd
 
@@ -163,15 +167,21 @@ ls /var/lib/docker/containerd                                # io.containerd.* d
 
 ### 5. Set the host variable
 
-In `ansible/inventory/host_vars/forge-ops/vars.yml`, uncomment:
+The variable is set in `ansible/inventory/host_vars/forge-ops/vars.yml` on the
+`forge-ops-containerd-relocation-apply` branch, whose pull request stays open
+until this runbook is done. Check that branch out on the machine running
+Ansible:
 
-```yaml
-docker_containerd_data_root: /var/lib/docker/containerd
+```bash
+git switch forge-ops-containerd-relocation-apply
+grep '^docker_containerd_data_root' ansible/inventory/host_vars/forge-ops/vars.yml
+# docker_containerd_data_root: /var/lib/docker/containerd
 ```
 
-It ships commented so that a routine `site.yml` run does not trip the guard in
-`roles/docker`, which refuses to repoint containerd at a directory that does
-not already hold the content store.
+It stays off `main` until the copy exists, because the guard in
+`roles/docker` refuses to repoint containerd at a directory that does not
+already hold the content store. Merged early, it would fail every routine
+`site.yml` run against forge-ops.
 
 ### 6. Apply the role
 
@@ -189,7 +199,7 @@ root.
 ```bash
 sudo grep '^root' /etc/containerd/config.toml     # /var/lib/docker/containerd
 docker info | grep -A1 'Storage Driver'
-docker images | wc -l                             # 38 — unchanged, nothing re-pulled
+docker images -q | sort | diff /tmp/images-before.txt - && echo "same images, nothing re-pulled"
 docker ps --format '{{.Names}}' | sort > /tmp/containers-after.txt
 diff /tmp/containers-before.txt /tmp/containers-after.txt && echo "all containers back"
 docker ps --filter health=unhealthy --format '{{.Names}}'   # expect empty
@@ -204,13 +214,19 @@ dig +short git.bezaforge.dev @10.10.20.20
 And confirm the metrics followed the data:
 
 ```bash
-df -h / /var/lib/docker    # / drops by ~33 G; /var/lib/docker gains it
+df -h / /var/lib/docker
 ```
+
+`/var/lib/docker` should have grown by about the step 2 `du` figure. `/` should
+not have moved: step 4 copied the data rather than moving it, and the original
+stays on the root LV until step 8.
 
 Give Prometheus a scrape interval, then re-run the step 1 query. `/` must still
 report ~158 GB. If `/` has become ~317 GB, `--path.rootfs` is not in effect and
 you are back in the silent-failure case — roll back or fix the exporter before
 leaving the host.
+
+Once all of this passes, merge the pull request so `main` matches the host.
 
 ### 8. Reclaim the old root, but not today
 
@@ -235,7 +251,7 @@ At any point before step 8's `rm`:
 
 ```bash
 sudo systemctl stop docker.socket docker.service containerd.service
-# re-comment docker_containerd_data_root in host_vars, then:
+# switch back to main (or, once merged, re-comment docker_containerd_data_root), then:
 ansible-playbook ansible/site.yml --tags docker --limit forge-ops
 ```
 
