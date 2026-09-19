@@ -6,7 +6,7 @@ three (#1218), what you have to do by hand, and the tests the step owes.
 
 | Piece | Where | Owner |
 |---|---|---|
-| Hermes | `~joseph/.hermes/hermes-agent`, pinned tag | `roles/hermes-team` |
+| Hermes | `~joseph/.hermes/hermes-agent`, newest release | `roles/hermes-team`, then the nightly updater |
 | On `PATH` | `~joseph/.local/bin/hermes`, plus `<name>` per profile | the installer |
 | A profile | `~joseph/.hermes/profiles/<name>/` | the role |
 | A soul | that profile's `SOUL.md` | templated from the role card |
@@ -82,18 +82,40 @@ Run it twice; the second reports no changes.
 > to read `config.yaml` directly instead. That is the known weak point of
 > this role.
 
-### The installer, and why it is fetched rather than piped
+### Staying current
 
-Upstream's documented install is `curl -fsSL … | bash`. This role fetches the
-script to a file with a recorded SHA-256 and runs that, following
-`roles/ollama` — a streamed script executes with no way to notice upstream
-changed it. **When upstream edits the installer, the fetch fails and the run
-stops.** That is the intended behaviour: read the diff, then update
-`hermes_installer_sha256`.
+**Hermes follows its newest published release, automatically.** Nothing in
+the role names a version. Joseph chose this on 2026-09-18 over pinning (which
+falls behind) and over following upstream's `main` (a hundred-plus unreleased
+commits a day).
 
-The version is pinned twice over. `hermes_version` is the tag `--branch`
-asks for; `hermes_commit` is the SHA that proves the tag still points where it
-did. A moved tag fails the run rather than installing something else.
+- **Nightly at 04:00** `hermes-update.timer` runs
+  `~/.local/bin/hermes-update-release`. `Persistent=true`, so a night the host
+  was off is caught up at the next boot.
+- **Every deploy** runs the same script, so a deploy is also an update and
+  there is one definition of "current".
+- **What it does:** asks GitHub for the newest release; if Hermes is already
+  on it, exits. Otherwise fetches that release, reinstalls dependencies
+  exactly as the installer does (`uv sync --locked`, which checks every
+  package against the SHA-256 in that release's lockfile), runs
+  `hermes config migrate` on every profile, and restarts agents that were
+  already running. Agents that are not running stay stopped.
+- **If any step fails, it rolls back** to the previous version and exits
+  non-zero. The unit is left failed, and the fleet's failed-unit alert
+  reports it — a night the update did not happen is never silent.
+
+Why not `hermes update`: it follows a branch (fetches `origin/<branch>` and
+resets to it), so it cannot target a release, and upstream keeps no branch
+that tracks releases.
+
+```bash
+ssh joseph@forge-agents 'systemctl --user list-timers hermes-update.timer'
+ssh joseph@forge-agents 'journalctl --user -u hermes-update.service -n 30'
+```
+
+The installer runs only for a first install, fetched fresh from upstream at
+the newest release with no checksum: a recorded hash of a script upstream
+edits routinely was a version pin in disguise.
 
 ## The tests this step owes
 
@@ -116,11 +138,12 @@ than a suggestion.
 
 ## When something goes wrong
 
-**The fetch fails on a checksum mismatch.** Upstream changed the installer.
-That is the gate doing its job — diff it, then update the recorded hash.
+**`hermes-update.service` is failed.** The nightly update could not move to
+the newest release and rolled back. Its journal says which step failed:
 
-**`Require the pinned commit` fails.** The tag moved, or someone changed the
-checkout by hand. Do not deploy agents from it until that is explained.
+```bash
+ssh joseph@forge-agents 'journalctl --user -u hermes-update.service -n 50'
+```
 
 **A gateway will not start.** It is a `systemd --user` unit, so it needs the
 user manager, which needs lingering.

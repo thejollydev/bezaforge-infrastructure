@@ -1,0 +1,20 @@
+# Managed by Ansible (roles/hermes-team). Local edits are overwritten.
+#
+# Nightly, approved by Joseph on 2026-09-18 (ADR 0014 principle 2: no
+# recurring job runs until he approves it).
+#
+# A calendar timer with Persistent=true, so a night the host was off is
+# caught up at the next boot. Not OnBootSec/OnUnitActiveSec: that pair
+# counts from system boot while a user timer loads with the user manager,
+# and on the laptop it once sat "active (elapsed)" arming nothing for
+# eighteen hours.
+[Unit]
+Description=Update Hermes to its newest release, nightly
+
+[Timer]
+OnCalendar={{ hermes_update_on_calendar }}
+Persistent=true
+AccuracySec=5min
+
+[Install]
+WantedBy=timers.target

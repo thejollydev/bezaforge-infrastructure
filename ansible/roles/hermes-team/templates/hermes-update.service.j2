@@ -1,0 +1,16 @@
+# Managed by Ansible (roles/hermes-team). Local edits are overwritten.
+#
+# Moves Hermes to its newest release. Started by hermes-update.timer.
+# A failure here leaves this unit failed, which the fleet's failed-unit
+# alert reports, so a night the update did not happen is never silent.
+[Unit]
+Description=Update Hermes to its newest release
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart={{ hermes_home }}/.local/bin/hermes-update-release
+# A release update fetches and installs dependencies; a slow night on
+# GitHub has taken twenty minutes. Well past that means something is stuck.
+TimeoutStartSec=3600
