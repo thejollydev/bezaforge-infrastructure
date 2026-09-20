@@ -130,7 +130,10 @@ hermes_agents:
   - name: brizza
     soul: soul-brizza.md.j2
     model: qwen3.8:27b
-    approved: false
+    # Approved 2026-09-19: her Discord application exists with both
+    # privileged intents, her token is on the host and she is in the
+    # server. Samuel and Malachi wait for applications of their own.
+    approved: true
   - name: samuel
     soul: soul-samuel.md.j2
     model: qwen3.8:27b
