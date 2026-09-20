@@ -184,6 +184,83 @@ Settings that must reach an agent belong in
 `~/.hermes/profiles/<name>/config.yaml`, which is what the role's `config set`
 tasks write.
 
+## What was in the root config, and what it cost
+
+The whole root file was audited on 2026-09-20 (#1218), key by key, against
+`hermes_cli.config.DEFAULT_CONFIG`. It is worth knowing what it turned out to
+be, because the shape is what made the trap convincing.
+
+**Sixty-nine of its ~100 leaf keys were byte-identical to the defaults** —
+the entire `terminal:`, `compression:`, `tool_loop_guardrails:`, `memory:`,
+`stt:`, `browser:`, `cron:`, `database:` and `runtime:` blocks, and
+`kanban.review_dispatch: true`. That file was never a set of choices. An
+older `hermes setup` serialised the whole default schema into it, and it has
+looked load-bearing ever since. Modern Hermes would not write it:
+`save_config` defaults to `strip_defaults=True`, so "schema defaults are not
+written unless the user explicitly set them". Which is also why the file
+stays clean once trimmed.
+
+Of the rest, `model.*` was already written per-profile by the role,
+`platform_toolsets.*` and `plugins.enabled: []` were wizard bookkeeping whose
+absence equals their value, and `code_execution.timeout` /
+`code_execution.max_tool_calls` were not schema keys at all — nothing reads
+them, in the root file or anywhere else.
+
+**Two keys were load-bearing and missing from every profile:**
+
+| Key | Root said | Agents actually ran |
+|---|---|---|
+| `agent.max_turns` | `500` | unset, and unset is **unlimited** — `resolve_turn_limit` returns `sys.maxsize` |
+| `group_sessions_per_user` | `true` | `true`, the gateway default — while ADR 0015 says `false` |
+
+`agent.max_turns` is the one that cost something: three agents sharing one
+Ollama with no iteration cap, and `tool_loop_guardrails.hard_stop_enabled`
+false, so a run that stops making progress was narrated rather than stopped.
+The role now writes it to every profile.
+
+`group_sessions_per_user` changes nothing today and is left unset — see the
+amendment proposed against ADR 0015.
+
+### Trimming the root file
+
+A one-off, not a converging task; nothing in the role manages this file.
+
+```bash
+ssh joseph@forge-agents 'cp ~/.hermes/config.yaml ~/.hermes/config.yaml.bak && cat > ~/.hermes/config.yaml' <<'EOF'
+# NO GATEWAY READS THIS FILE.
+#
+# Every hermes-gateway-<name>.service sets HERMES_HOME to its own profile
+# directory, and get_config_path() is get_hermes_home()/config.yaml with no
+# root layer beneath it. Settings for an agent go in that agent's
+# ~/.hermes/profiles/<name>/config.yaml, written by roles/hermes-team.
+#
+# What is left here governs a bare `hermes` invocation with no profile —
+# you, on this host, at a prompt. Nothing else.
+#
+# Trimmed 2026-09-20 (#1218): the ~90 keys removed were either byte-identical
+# to DEFAULT_CONFIG or read by nothing. Hermes will not put them back —
+# save_config strips schema defaults on write.
+model:
+  # So an ad-hoc `hermes` run here stays on forge-ai's Ollama. A model name
+  # without provider+base_url is the shape ADR 0014 principle 3 exists to
+  # prevent: it falls through to a metered API without an error.
+  default: qwen3.8:27b
+  provider: custom
+  base_url: http://10.10.50.10:11434/v1
+updates:
+  # The nightly hermes-update-release does its own snapshot and rollback.
+  pre_update_backup: false
+_config_version: 44
+EOF
+```
+
+Then check a bare run still resolves the model, and that the agents are
+untouched:
+
+```bash
+ssh joseph@forge-agents 'hermes config get model.default && hermes -p brizza config get agent.max_turns'
+```
+
 ## What ADR 0015 says, and what upstream now says
 
 The role sets `DISCORD_ALLOW_BOTS=none`, which is both Hermes' default and
