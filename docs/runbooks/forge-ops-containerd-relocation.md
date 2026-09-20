@@ -120,9 +120,13 @@ still match `/`, the flag is not live; stop and fix that before going further.
 ```bash
 df -h / /var/lib/docker
 sudo du -sh /var/lib/containerd
+docker images -q | sort > /tmp/images-before.txt
+wc -l < /tmp/images-before.txt
 docker ps --format '{{.Names}}' | sort > /tmp/containers-before.txt
 wc -l < /tmp/containers-before.txt
 ```
+
+Keep the `du` figure: step 7 checks against it.
 
 ### 3. Stop Docker and containerd
 
@@ -154,24 +158,39 @@ sudo rsync -aHAX --numeric-ids --info=progress2 \
   /var/lib/containerd/ /var/lib/docker/containerd/
 ```
 
-Verify the copy landed:
+Verify the copy landed. Compare **apparent** size, not disk usage:
 
 ```bash
-sudo du -sh /var/lib/containerd /var/lib/docker/containerd   # sizes should match
-ls /var/lib/docker/containerd                                # io.containerd.* dirs present
+sudo du -sh --apparent-size /var/lib/containerd /var/lib/docker/containerd  # must match
+sudo du -sh /var/lib/containerd /var/lib/docker/containerd                  # copy may be larger
+ls /var/lib/docker/containerd                                               # io.containerd.* dirs present
 ```
+
+The copy can legitimately take more disk than the source. On 2026-09-19 it was
+53 G against 46 G, while apparent size was 50 G on both sides, with identical
+file counts (805,070) and hardlink counts (20,917). The difference was sparse
+files — core dumps in a snapshot's writable layer — which `rsync` writes out as
+real blocks unless `--sparse` is passed. `--sparse` is not in the command above
+because it is the slower path and correctness does not depend on it; if the
+destination is tight, add it and expect a longer run.
 
 ### 5. Set the host variable
 
-In `ansible/inventory/host_vars/forge-ops/vars.yml`, uncomment:
+The variable is set in `ansible/inventory/host_vars/forge-ops/vars.yml` on the
+`forge-ops-containerd-relocation-apply` branch, whose pull request stays open
+until this runbook is done. Check that branch out on the machine running
+Ansible:
 
-```yaml
-docker_containerd_data_root: /var/lib/docker/containerd
+```bash
+git switch forge-ops-containerd-relocation-apply
+grep '^docker_containerd_data_root' ansible/inventory/host_vars/forge-ops/vars.yml
+# docker_containerd_data_root: /var/lib/docker/containerd
 ```
 
-It ships commented so that a routine `site.yml` run does not trip the guard in
-`roles/docker`, which refuses to repoint containerd at a directory that does
-not already hold the content store.
+It stays off `main` until the copy exists, because the guard in
+`roles/docker` refuses to repoint containerd at a directory that does not
+already hold the content store. Merged early, it would fail every routine
+`site.yml` run against forge-ops.
 
 ### 6. Apply the role
 
@@ -184,12 +203,48 @@ This writes `/etc/containerd/config.toml` from the template and fires the
 `restart containerd and docker` handler, bringing both services back on the new
 root.
 
+**Expect the containers to come up dead the first time, and do not panic.**
+`roles/docker` starts Docker (task "Enable and start Docker") *before* it
+installs `config.toml`, so the play brings all 30 containers up on the OLD data
+root, and the end-of-play handler then restarts containerd onto the NEW one
+while those containers' shims are still alive holding their tasks. Every
+container then exits 128:
+
+```
+failed to create task for container: AlreadyExists: task <id>: already exists
+```
+
+The containers are fine; the runtime state in `/run/containerd` is stale.
+Clear it:
+
+```bash
+sudo systemctl stop docker.socket docker.service containerd.service
+pgrep -a containerd-shim            # leftovers from the old root, expect ~30
+sudo systemctl start containerd.service
+sleep 3
+sudo systemctl start docker.service docker.socket
+sleep 45
+docker ps --format '{{.Names}}' | wc -l
+```
+
+Stopping the services lets the orphaned shims go, and the restart policies
+bring every container back on the new root. Verified on 2026-09-19: all 30
+returned, none unhealthy.
+
+If a `io.containerd.runtime.v2.task` directory came across in the rsync, move
+it aside rather than deleting it — it is runtime state and belongs on tmpfs:
+
+```bash
+sudo mv /var/lib/docker/containerd/io.containerd.runtime.v2.task{,.stale-982}
+sudo mkdir -p /var/lib/docker/containerd/io.containerd.runtime.v2.task
+```
+
 ### 7. Verify
 
 ```bash
 sudo grep '^root' /etc/containerd/config.toml     # /var/lib/docker/containerd
 docker info | grep -A1 'Storage Driver'
-docker images | wc -l                             # 38 — unchanged, nothing re-pulled
+docker images -q | sort | diff /tmp/images-before.txt - && echo "same images, nothing re-pulled"
 docker ps --format '{{.Names}}' | sort > /tmp/containers-after.txt
 diff /tmp/containers-before.txt /tmp/containers-after.txt && echo "all containers back"
 docker ps --filter health=unhealthy --format '{{.Names}}'   # expect empty
@@ -204,13 +259,27 @@ dig +short git.bezaforge.dev @10.10.20.20
 And confirm the metrics followed the data:
 
 ```bash
-df -h / /var/lib/docker    # / drops by ~33 G; /var/lib/docker gains it
+df -h / /var/lib/docker
 ```
+
+`/var/lib/docker` should have grown by about the step 2 `du` figure. `/` should
+not have moved: step 4 copied the data rather than moving it, and the original
+stays on the root LV until step 8.
 
 Give Prometheus a scrape interval, then re-run the step 1 query. `/` must still
 report ~158 GB. If `/` has become ~317 GB, `--path.rootfs` is not in effect and
 you are back in the silent-failure case — roll back or fix the exporter before
 leaving the host.
+
+Once all of this passes, merge the pull request so `main` matches the host.
+
+Also check the services from off the host, since Traefik and AdGuard both
+restarted:
+
+```bash
+dig +short git.bezaforge.dev @10.10.20.20
+for u in git pm grafana; do curl -s -o /dev/null -w "$u %{http_code}\n" "https://$u.bezaforge.dev"; done
+```
 
 ### 8. Reclaim the old root, but not today
 
@@ -235,7 +304,7 @@ At any point before step 8's `rm`:
 
 ```bash
 sudo systemctl stop docker.socket docker.service containerd.service
-# re-comment docker_containerd_data_root in host_vars, then:
+# switch back to main (or, once merged, re-comment docker_containerd_data_root), then:
 ansible-playbook ansible/site.yml --tags docker --limit forge-ops
 ```
 
