@@ -55,16 +55,18 @@
 # Each setting is read first and written only when it differs, so a
 # converged host reports no changes.
 
-# ⚠️ `config get` IS ASSUMED AND UNVERIFIED. The documentation shows
-# `config set` and does not show its counterpart, and Hermes was not
-# installed anywhere when this was written, so it could not be checked.
+# `config get` was assumed when this was written — the documentation shows
+# `config set` and not its counterpart, and Hermes was installed nowhere to
+# check against. Verified on forge-agents 2026-09-20: it exists, and a
+# converged host reports no changes here.
 #
-# The failure mode is chosen to be loud rather than silent: if `config get`
-# is not a subcommand, these probes return non-zero with empty output, the
-# comparison below can never match, and every run re-sets both settings and
-# reports changed. So the SECOND run is where this shows up — if the
-# idempotence test fails on "set what differs", this is why, and the fix is
-# to read config.yaml directly instead.
+# ⚠️ IT RESOLVES RATHER THAN READS. The value printed is the effective
+# one, defaults included, not what config.yaml holds. So a key sitting at
+# its default reads as already set while being absent from the file, and
+# this loop will never write it — which is what the dispatcher-key task
+# below exists to handle. A key absent from DEFAULT_CONFIG prints nothing
+# and exits 1; one present there but null prints `null` and exits 0. Both
+# compare unequal to a real value, so both converge on the first run.
 - name: "Read the settings already held by {{ agent.name }}"
   ansible.builtin.command:
     cmd: "{{ hermes_bin }} -p {{ agent.name }} config get {{ item.key }}"

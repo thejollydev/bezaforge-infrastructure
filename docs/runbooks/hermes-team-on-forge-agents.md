@@ -73,14 +73,19 @@ cd ~/Projects/bezaforge-infrastructure/ansible
 ansible-playbook site.yml --limit forge-agents --tags hermes-team --ask-become-pass --ask-vault-pass
 ```
 
-Run it twice; the second reports no changes.
+Run it twice; the second reports no changes. Verified on 2026-09-20: a
+converged host reports `ok=65 changed=0`, with `Set what differs` skipping
+every item on all three profiles.
 
-> **Watch the second run for one task.** `Set what differs` depends on
-> `hermes config get`, which the documentation does not show and which could
-> not be verified before Hermes existed anywhere. If that task reports
-> `changed` on a converged host, the subcommand is not there, and the fix is
-> to read `config.yaml` directly instead. That is the known weak point of
-> this role.
+> **`hermes config get` is real, and it resolves rather than reads.** The
+> role's read-then-set loop depends on it, and upstream's documentation still
+> does not show it — it was carried as this role's known weak point until the
+> run above. One thing to know about it: it prints the *effective* value,
+> defaults included, not what is in `config.yaml`. A key sitting at its
+> default therefore reads as already set while being absent from the file,
+> which is why `Write the dispatcher key, default or not` exists alongside
+> the loop. A key absent from `DEFAULT_CONFIG` prints nothing and exits 1;
+> one present there but null prints `null` and exits 0.
 
 ### Staying current
 
