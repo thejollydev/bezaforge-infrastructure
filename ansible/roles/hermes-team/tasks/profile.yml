@@ -128,6 +128,42 @@
   changed_when: true
   notify: Restart hermes gateways
 
+# `config get` answers with the EFFECTIVE value, defaults included, so the
+# loop above cannot tell "written as true" from "true because upstream's
+# default is true" — and on the first deploy it skipped the dispatcher key
+# on Brizza for exactly that reason, leaving her config.yaml without it.
+# Her dispatching then rested on a default the nightly release update is
+# free to change, and nothing here would have noticed: host_vars would
+# still say `dispatch: true` and the roster check would still pass.
+#
+# So the one key that names the dispatcher is written whether or not it
+# differs. The loop above still catches a wrong value; this catches an
+# absent one. They never both fire: a wrong value is written by the loop,
+# and the probe then finds it.
+- name: "See whether the dispatcher key is written for {{ agent.name }}"
+  ansible.builtin.command:
+    cmd: >-
+      grep -qE '^[[:space:]]*dispatch_in_gateway:'
+      {{ hermes_profiles_dir }}/{{ agent.name }}/config.yaml
+  become: true
+  become_user: "{{ hermes_user }}"
+  register: hermes_dispatch_key_probe
+  changed_when: false
+  failed_when: false
+
+- name: "Write the dispatcher key, default or not, for {{ agent.name }}"
+  ansible.builtin.command:
+    cmd: >-
+      {{ hermes_bin }} -p {{ agent.name }} config set kanban.dispatch_in_gateway
+      {{ agent.dispatch | default(false) | string | lower }}
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  when: hermes_dispatch_key_probe.rc != 0
+  changed_when: true
+  notify: Restart hermes gateways
+
 # ------------------------------------------------------------
 # Discord
 # ------------------------------------------------------------
