@@ -153,6 +153,25 @@ hermes_forbidden_env_keys:
   - OPENAI_API_KEY
   - NOUS_API_KEY
 
+# --- Turn limits ---
+# The most iterations one agent run may take before Hermes ends it.
+#
+# ⚠️ UNSET MEANS UNLIMITED, and it was unset on every profile until
+# 2026-09-20. `resolve_turn_limit` (hermes_cli/config.py) returns
+# TURN_LIMIT_UNLIMITED — sys.maxsize — for a missing agent.max_turns, and
+# DEFAULT_CONFIG leaves it None. Meanwhile ~/.hermes/config.yaml held 500
+# and was read by nothing, which is the root-versus-profile trap below
+# wearing its most expensive face: the cap looked set and was not.
+#
+# The loop guardrails are not a substitute. tool_loop_guardrails defaults
+# to warnings only (`hard_stop_enabled: false`), so a run that stops making
+# progress is narrated rather than stopped.
+#
+# 500 is the number already written down rather than a measured one. It is
+# generous for anything the board hands an agent and it still ends a loop,
+# which is the whole job.
+hermes_agent_max_turns: 500
+
 # --- Memory (ADR 0016) ---
 # Held for approval on every profile. Brizza sends Joseph one list of
 # pending memory writes a day; that digest is a Brizza job, not this role's.

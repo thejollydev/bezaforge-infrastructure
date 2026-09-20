@@ -91,6 +91,12 @@
         value: "{{ agent.model | default(hermes_model_default) }}"
       - key: memory.write_approval
         value: "{{ hermes_memory_write_approval | string | lower }}"
+      # ⚠️ Unset is UNLIMITED, not a modest default: resolve_turn_limit
+      # returns sys.maxsize for a missing agent.max_turns. On every
+      # profile, because a gateway reads only its own config.yaml — the
+      # root file's 500 reached none of them.
+      - key: agent.max_turns
+        value: "{{ hermes_agent_max_turns }}"
       # Which gateway dispatches the shared board, named rather than
       # raced for. False on every agent but one; the input check in
       # main.yml refuses a roster where that is not so.
