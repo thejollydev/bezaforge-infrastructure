@@ -213,10 +213,23 @@
     quiet: true
   when: agent.approved | default(false)
 
+# `gateway install` asks two questions — start it now, and start it on
+# login — and under Ansible the prompt goes to a captured pipe while stdin
+# is a terminal nobody is typing into, so the task hangs with nothing to
+# read. Both answers are given on the command line, and `stdin: ""` closes
+# the input so a future prompt fails at once instead of waiting forever.
+# Same trap the Hermes installer sets, and the same defence.
+#
+# Both answers are `no` because the task below owns the service's
+# lifecycle: ADR 0014 principle 2 puts starting an agent behind Joseph's
+# approval, and that belongs in one place rather than two.
 - name: "Install the gateway service for {{ agent.name }}"
   ansible.builtin.command:
-    cmd: "{{ hermes_bin }} -p {{ agent.name }} gateway install"
+    cmd: >-
+      {{ hermes_bin }} -p {{ agent.name }} gateway install
+      --no-start-now --no-start-on-login
     creates: "{{ hermes_home }}/.config/systemd/user/hermes-gateway-{{ agent.name }}.service"
+    stdin: ""
   become: true
   become_user: "{{ hermes_user }}"
   environment:
