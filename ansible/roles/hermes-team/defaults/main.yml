@@ -101,7 +101,9 @@ hermes_installer_arguments:
 
 # --- The agents ---
 # One entry per profile. `soul` names a template in this role; `model` is
-# what the profile's model.default is set to.
+# what the profile's model.default is set to, and `dispatch` says whether
+# this agent's gateway runs the board's dispatcher (exactly one must, see
+# "The kanban board" below).
 #
 # ⚠️ `approved` IS THE GATE, AND IT DEFAULTS TO FALSE EVERYWHERE.
 # ADR 0014 principle 2: nothing starts without Joseph's approval. The role
@@ -194,3 +196,65 @@ hermes_discord_history_backfill_limit: 50
 # the user has a session unless lingering is on, and nobody logs into the
 # team host — the same reason roles/never4ga enables it.
 hermes_enable_linger: true
+
+# --- The kanban board (ADR 0020) ---
+# One board per machine, shared by every profile, and Hermes means it:
+# `kanban_home()` resolves through the platform default rather than the
+# active profile's HERMES_HOME, "because resolving through the active
+# profile's HERMES_HOME would fork the board per profile and break the
+# dispatcher/worker handoff". So the three agents share one board, and one
+# process dispatches from it. That much is upstream's design and this role
+# does not fight it.
+#
+# What this role decides is WHICH process, because upstream leaves it to
+# chance. Every gateway tries an flock at
+# ~/.hermes/kanban/.dispatcher.lock once at boot; the winner dispatches for
+# its process lifetime and a loser logs one line and leaves the watcher for
+# good. It never tries again.
+#
+# Two consequences, both of which arrive with the second gateway:
+#
+#   - Whichever gateway systemd happens to start first after a reboot
+#     becomes the dispatcher. Nothing declares it and nothing records it
+#     but a log line.
+#   - If that gateway stops for good — `approved: false`, a removed agent —
+#     dispatch stops machine-wide. The others gave up at boot and will not
+#     take over until they are themselves restarted. Cards simply sit in
+#     ready.
+#
+# So the role names the dispatcher instead: `dispatch: true` on exactly one
+# agent, written into that profile's config.yaml as
+# kanban.dispatch_in_gateway, and false on every other. The flock goes back
+# to being what its own docstring calls it — a backstop — rather than the
+# mechanism. Upstream agrees: "`dispatch_in_gateway` is the primary
+# control; this is the backstop."
+#
+# ⚠️ DEFAULTS TO FALSE, and the input check refuses a roster without
+# exactly one. A roster with none dispatches nothing; a roster with two is
+# the race this exists to remove.
+#
+# Which agent is not arbitrary: ADR 0014 makes Brizza the orchestrator, and
+# the dispatcher is orchestration.
+
+# ⚠️ PER-PROFILE, NOT ROOT. ~/.hermes/config.yaml is NOT read by any
+# gateway: the unit sets HERMES_HOME to the profile directory, and
+# `get_config_path()` is `get_hermes_home()/config.yaml` with no root layer
+# beneath it. Settings that must reach an agent go in its own profile's
+# config.yaml, which is what the `config set` loop in profile.yml does.
+
+# The host never runs more than this many workers at once, across every
+# board and both dispatch lanes. Unset upstream, which derives it from
+# MemTotal clamped to [2, 8] — 8 on this 16 GB host.
+#
+# 4, because the bottleneck is not this machine. The workers are processes
+# here but the thinking happens on forge-ai's single Ollama, so eight
+# concurrent workers would queue at the model rather than run. Tune it once
+# there is real load; it is a starting point, not a measurement.
+hermes_kanban_max_in_progress: 4
+
+# No single profile runs more than this many workers even when the global
+# cap would allow more (upstream #21582; unset means no per-profile cap).
+#
+# Without it one agent's fan-out takes every slot and the other two sit
+# idle behind it.
+hermes_kanban_max_in_progress_per_profile: 2

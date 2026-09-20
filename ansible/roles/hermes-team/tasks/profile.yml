@@ -91,6 +91,19 @@
         value: "{{ agent.model | default(hermes_model_default) }}"
       - key: memory.write_approval
         value: "{{ hermes_memory_write_approval | string | lower }}"
+      # Which gateway dispatches the shared board, named rather than
+      # raced for. False on every agent but one; the input check in
+      # main.yml refuses a roster where that is not so.
+      - key: kanban.dispatch_in_gateway
+        value: "{{ agent.dispatch | default(false) | string | lower }}"
+      # Both caps on every profile, dispatcher or not: whichever gateway
+      # ends up holding the lock reads its OWN profile's config, so a cap
+      # written only to Brizza's would vanish the moment the dispatcher
+      # moved.
+      - key: kanban.max_in_progress
+        value: "{{ hermes_kanban_max_in_progress }}"
+      - key: kanban.max_in_progress_per_profile
+        value: "{{ hermes_kanban_max_in_progress_per_profile }}"
 
 - name: "Set what differs for {{ agent.name }}"
   ansible.builtin.command:
@@ -102,7 +115,10 @@
   loop: "{{ hermes_config_probe.results }}"
   loop_control:
     label: "{{ item.item.key }} = {{ item.item.value }}"
-  when: item.item.value not in (item.stdout | default(''))
+  # Exact, not substring. `config get` prints a bare value and nothing
+  # else, so this converges on every key above — and a substring test
+  # would read max_in_progress=4 as already satisfied by a stored 14.
+  when: item.item.value | string != item.stdout | default('') | trim
   changed_when: true
   notify: Restart hermes gateways
 
