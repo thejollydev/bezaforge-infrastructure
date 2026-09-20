@@ -36,6 +36,24 @@
       which corrupts both agents' memory.
     quiet: true
 
+# The board is machine-global and one process dispatches from it. Upstream
+# settles that with an flock taken once at gateway boot, so ownership falls
+# to whichever gateway systemd started first and a loser never retries —
+# which also means dispatch stops machine-wide if the winner is later
+# un-approved. Naming the dispatcher here removes both. See the role
+# defaults for the mechanism.
+- name: Require exactly one dispatcher in the roster
+  ansible.builtin.assert:
+    that: hermes_agents | selectattr('dispatch', 'defined') | selectattr('dispatch') | list | length == 1
+    fail_msg: >-
+      Exactly one entry in hermes_agents must carry `dispatch: true`, and
+      {{ hermes_agents | selectattr('dispatch', 'defined') | selectattr('dispatch') | map(attribute='name') | list | join(', ') | default('none', true) }}
+      does. None means no gateway dispatches and cards sit in ready
+      forever; more than one means they race for the lock at boot and the
+      winner is whichever systemd started first. ADR 0014 makes Brizza the
+      orchestrator, so it is hers unless that decision changes.
+    quiet: true
+
 - name: Read the runtime user
   ansible.builtin.getent:
     database: passwd

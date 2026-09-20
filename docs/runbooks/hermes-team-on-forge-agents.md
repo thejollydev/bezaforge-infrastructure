@@ -159,6 +159,31 @@ profile. Never point two processes at one profile either — both write memory
 automatically and they corrupt each other. The role refuses a repeated name in
 `hermes_agents` for that reason.
 
+**Cards sit in `ready` and nothing picks them up.** One process dispatches the
+whole machine's board, and it is named rather than raced for: exactly one
+entry in `hermes_agents` carries `dispatch: true`, which the role writes to
+that profile as `kanban.dispatch_in_gateway`. Brizza holds it. Check that her
+gateway is up and that it took the lock:
+
+```bash
+ssh joseph@forge-agents 'grep "kanban dispatcher" ~/.hermes/profiles/brizza/logs/gateway.log | tail -5'
+```
+
+`holding singleton dispatcher lock` is the line you want. `another gateway
+already holds the dispatcher lock` on Brizza means something else took it
+first — that gateway will not retry, so restart Brizza's *after* stopping the
+other. The board itself is machine-global at `~/.hermes/kanban.db`, shared by
+every profile on purpose, and the dispatcher spawns each worker as the task's
+assignee, so one dispatcher is not one agent doing all the work.
+
+**A setting in `~/.hermes/config.yaml` has no effect.** It would not. Each
+gateway runs with `HERMES_HOME` pointed at its own profile directory, and
+Hermes reads `config.yaml` from there with no root file layered beneath it.
+The root config is read only by a bare `hermes` invocation with no profile.
+Settings that must reach an agent belong in
+`~/.hermes/profiles/<name>/config.yaml`, which is what the role's `config set`
+tasks write.
+
 ## What ADR 0015 says, and what upstream now says
 
 The role sets `DISCORD_ALLOW_BOTS=none`, which is both Hermes' default and
