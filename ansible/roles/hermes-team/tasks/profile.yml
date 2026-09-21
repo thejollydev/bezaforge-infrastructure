@@ -194,6 +194,59 @@
   notify: Restart hermes gateways
 
 # ------------------------------------------------------------
+# The board, from chat
+# ------------------------------------------------------------
+#
+# Joseph hands out work by talking to Brizza, and she puts it on the board.
+# That needs the `kanban` toolset on her Discord platform, which is off by
+# default: a gateway agent without it cannot create a card from a chat, and
+# nothing he types in Discord reaches the board. With it, a card she
+# creates from his chat subscribes that chat to the card's end, so she is
+# woken when it finishes and brings him the result.
+#
+# Only the agent marked `orchestrates` gets it (ADR 0014: she orchestrates).
+# The others do not need it in chat — the dispatcher gives the workers it
+# spawns their board tools itself — and it is taken back from any agent no
+# longer marked, so the roster stays the one place this is decided.
+#
+# ⚠️ ENABLING ONE TOOLSET SAVES THE WHOLE DISCORD SELECTION. Until then the
+# platform follows upstream's defaults; afterwards config.yaml holds an
+# explicit list (today's 17 defaults plus kanban), and a toolset a later
+# release turns on by default does not appear for her on Discord by
+# itself. Verified in a throwaway home 2026-09-20: the CLI selection is
+# untouched and a second enable changes nothing.
+#
+# `tools list` has no machine-readable form, so the state is read from its
+# text. "disabled" does not contain "enabled", which keeps the match exact.
+- name: "Read whether the board is usable from Discord for {{ agent.name }}"
+  ansible.builtin.command:
+    cmd: "{{ hermes_bin }} -p {{ agent.name }} tools list --platform discord"
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  register: hermes_chat_toolsets_probe
+  changed_when: false
+
+- name: "Give or take the board in Discord for {{ agent.name }}"
+  ansible.builtin.command:
+    cmd: >-
+      {{ hermes_bin }} -p {{ agent.name }} tools
+      {{ 'enable' if hermes_orchestrates | bool else 'disable' }}
+      kanban --platform discord
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  vars:
+    hermes_orchestrates: "{{ agent.orchestrates | default(false) | bool }}"
+    hermes_has_board: >-
+      {{ hermes_chat_toolsets_probe.stdout is search('(^|\s)enabled\s+kanban\s') }}
+  when: hermes_orchestrates | bool != hermes_has_board | bool
+  changed_when: true
+  notify: Restart hermes gateways
+
+# ------------------------------------------------------------
 # Discord
 # ------------------------------------------------------------
 #
