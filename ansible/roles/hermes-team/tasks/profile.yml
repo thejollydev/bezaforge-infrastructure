@@ -112,6 +112,22 @@
         value: "{{ hermes_kanban_max_in_progress }}"
       - key: kanban.max_in_progress_per_profile
         value: "{{ hermes_kanban_max_in_progress_per_profile }}"
+      # The local fallback, shared by every agent. `fallback_model` is the
+      # LEGACY key and that is intentional: `fallback_providers` is the
+      # current one and is a LIST, which `config set` cannot write —
+      # dotted indices produce a dict keyed by '0' that does not parse as
+      # a chain. `get_fallback_chain()` still merges `fallback_model`, and
+      # a dict takes dotted scalar sets, so this is what the role can
+      # manage. Running `hermes fallback add` interactively would drop it;
+      # re-run the role if that happens.
+      - key: fallback_model.provider
+        value: "{{ hermes_fallback_provider }}"
+      - key: fallback_model.model
+        value: "{{ hermes_fallback_model }}"
+      - key: fallback_model.base_url
+        value: "{{ hermes_fallback_base_url }}"
+      - key: fallback_model.context_length
+        value: "{{ hermes_fallback_context_length }}"
 
 - name: "Set what differs for {{ agent.name }}"
   ansible.builtin.command:
@@ -262,6 +278,42 @@
 # An approved agent with no allowlist would come online and deny everyone,
 # Joseph included — safe, and indistinguishable from broken. Refuse it here
 # with the reason, rather than let him debug a silent bot.
+# The team moved to Codex as its primary 2026-09-20, and the credential is
+# an OAuth login Joseph completes per profile — the role cannot create it
+# and deliberately holds no key. An approved agent whose login is missing
+# would start, take every message, and fail every turn at the provider.
+#
+# `auth status` exits 0 either way, so the state is in the text: a profile
+# with no credential answers "openai-codex: logged out".
+- name: "Read the Codex login state for {{ agent.name }}"
+  ansible.builtin.command:
+    cmd: "{{ hermes_bin }} -p {{ agent.name }} auth status {{ hermes_model_provider }}"
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  register: hermes_codex_probe
+  changed_when: false
+  failed_when: false
+  when: hermes_model_provider == 'openai-codex'
+
+- name: "Require a Codex login before starting {{ agent.name }}"
+  ansible.builtin.assert:
+    that: "'logged out' not in (hermes_codex_probe.stdout | default(''))"
+    fail_msg: >-
+      {{ agent.name }} is approved and its primary provider is
+      {{ hermes_model_provider }}, but the profile has no Codex login, so
+      every turn would fail at the provider. Complete it as {{ hermes_user }}
+      on the host — `{{ hermes_bin }} -p {{ agent.name }} auth add
+      {{ hermes_model_provider }}` — which opens a browser sign-in and stores
+      the login in the profile's auth.json. Over SSH it prints a URL and
+      waits for the code. The local fallback does not cover this: a gateway
+      with no primary credential fails before the fallback chain is reached.
+    quiet: true
+  when:
+    - agent.approved | default(false)
+    - hermes_model_provider == 'openai-codex'
+
 - name: "Require an allowlist before starting {{ agent.name }}"
   ansible.builtin.assert:
     that: hermes_discord_allowed_users | length > 0

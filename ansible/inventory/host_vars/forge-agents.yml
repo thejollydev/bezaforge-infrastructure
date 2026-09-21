@@ -129,7 +129,7 @@ hermes_discord_allowed_users: "{{ vault_hermes_discord_allowed_users }}"
 hermes_agents:
   - name: brizza
     soul: soul-brizza.md.j2
-    model: qwen3.8:27b-32k
+    model: gpt-5.6-luna
     # The board's only dispatcher. ADR 0014 makes her the orchestrator and
     # dispatch is orchestration; naming it here is what keeps it from
     # falling to whichever gateway systemd starts first. Moving it means
@@ -141,7 +141,7 @@ hermes_agents:
     approved: true
   - name: samuel
     soul: soul-samuel.md.j2
-    model: qwen3.8:27b-32k
+    model: gpt-5.6-luna
     dispatch: false
     # Approved 2026-09-20: application created with both privileged
     # intents, invited with the same permissions as Brizza, token on the
@@ -149,9 +149,9 @@ hermes_agents:
     approved: true
   - name: malachi
     soul: soul-malachi.md.j2
-    # Codex, per Malachi's role card. The exact provider string is set when
-    # his OAuth login is completed — Joseph's to do, and the role does not
-    # guess at a credential it cannot see.
-    model: qwen3-coder:30b
+    # Codex like the rest now, rather than a local coder model: the whole
+    # team moved to Codex 2026-09-20, which is what his role card wanted
+    # anyway. His OAuth login is still Joseph's to complete.
+    model: gpt-5.6-luna
     dispatch: false
     approved: false
