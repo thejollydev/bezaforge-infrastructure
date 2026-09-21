@@ -61,7 +61,7 @@ ollama_install_packages:
 # a newer version of Ollama`, so the model is unevaluable rather than slow.
 # Renovate now watches this pin (see .github/renovate.json) — it did not
 # before, which is why three minor versions accumulated unnoticed.
-ollama_version: "0.34.0"
+ollama_version: "0.34.2"
 
 # GPU device-node access groups for the `ollama` SERVICE user (created by
 # the install script). System-level ROCm packages + admin-user membership
