@@ -190,14 +190,29 @@ so this means the login was revoked after a deploy:
 
 ```bash
 ssh joseph@forge-agents '~/.local/bin/hermes -p <name> auth status openai-codex'
-ssh -t joseph@forge-agents '~/.local/bin/hermes -p <name> auth add openai-codex'
+ssh -t joseph@forge-agents '~/.local/bin/hermes auth add openai-codex'
 ```
 
-**Both details matter.** A non-interactive `ssh` does not source the profile
-that puts `~/.local/bin` on PATH, so a bare `hermes` answers "command not
-found"; and `auth add` is an interactive sign-in, so it needs `ssh -t` to get
-a terminal. Over SSH it prints an authorization URL and waits for the code
-pasted back.
+**⚠️ NO `-p` ON THE SECOND ONE, AND THAT IS NOT A TYPO.** Codex is a
+single-use-refresh provider (with `anthropic` and `xai-oauth`): each refresh
+invalidates the previous token, so two profiles refreshing one grant would
+kill each other. Hermes therefore keeps ONE grant at the root and strips
+per-profile copies on read — `strip_cloned_single_use_oauth_grants` deletes
+the profile's rows so `read_credential_pool` falls back to the root slice.
+
+A per-profile `hermes -p brizza auth add openai-codex` APPEARS to work: it
+prints "Added openai-codex OAuth credential #1", writes `active_provider`,
+and then the grant is gone the next time anything reads it. One root sign-in
+covers every profile, present and future.
+
+Two smaller details: a non-interactive `ssh` does not source the profile that
+puts `~/.local/bin` on PATH, so a bare `hermes` answers "command not found";
+and `auth add` is interactive, so it needs `ssh -t`. Over SSH it prints an
+authorization URL and waits for the code pasted back.
+
+**One credential for the whole team.** Revoking it in the OpenAI account
+stops all three agents at once — they are less independent than their
+per-profile Discord tokens suggest.
 
 **Everything is suddenly slower and dumber at once.** All three agents share
 ONE ChatGPT account, so they exhaust the Codex allowance together and fall

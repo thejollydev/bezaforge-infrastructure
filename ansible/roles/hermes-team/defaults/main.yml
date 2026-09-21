@@ -134,9 +134,19 @@ hermes_agents: []
 # access, Vertex and AI Studio both bill separately, and driving
 # Antigravity from a harness is refused outright by Joseph's standards.
 #
-# OAuth, not a key: `hermes -p <name> auth add openai-codex` stores the
-# login in the profile's auth.json. hermes_forbidden_env_keys is unaffected
-# and there is still no key on this host to bill against.
+# OAuth, not a key: hermes_forbidden_env_keys is unaffected and there is
+# still no key on this host to bill against.
+#
+# ⚠️ ONE GRANT FOR THE WHOLE TEAM, SIGNED IN WITHOUT A PROFILE FLAG.
+# `hermes auth add openai-codex` — no `-p`. Codex is a single-use-refresh
+# provider (with anthropic and xai-oauth): each refresh invalidates the
+# previous token, so two profiles refreshing one grant would kill each
+# other. Hermes keeps one grant at the root and strips per-profile copies
+# on read. A per-profile add APPEARS to work, prints "Added ... credential
+# #1", writes active_provider, and is discarded on the next read.
+#
+# The corollary: revoking it in the OpenAI account stops all three agents
+# at once. They are less independent than their Discord tokens suggest.
 #
 # ⚠️ ONE BUCKET, SHARED BY THE WHOLE TEAM. The limit is per ChatGPT
 # ACCOUNT, not per agent. On the $20 Plus plan gpt-5.6-luna allows roughly

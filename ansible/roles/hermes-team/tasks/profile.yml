@@ -302,13 +302,16 @@
     that: "'logged out' not in (hermes_codex_probe.stdout | default(''))"
     fail_msg: >-
       {{ agent.name }} is approved and its primary provider is
-      {{ hermes_model_provider }}, but the profile has no Codex login, so
-      every turn would fail at the provider. Complete it as {{ hermes_user }}
-      on the host — `{{ hermes_bin }} -p {{ agent.name }} auth add
-      {{ hermes_model_provider }}` — which opens a browser sign-in and stores
-      the login in the profile's auth.json. Over SSH it prints a URL and
-      waits for the code. The local fallback does not cover this: a gateway
-      with no primary credential fails before the fallback chain is reached.
+      {{ hermes_model_provider }}, but no Codex login is reachable, so every
+      turn would fail at the provider. Complete it ONCE as {{ hermes_user }}
+      on the host, with NO profile flag — `{{ hermes_bin }} auth add
+      {{ hermes_model_provider }}` — which covers every agent. Codex is a
+      single-use-refresh provider, so Hermes keeps one grant at the root and
+      strips per-profile copies: `-p {{ agent.name }}` appears to succeed,
+      prints "Added ... credential #1", and is then discarded on the next
+      read. Over SSH it needs a terminal (ssh -t) and prints a URL to
+      authorize. The local fallback does not cover this: a gateway with no
+      primary credential fails before the fallback chain is reached.
     quiet: true
   when:
     - agent.approved | default(false)
