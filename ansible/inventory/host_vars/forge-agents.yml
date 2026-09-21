@@ -135,6 +135,11 @@ hermes_agents:
     # falling to whichever gateway systemd starts first. Moving it means
     # moving this line, not restarting things until the lock lands well.
     dispatch: true
+    # The one agent who can put work on the board from chat. Joseph hands
+    # out work by talking to her, and she turns it into cards. Brizza only,
+    # by his ruling 2026-09-20: the others get their board tools from the
+    # dispatcher when it runs them.
+    orchestrates: true
     # Approved 2026-09-19: her Discord application exists with both
     # privileged intents, her token is on the host and she is in the
     # server.
@@ -143,6 +148,7 @@ hermes_agents:
     soul: soul-samuel.md.j2
     model: gpt-5.6-luna
     dispatch: false
+    orchestrates: false
     # Approved 2026-09-20: application created with both privileged
     # intents, invited with the same permissions as Brizza, token on the
     # host.
@@ -155,6 +161,7 @@ hermes_agents:
     # so the one grant at the root covers every profile.
     model: gpt-5.6-luna
     dispatch: false
+    orchestrates: false
     # Approved 2026-09-20: application created with both privileged
     # intents, invited with the same permissions as the other two, his
     # channel opened to his role, token on the host. The team is complete.

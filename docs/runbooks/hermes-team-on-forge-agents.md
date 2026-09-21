@@ -151,6 +151,35 @@ The installer runs only for a first install, fetched fresh from upstream at
 the newest release with no checksum: a recorded hash of a script upstream
 edits routinely was a version pin in disguise.
 
+## Giving the team work
+
+Tell Brizza, in `#brizza`, in plain words:
+
+> Have Samuel find out what our ChatGPT Plus plan allows on Codex, and have
+> Malachi check it.
+
+She puts it on the board as a card assigned to Samuel, whose work goes to
+Malachi for review. Because she created the card from your chat, she is woken
+when it finishes and brings you the result and Malachi's verdict there. No
+CLI is involved.
+
+That rests on two things the role sets up. Brizza has the `kanban` toolset on
+Discord, and she is the only one who does: the roster's `orchestrates` key.
+Her role card also says to route another agent's work to the board rather
+than do it herself. Talking to Samuel or Malachi directly still works, and it
+gets you a quick answer in chat that is off the board and unreviewed.
+
+**After a change to an agent's toolsets, send `/reset` in its channel.** The
+gateway restart reloads the configuration, but a conversation already under
+way keeps the tool schemas it started with. A Brizza who says she cannot
+create tasks, the first time after this was deployed, is that.
+
+To watch the board from the host:
+
+```bash
+ssh joseph@forge-agents 'hermes kanban list'
+```
+
 ## The tests this step owes
 
 None of these can be automated in the role — they need Discord applications
