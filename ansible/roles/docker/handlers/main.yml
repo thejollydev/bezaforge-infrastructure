@@ -9,16 +9,43 @@
     state: restarted
 
 # containerd's root is read once at start-up, so a config change only takes
-# effect on restart. Restarting containerd orphans the running containers'
-# shims, so docker is restarted with it — this is a full service bounce on
-# the host and is expected to be run during the relocation runbook, not
-# casually. Ordered containerd first so docker reconnects to a daemon that
-# is already using the new root.
-- name: restart containerd and docker
+# effect on restart. This is a full service bounce on the host and is
+# expected to be run during the relocation runbook, not casually.
+#
+# Stop, then start — not restart (#1237). The old handler restarted
+# containerd first, while docker's containers were still running: their
+# shims outlived the containerd that spawned them, containerd came back on
+# the new root, and every container exited 128 with "AlreadyExists: task
+# ... already exists" (forge-ops, 2026-09-19). Stopping docker first stops
+# the containers, which ends their shims; only then is it safe to move
+# containerd. That relies on docker stopping its containers at shutdown,
+# which is the default — live-restore would keep them running, and is not
+# set on this fleet.
+#
+# docker.socket is stopped with docker.service so a stray API call cannot
+# socket-activate docker against a containerd that is mid-restart. The
+# three tasks share one listen topic and run in the order written here.
+- name: Stop docker before containerd moves
   ansible.builtin.systemd:
     name: "{{ item }}"
+    state: stopped
+  loop:
+    - docker.socket
+    - docker.service
+  listen: restart containerd and docker
+
+- name: Restart containerd on its new configuration
+  ansible.builtin.systemd:
+    name: containerd
     daemon_reload: true
     state: restarted
+  listen: restart containerd and docker
+
+- name: Start docker on the restarted containerd
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
   loop:
-    - containerd
-    - docker
+    - docker.service
+    - docker.socket
+  listen: restart containerd and docker

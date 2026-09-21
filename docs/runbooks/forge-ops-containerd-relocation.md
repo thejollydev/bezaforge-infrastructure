@@ -203,16 +203,21 @@ This writes `/etc/containerd/config.toml` from the template and fires the
 `restart containerd and docker` handler, bringing both services back on the new
 root.
 
-**Expect the containers to come up dead the first time, and do not panic.**
-`roles/docker` starts Docker (task "Enable and start Docker") *before* it
-installs `config.toml`, so the play brings all 30 containers up on the OLD data
-root, and the end-of-play handler then restarts containerd onto the NEW one
-while those containers' shims are still alive holding their tasks. Every
-container then exits 128:
+**If the containers come up dead, do not panic.** On 2026-09-19 they did:
+`roles/docker` then started Docker (task "Enable and start Docker") *before* it
+installed `config.toml`, so the play brought all 30 containers up on the OLD
+data root, and the end-of-play handler restarted containerd onto the NEW one
+while those containers' shims were still alive holding their tasks. Every
+container exited 128:
 
 ```
 failed to create task for container: AlreadyExists: task <id>: already exists
 ```
+
+#1237 fixed the role: it now installs `config.toml` before starting Docker, and
+the handler stops Docker before it restarts containerd, so no shim outlives the
+containerd that spawned it. The containers should come straight back. If they
+do not, the recovery below is what worked on the old role.
 
 The containers are fine; the runtime state in `/run/containerd` is stale.
 Clear it:
