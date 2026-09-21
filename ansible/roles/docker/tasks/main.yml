@@ -108,12 +108,6 @@
     groups: docker
     append: true
 
-- name: Enable and start Docker
-  ansible.builtin.systemd:
-    name: docker
-    enabled: true
-    state: started
-
 # ------------------------------------------------------------
 # containerd data root
 # ------------------------------------------------------------
@@ -165,6 +159,23 @@
     group: root
     mode: '0644'
   notify: restart containerd and docker
+
+# ------------------------------------------------------------
+# Start Docker, now that it is configured
+# ------------------------------------------------------------
+# This comes AFTER config.toml, not before it (#1237). containerd reads
+# its root once, at start-up. Started first, on a host where Docker was
+# stopped for the relocation runbook, the play brought all 30 of
+# forge-ops' containers up on the OLD root; the handler then moved
+# containerd to the new one under their live shims, and every container
+# exited 128 with "AlreadyExists: task ... already exists" (2026-09-19).
+# Configure, then start.
+
+- name: Enable and start Docker
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+    state: started
 
 # ------------------------------------------------------------
 # BezaForge directory structure
