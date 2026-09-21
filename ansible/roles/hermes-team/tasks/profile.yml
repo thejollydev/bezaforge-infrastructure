@@ -129,9 +129,20 @@
       - key: fallback_model.context_length
         value: "{{ hermes_fallback_context_length }}"
 
+# argv rather than a cmd string: `hermes_model_base_url` is deliberately
+# empty under an openai-codex primary, and an empty value vanishes from a
+# templated command line — leaving `config set model.base_url` with no
+# value, a usage error and a non-zero exit. argv keeps it as an argument.
 - name: "Set what differs for {{ agent.name }}"
   ansible.builtin.command:
-    cmd: "{{ hermes_bin }} -p {{ agent.name }} config set {{ item.item.key }} {{ item.item.value }}"
+    argv:
+      - "{{ hermes_bin }}"
+      - -p
+      - "{{ agent.name }}"
+      - config
+      - set
+      - "{{ item.item.key }}"
+      - "{{ item.item.value }}"
   become: true
   become_user: "{{ hermes_user }}"
   environment:
