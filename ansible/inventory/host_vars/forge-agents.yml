@@ -137,7 +137,7 @@ hermes_agents:
     dispatch: true
     # Approved 2026-09-19: her Discord application exists with both
     # privileged intents, her token is on the host and she is in the
-    # server. Samuel and Malachi wait for applications of their own.
+    # server.
     approved: true
   - name: samuel
     soul: soul-samuel.md.j2
@@ -145,13 +145,17 @@ hermes_agents:
     dispatch: false
     # Approved 2026-09-20: application created with both privileged
     # intents, invited with the same permissions as Brizza, token on the
-    # host. Malachi waits for his.
+    # host.
     approved: true
   - name: malachi
     soul: soul-malachi.md.j2
     # Codex like the rest now, rather than a local coder model: the whole
     # team moved to Codex 2026-09-20, which is what his role card wanted
-    # anyway. His OAuth login is still Joseph's to complete.
+    # anyway. No login of his own to complete: Codex is single-use-refresh,
+    # so the one grant at the root covers every profile.
     model: gpt-5.6-luna
     dispatch: false
-    approved: false
+    # Approved 2026-09-20: application created with both privileged
+    # intents, invited with the same permissions as the other two, his
+    # channel opened to his role, token on the host. The team is complete.
+    approved: true

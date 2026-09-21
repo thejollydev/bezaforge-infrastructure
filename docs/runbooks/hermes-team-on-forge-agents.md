@@ -61,6 +61,35 @@ The profile has to exist first, so the order is: run the role once, create the
 application, place the token, set your user ID and `approved: true`, run the
 role again.
 
+### Every new agent needs its own channel overwrite
+
+The agent channels are private: `@everyone` is denied **View Channel**, and
+the one role allowed in is the agent's own. That role is created by Discord
+when the bot is invited, so it does not exist until the invite goes through —
+and nothing grants the new agent its own channel until you say so.
+
+**Invite first, then open the channel to the new role.** In the agent's
+channel → Edit Channel → Permissions:
+
+- the new agent's role → View Channel **allow**
+- every other agent's role → no overwrite, or an explicit deny
+
+Both end in the same place, because falling through to `@everyone` is already
+a denial; an explicit deny only states it. Agents do not read each other's
+channels — they coordinate through the board (ADR 0020) and Bot Mode rooms.
+
+Malachi hit this on 2026-09-20: his channel carried an allow for *Brizza's*
+role, left from when she was the only agent, and nothing for his own. He
+would have come online unable to see the one channel he was for.
+
+**The invite's permission integer barely matters here.** `@everyone` in the
+Forge Agents server grants a superset of everything the bot roles carry, so
+every agent's effective permissions come out the same whatever you tick —
+Brizza and Samuel were in fact invited with different sets and behave
+identically. Discord's consent screen also hides permissions `@everyone`
+already grants, so it will list fewer than you expect. That is cosmetic. The
+channel overwrite is the part that decides what an agent can actually reach.
+
 **Paid-provider keys are refused.** If a profile's `.env` ever holds
 `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or `NOUS_API_KEY`,
 the run fails. That is deliberate: a misrouted request can only bill if there
