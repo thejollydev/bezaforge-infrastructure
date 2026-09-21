@@ -189,11 +189,15 @@ login is missing. The role refuses to start an approved agent in that state,
 so this means the login was revoked after a deploy:
 
 ```bash
-ssh joseph@forge-agents 'hermes -p <name> auth status openai-codex'
-ssh joseph@forge-agents 'hermes -p <name> auth add openai-codex'
+ssh joseph@forge-agents '~/.local/bin/hermes -p <name> auth status openai-codex'
+ssh -t joseph@forge-agents '~/.local/bin/hermes -p <name> auth add openai-codex'
 ```
 
-Over SSH the second prints a URL and waits for the code pasted back.
+**Both details matter.** A non-interactive `ssh` does not source the profile
+that puts `~/.local/bin` on PATH, so a bare `hermes` answers "command not
+found"; and `auth add` is an interactive sign-in, so it needs `ssh -t` to get
+a terminal. Over SSH it prints an authorization URL and waits for the code
+pasted back.
 
 **Everything is suddenly slower and dumber at once.** All three agents share
 ONE ChatGPT account, so they exhaust the Codex allowance together and fall
