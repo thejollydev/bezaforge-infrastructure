@@ -304,17 +304,37 @@
   changed_when: false
   failed_when: false
   vars:
+    # ⚠️ THE FALLBACK'S SETTINGS, NOT THE AGENTS' PRIMARY. This profile is
+    # the bare `hermes` CLI on the host, not an agent: it has no Discord
+    # gateway, no roster entry and no work of its own. Pointing it at Codex
+    # would spend the team's shared account on a stray command line, so it
+    # keeps the local model the agents fall back to — which is also what
+    # makes it safe, since forge-ai bills nothing.
     hermes_default_profile_settings:
       - key: model.provider
-        value: "{{ hermes_model_provider }}"
+        value: "{{ hermes_fallback_provider }}"
       - key: model.base_url
-        value: "{{ hermes_model_base_url }}"
+        value: "{{ hermes_fallback_base_url }}"
       - key: model.default
-        value: "{{ hermes_model_default }}"
+        value: "{{ hermes_fallback_model }}"
+      - key: model.context_length
+        value: "{{ hermes_fallback_context_length }}"
 
-- name: Point the default profile at forge-ai
+# argv rather than a cmd string: an EMPTY value vanishes from a templated
+# command line, leaving `config set <key>` with no value, which is a usage
+# error and a non-zero exit. argv keeps the empty string as its own
+# argument. Nothing here is empty today, but `hermes_model_base_url` is,
+# and this loop's twin in profile.yml sets it.
+- name: Keep the default profile on the local model
   ansible.builtin.command:
-    cmd: "{{ hermes_bin }} -p default config set {{ item.item.key }} {{ item.item.value }}"
+    argv:
+      - "{{ hermes_bin }}"
+      - -p
+      - default
+      - config
+      - set
+      - "{{ item.item.key }}"
+      - "{{ item.item.value }}"
   become: true
   become_user: "{{ hermes_user }}"
   environment:
