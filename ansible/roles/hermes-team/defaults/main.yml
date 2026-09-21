@@ -132,7 +132,19 @@ hermes_model_provider: custom
 hermes_model_base_url: http://10.10.50.10:11434/v1
 # The default for an agent whose entry does not name one. A bare Ollama
 # model name — no `ollama/` prefix — because the provider is `custom`.
-hermes_model_default: qwen3.8:27b
+#
+# ⚠️ THE `-32k` SUFFIX IS LOAD-BEARING. It is a Modelfile variant built by
+# roles/ollama on forge-ai (see that host's ollama_modelfiles) whose only
+# difference from the base is `num_ctx 32768`. Naming the base here instead
+# gets Ollama's 4096 default, because an OpenAI-compat /v1 client cannot
+# set context per request — the `extra_body: {options: {num_ctx: ...}}`
+# Hermes sends is accepted and silently ignored by the /v1 endpoint.
+#
+# The failure that follows is not a truncated answer: Ollama drops messages
+# from the front of the prompt until the user turn is gone, then answers
+# HTTP 500 "no user query found in messages". Samuel hit it on his first
+# tool call, 2026-09-20.
+hermes_model_default: qwen3.8:27b-32k
 
 # Local models answer slowly on a long context, and Hermes' own timeouts
 # are sized for hosted APIs. The local-Ollama guide raises both.

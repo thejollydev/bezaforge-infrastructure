@@ -86,6 +86,11 @@ ollama_models:
   # opencode's models (#953).
   - qwen3-coder:30b
   - qwen2.5-coder:14b
+  # The agent team's model (Brizza ADR 0014). Pulled by hand 2026-09-07 and
+  # never declared — the same quiet-failure class as the two above, and now
+  # load-bearing twice over: the base for the -32k variant below, and
+  # `ollama create` cannot build that variant if the base is absent.
+  - qwen3.8:27b
 
 # ⚠️ UNDECLARED DRIFT, deliberately left for Joseph rather than guessed.
 # `ollama list` on forge-ai shows 14 models; this file declares three.
@@ -112,14 +117,35 @@ ollama_extra_env:
   OLLAMA_FLASH_ATTENTION: "1"
   OLLAMA_KV_CACHE_TYPE: "q8_0"
 
-# The qwen3.6:27b-64k modelfile went with the model (2026-08-30). The
-# mechanism is worth remembering rather than rediscovering: a per-model
-# num_ctx variant exists because OpenAI-compat /v1 consumers cannot set
-# context per-request — it must live server-side — and a global 64K
-# default would make every casual model load grab a huge KV cache. 64K
-# was the 27B sweet spot on the 20 GiB card; KV scales linearly with
-# context, so 128K spills. Rebuild the same way if v2 wants a local model.
-ollama_modelfiles: []
+# The qwen3.6:27b-64k modelfile went with the model (2026-08-30), leaving
+# this note to say how it worked: a per-model num_ctx variant exists
+# because OpenAI-compat /v1 consumers CANNOT set context per-request — it
+# must live server-side — and a global default would make every casual
+# model load grab a huge KV cache.
+#
+# v2 wanted a local model and nobody rebuilt it, so the agents ran at
+# Ollama's 4096 default. That is not a quiet degradation: Ollama truncates
+# the prompt from the front until the user turn falls off the end, and
+# answers HTTP 500 "no user query found in messages" — an error that names
+# nothing to do with context. Samuel hit it on his first tool call,
+# 2026-09-20, on a turn of ~5,600 tokens.
+#
+# ⚠️ REBUILD THIS WHENEVER THE AGENTS' BASE MODEL CHANGES. Losing it with
+# the model is exactly how the 4096 default came back.
+#
+# 32768 and not more: measured on the card 2026-09-20. This model is
+# hybrid-attention — only 16 of its 65 blocks hold a growing KV cache — so
+# KV costs 38 KiB/token (34 main at q8_0 + 4 for the built-in MTP draft),
+# far less than a dense 27B. But the weights and compute buffers already
+# occupy 18.60 GiB of the card's 19.98 GiB, so the KV is what is left:
+#   32768 → 1.19 GiB → 19.79 GiB total, fits with ~0.2 GiB spare
+#   65536 → 2.38 GiB → 20.98 GiB total, does NOT fit
+# Speculative decoding is not a lever — its draft state is 0.1 MiB.
+ollama_modelfiles:
+  - name: qwen3.8:27b-32k
+    from: qwen3.8:27b
+    parameters:
+      num_ctx: 32768
 
 # Long keep-alive so interactive back-and-forth doesn't pay the
 # cold-load cost every prompt. Override here if a different

@@ -129,7 +129,7 @@ hermes_discord_allowed_users: "{{ vault_hermes_discord_allowed_users }}"
 hermes_agents:
   - name: brizza
     soul: soul-brizza.md.j2
-    model: qwen3.8:27b
+    model: qwen3.8:27b-32k
     # The board's only dispatcher. ADR 0014 makes her the orchestrator and
     # dispatch is orchestration; naming it here is what keeps it from
     # falling to whichever gateway systemd starts first. Moving it means
@@ -141,7 +141,7 @@ hermes_agents:
     approved: true
   - name: samuel
     soul: soul-samuel.md.j2
-    model: qwen3.8:27b
+    model: qwen3.8:27b-32k
     dispatch: false
     # Approved 2026-09-20: application created with both privileged
     # intents, invited with the same permissions as Brizza, token on the
