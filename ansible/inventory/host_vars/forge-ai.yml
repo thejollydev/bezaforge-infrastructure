@@ -86,10 +86,12 @@ ollama_models:
   # opencode's models (#953).
   - qwen3-coder:30b
   - qwen2.5-coder:14b
-  # The agent team's model (Brizza ADR 0014). Pulled by hand 2026-09-07 and
-  # never declared — the same quiet-failure class as the two above, and now
-  # load-bearing twice over: the base for the -32k variant below, and
-  # `ollama create` cannot build that variant if the base is absent.
+  # The agent team's local fallback (Brizza ADR 0014). Both were pulled by
+  # hand and never declared — the same quiet-failure class as the two
+  # above — and gemma4:26b is now load-bearing twice over: the base for the
+  # -64k variant below, and `ollama create` cannot build that variant if
+  # the base is absent.
+  - gemma4:26b
   - qwen3.8:27b
 
 # ⚠️ UNDECLARED DRIFT, deliberately left for Joseph rather than guessed.
@@ -117,35 +119,56 @@ ollama_extra_env:
   OLLAMA_FLASH_ATTENTION: "1"
   OLLAMA_KV_CACHE_TYPE: "q8_0"
 
-# The qwen3.6:27b-64k modelfile went with the model (2026-08-30), leaving
-# this note to say how it worked: a per-model num_ctx variant exists
-# because OpenAI-compat /v1 consumers CANNOT set context per-request — it
-# must live server-side — and a global default would make every casual
-# model load grab a huge KV cache.
+# ⚠️ REBUILD THIS WHENEVER THE AGENTS' BASE MODEL CHANGES. A per-model
+# num_ctx variant exists because OpenAI-compat /v1 consumers CANNOT set
+# context per-request — it must live server-side. Upstream says so outright:
+# "You cannot set context length through the OpenAI-compatible API. It must
+# be configured server-side or via a Modelfile. This is the #1 source of
+# confusion." A global OLLAMA_CONTEXT_LENGTH is rejected instead because
+# this host serves eleven models to several consumers, and the others are
+# not all sliding-window — a casual load would grab a far larger cache.
 #
-# v2 wanted a local model and nobody rebuilt it, so the agents ran at
-# Ollama's 4096 default. That is not a quiet degradation: Ollama truncates
-# the prompt from the front until the user turn falls off the end, and
-# answers HTTP 500 "no user query found in messages" — an error that names
-# nothing to do with context. Samuel hit it on his first tool call,
+# The qwen3.6:27b-64k variant went with its model on 2026-08-30, leaving
+# only a note. v2 wanted a local model and nobody rebuilt it, so the agents
+# ran at Ollama's 4096 default. That is not a quiet degradation: Ollama
+# truncates the prompt from the front until the user turn falls off the
+# end, then answers HTTP 500 "no user query found in messages" — an error
+# naming nothing to do with context. Samuel hit it on his first tool call,
 # 2026-09-20, on a turn of ~5,600 tokens.
 #
-# ⚠️ REBUILD THIS WHENEVER THE AGENTS' BASE MODEL CHANGES. Losing it with
-# the model is exactly how the 4096 default came back.
+# 64K, NOT LESS: Hermes "requires at least 64,000 tokens of context for
+# agent use with tools" (docs/guides/local-ollama-setup). An earlier pass
+# here settled on 32768 for qwen3.8:27b, which is below that floor — the
+# figure was measured against the card without checking the requirement.
 #
-# 32768 and not more: measured on the card 2026-09-20. This model is
-# hybrid-attention — only 16 of its 65 blocks hold a growing KV cache — so
-# KV costs 38 KiB/token (34 main at q8_0 + 4 for the built-in MTP draft),
-# far less than a dense 27B. But the weights and compute buffers already
-# occupy 18.60 GiB of the card's 19.98 GiB, so the KV is what is left:
-#   32768 → 1.19 GiB → 19.79 GiB total, fits with ~0.2 GiB spare
-#   65536 → 2.38 GiB → 20.98 GiB total, does NOT fit
-# Speculative decoding is not a lever — its draft state is 0.1 MiB.
+# gemma4:26b AND NOT qwen3.8:27b, measured on this card 2026-09-20:
+# qwen3.8:27b is the stronger dense model, but its KV is 38 KiB/token, so
+# 64K costs 2.38 GiB on top of 18.60 GiB of weights and buffers — 20.98 GiB
+# against 19.98 GiB of VRAM. Ollama publishes no tag below q4_K_M for it,
+# and q3 costs 5-10% quality, which lands on tool calling first.
+#
+# gemma4:26b is a 26B-A4B MoE (128 experts, 8 used) with sliding-window
+# attention: only 5 of its 30 blocks hold a growing cache, the other 25 sit
+# at a fixed 1536 cells whatever the context. Measured at 65536, q8_0 KV:
+#   KV 680 MiB (5 layers) + 159 MiB (25 SWA) + 136/19 MiB (MTP draft)
+#     = 0.97 GiB, against qwen3.8's 2.38 GiB
+#   weights 15.77 GiB on GPU, total ~17.7 GiB, loads 100% GPU
+# 131072 was tested too and spills to 23% CPU / 77% GPU, so 64K is the
+# ceiling here as well as the floor.
+#
+# Tool calling verified through the /v1 endpoint with a realistic schema,
+# not taken from the capability flag: it returned a well-formed tool_calls
+# payload with the right argument and finish_reason=tool_calls.
+#
+# ⚠️ KV STAYS q8_0 (see ollama_extra_env above). Dropping the KV cache to
+# q4_0 would halve it, and upstream function-calling guidance is explicit
+# that q4 KV degrades tool-calling accuracy specifically. The cheaper cache
+# is not available to us.
 ollama_modelfiles:
-  - name: qwen3.8:27b-32k
-    from: qwen3.8:27b
+  - name: gemma4:26b-64k
+    from: gemma4:26b
     parameters:
-      num_ctx: 32768
+      num_ctx: 65536
 
 # Long keep-alive so interactive back-and-forth doesn't pay the
 # cold-load cost every prompt. Override here if a different

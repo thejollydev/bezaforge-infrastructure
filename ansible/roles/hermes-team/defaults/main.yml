@@ -114,37 +114,82 @@ hermes_installer_arguments:
 hermes_agents: []
 
 # --- Models (ADR 0014 principle 3) ---
-# Local models by default; a frontier model through a subscription Joseph
-# already pays for only where a local one would drastically worsen the
-# result. No metered API spend, ever.
+# Local by default, a frontier model through a subscription Joseph already
+# pays for only where a local one would drastically worsen the result, and
+# no metered API spend, ever.
 #
-# ⚠️ THE SHAPE MATTERS, AND GETTING IT WRONG COSTS MONEY SILENTLY.
-# Hermes' own local-Ollama guide sets `provider: custom` with a `/v1`
-# base_url and the BARE model name. Upstream issues #57255, #21352 and
-# #14676 each describe a near-miss of that shape — `provider: ollama`, a
-# missing base_url, an auxiliary task that does not recognise the provider
-# — falling through to OpenRouter, a metered API, without an error.
-# `custom` is also what routes Hermes' auxiliary tasks to the same
-# endpoint rather than leaving them to find a default of their own.
+# Joseph, 2026-09-20: agent work IS that case, so the primary is Codex and
+# the local model becomes the fallback. Two reasons, both measured rather
+# than assumed. Hermes requires at least 64,000 tokens of context for agent
+# use with tools, and forge-ai's 20 GiB card cannot give a 27B that much
+# (see host_vars). And a researcher reading several sources exhausts 64K
+# anyway, which is what a frontier context is for.
 #
-# forge-ai's Ollama, verified answering 2026-09-17.
-hermes_model_provider: custom
-hermes_model_base_url: http://10.10.50.10:11434/v1
-# The default for an agent whose entry does not name one. A bare Ollama
-# model name — no `ollama/` prefix — because the provider is `custom`.
+# ⚠️ THIS IS THE ONE PROVIDER WHERE A SUBSCRIPTION IS SANCTIONED RATHER
+# THAN TOLERATED. OpenAI opened Codex to all paid ChatGPT plans and
+# documented third-party clients in May 2026; Anthropic went the other way
+# in April, restricting always-on third-party agents and pushing them to
+# metered API. That asymmetry is what RSK-03 tracks. It is also why no
+# Google route appears here: an AI Ultra subscription grants no API-shaped
+# access, Vertex and AI Studio both bill separately, and driving
+# Antigravity from a harness is refused outright by Joseph's standards.
 #
-# ⚠️ THE `-32k` SUFFIX IS LOAD-BEARING. It is a Modelfile variant built by
-# roles/ollama on forge-ai (see that host's ollama_modelfiles) whose only
-# difference from the base is `num_ctx 32768`. Naming the base here instead
-# gets Ollama's 4096 default, because an OpenAI-compat /v1 client cannot
-# set context per request — the `extra_body: {options: {num_ctx: ...}}`
-# Hermes sends is accepted and silently ignored by the /v1 endpoint.
+# OAuth, not a key: hermes_forbidden_env_keys is unaffected and there is
+# still no key on this host to bill against.
 #
-# The failure that follows is not a truncated answer: Ollama drops messages
-# from the front of the prompt until the user turn is gone, then answers
-# HTTP 500 "no user query found in messages". Samuel hit it on his first
-# tool call, 2026-09-20.
-hermes_model_default: qwen3.8:27b-32k
+# ⚠️ ONE GRANT FOR THE WHOLE TEAM, SIGNED IN WITHOUT A PROFILE FLAG.
+# `hermes auth add openai-codex` — no `-p`. Codex is a single-use-refresh
+# provider (with anthropic and xai-oauth): each refresh invalidates the
+# previous token, so two profiles refreshing one grant would kill each
+# other. Hermes keeps one grant at the root and strips per-profile copies
+# on read. A per-profile add APPEARS to work, prints "Added ... credential
+# #1", writes active_provider, and is discarded on the next read.
+#
+# The corollary: revoking it in the OpenAI account stops all three agents
+# at once. They are less independent than their Discord tokens suggest.
+#
+# ⚠️ ONE BUCKET, SHARED BY THE WHOLE TEAM. The limit is per ChatGPT
+# ACCOUNT, not per agent. On the $20 Plus plan gpt-5.6-luna allows roughly
+# 250-2,000 local messages per five hours across Brizza, Samuel and Malachi
+# TOGETHER, with weekly caps on top. Luna is chosen for exactly that: the
+# same plan gives gpt-5.6-terra 25-200 and gpt-6-astra 5-45, and five
+# messages per five hours does not finish one task.
+hermes_model_provider: openai-codex
+# Empty on purpose. base_url belongs to the fallback's OpenAI-compatible
+# endpoint; forge-ai's URL left here under an openai-codex provider is a
+# misrouting shape, and misrouting is what the forbidden-key list exists to
+# make fail rather than bill.
+hermes_model_base_url: ""
+# The Codex model for an agent whose entry does not name one. See the
+# shared-bucket warning above for why this is Luna.
+hermes_model_default: gpt-5.6-luna
+
+# --- The fallback: forge-ai, when the subscription is spent ---
+# SHARED BY EVERY AGENT, DELIBERATELY, rather than one "most appropriate"
+# model each. Only ONE model is ever resident: the weights are ~16 GiB on a
+# 20 GiB card, so OLLAMA_MAX_LOADED_MODELS=2 does not mean two of these.
+# And because the agents share one Codex bucket they exhaust it together,
+# so per-agent fallbacks would all engage at once and evict each other — a
+# 16 GiB reload per alternation at the moment things are already degraded.
+# Malachi loses his coder model in fallback; a warm general model beats a
+# cold specialist.
+#
+# The `-64k` suffix is load-bearing and names a Modelfile variant built by
+# roles/ollama on forge-ai. Naming the base gets Ollama's 4096 default,
+# because an OpenAI-compat /v1 client cannot set context per request. See
+# that host's ollama_modelfiles for why gemma4 and not qwen3.8.
+hermes_fallback_provider: custom
+hermes_fallback_model: gemma4:26b-64k
+hermes_fallback_base_url: http://10.10.50.10:11434/v1
+
+# ⚠️ DECLARED BECAUSE AUTO-DETECTION IS WRONG HERE. Hermes auto-detects
+# context length from the provider and upstream says to set it manually
+# only when that is wrong — "a local server with a custom num_ctx" is the
+# example they give, and it is exactly this. Ollama's /api/show reports the
+# MODEL's maximum (262144) rather than the effective num_ctx, so without
+# this Hermes believes it has 262K on an endpoint serving 64K, and
+# compression never triggers before the server truncates.
+hermes_fallback_context_length: 65536
 
 # Local models answer slowly on a long context, and Hermes' own timeouts
 # are sized for hosted APIs. The local-Ollama guide raises both.

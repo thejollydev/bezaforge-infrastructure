@@ -164,6 +164,63 @@ profile. Never point two processes at one profile either — both write memory
 automatically and they corrupt each other. The role refuses a repeated name in
 `hermes_agents` for that reason.
 
+**An agent answers, then fails its first tool call** with "The model
+provider failed after retries." Look for HTTP 500 `no user query found in
+messages` in the profile's `logs/errors.log`. That is a context-length
+failure wearing a misleading error: Ollama's OpenAI-compat `/v1` endpoint
+serves whatever `num_ctx` the model was built with, truncates the prompt
+from the front until the user turn falls off the end, and then complains
+there is no user turn.
+
+The context CANNOT be set by the client — Hermes' `extra_body`
+`{options: {num_ctx: ...}}` is accepted and ignored on `/v1`. It lives in
+the `gemma4:26b-64k` Modelfile variant on forge-ai. Check the server is
+serving what you think:
+
+```bash
+ssh joseph@forge-ai 'ollama ps'          # CONTEXT column, not the model's max
+```
+
+Hermes needs 64,000 tokens minimum for tool use. If `CONTEXT` reads 4096 or
+32768, the variant was not built or an agent is pointed at the base model.
+
+**An approved agent starts but every turn fails at the provider.** Its Codex
+login is missing. The role refuses to start an approved agent in that state,
+so this means the login was revoked after a deploy:
+
+```bash
+ssh joseph@forge-agents '~/.local/bin/hermes -p <name> auth status openai-codex'
+ssh -t joseph@forge-agents '~/.local/bin/hermes auth add openai-codex'
+```
+
+**⚠️ NO `-p` ON THE SECOND ONE, AND THAT IS NOT A TYPO.** Codex is a
+single-use-refresh provider (with `anthropic` and `xai-oauth`): each refresh
+invalidates the previous token, so two profiles refreshing one grant would
+kill each other. Hermes therefore keeps ONE grant at the root and strips
+per-profile copies on read — `strip_cloned_single_use_oauth_grants` deletes
+the profile's rows so `read_credential_pool` falls back to the root slice.
+
+A per-profile `hermes -p brizza auth add openai-codex` APPEARS to work: it
+prints "Added openai-codex OAuth credential #1", writes `active_provider`,
+and then the grant is gone the next time anything reads it. One root sign-in
+covers every profile, present and future.
+
+Two smaller details: a non-interactive `ssh` does not source the profile that
+puts `~/.local/bin` on PATH, so a bare `hermes` answers "command not found";
+and `auth add` is interactive, so it needs `ssh -t`. Over SSH it prints an
+authorization URL and waits for the code pasted back.
+
+**One credential for the whole team.** Revoking it in the OpenAI account
+stops all three agents at once — they are less independent than their
+per-profile Discord tokens suggest.
+
+**Everything is suddenly slower and dumber at once.** All three agents share
+ONE ChatGPT account, so they exhaust the Codex allowance together and fall
+back to forge-ai together. That is the design — a shared local fallback
+rather than one model each, because only one ~16 GiB model fits the card and
+per-agent fallbacks would evict each other. Confirm with `ollama ps` on
+forge-ai showing `gemma4:26b-64k` loaded.
+
 **Cards sit in `ready` and nothing picks them up.** One process dispatches the
 whole machine's board, and it is named rather than raced for: exactly one
 entry in `hermes_agents` carries `dispatch: true`, which the role writes to
