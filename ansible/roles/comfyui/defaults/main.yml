@@ -25,7 +25,7 @@ comfyui_version: v0.35.0
 # uv supplies the interpreter and the venv. Python 3.13, not the host's 3.14:
 # ComfyUI's README says "Python 3.13 is very well supported" and "Python 3.14
 # works but some custom nodes may have issues".
-comfyui_uv_version: "0.12.13"
+comfyui_uv_version: "0.12.17"
 comfyui_python_version: "3.13"
 
 # PyTorch's ROCm 7.2 wheels, the index ComfyUI's README gives for Linux AMD.
