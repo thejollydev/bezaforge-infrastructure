@@ -37,7 +37,9 @@ ollama_install_dir: /usr/local
 ollama_cache_dir: /var/cache/bezaforge/ollama
 # Keep the downloaded bundles (~2.4 GB) so a re-run or a rebuild does not
 # pull them again. Set false to reclaim the space at the cost of the next
-# install repeating the download.
+# install repeating the download. Bundles live in <cache>/<version>/, and a
+# successful install removes every other version's directory, so at most
+# one version is ever kept.
 ollama_cache_keep: true
 ollama_download_retries: 5
 ollama_install_packages:
