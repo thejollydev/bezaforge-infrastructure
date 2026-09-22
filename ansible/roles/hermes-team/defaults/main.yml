@@ -267,6 +267,19 @@ hermes_discord_allow_bots: none
 hermes_discord_history_backfill: true
 hermes_discord_history_backfill_limit: 50
 
+# --- Bot Mode (ADR 0014, ADR 0015) ---
+# Agent-to-agent messages need Hermes to treat the install as Bot Mode
+# managed: `message_agent` appears only in a session titled exactly
+# `Bot Chat`, and only when some profile's profile.yaml carries a
+# `ui_meta: {hermes-bots: ...}` block. The desktop app writes that block for
+# every Bot it creates; a headless install never gets one, and there is no
+# CLI command that writes it. So the role does, on every agent's profile.
+#
+# Measured on forge-agents 2026-09-21 (#1218): with the block in place,
+# Brizza's Bot Chat messaged Samuel and his answer came back to her. It
+# changes nothing in Discord: the tool is never offered in a Discord session.
+hermes_bot_mode_marker: true
+
 # --- The service ---
 # Each profile gets its own gateway service. A user manager only runs while
 # the user has a session unless lingering is on, and nobody logs into the

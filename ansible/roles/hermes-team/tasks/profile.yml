@@ -43,6 +43,42 @@
     mode: '0644'
   notify: Restart hermes gateways
 
+# The Bot Mode marker (see defaults). Merged into profile.yaml rather than
+# templated, because Hermes and the desktop app both write that file
+# (description, display name, the Bot's title) and a template would drop
+# what they wrote. Hermes' own YAML writer does the write, atomically, so a
+# crash cannot truncate the file.
+- name: "Write the Bot Mode marker for {{ agent.name }}"
+  ansible.builtin.command:
+    argv:
+      - "{{ hermes_home }}/.hermes/hermes-agent/venv/bin/python"
+      - -c
+      - |
+        import sys
+        from pathlib import Path
+        import yaml
+        from utils import atomic_yaml_write
+        path = Path(sys.argv[1])
+        data = (yaml.safe_load(path.read_text()) if path.exists() else None) or {}
+        ui_meta = data.get("ui_meta")
+        if isinstance(ui_meta, dict) and isinstance(ui_meta.get("hermes-bots"), dict):
+            print("present")
+        else:
+            if not isinstance(ui_meta, dict):
+                ui_meta = data["ui_meta"] = {}
+            ui_meta["hermes-bots"] = {}
+            atomic_yaml_write(path, data, sort_keys=False)
+            print("written")
+      - "{{ hermes_profiles_dir }}/{{ agent.name }}/profile.yaml"
+    chdir: "{{ hermes_home }}/.hermes/hermes-agent"
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  register: hermes_bot_marker
+  changed_when: hermes_bot_marker.stdout == 'written'
+  when: hermes_bot_mode_marker | bool
+
 # ------------------------------------------------------------
 # Configuration
 # ------------------------------------------------------------
