@@ -65,12 +65,28 @@
 
 - name: Install Ollama from the release bundles
   when: ollama_install_needed | bool
+  vars:
+    # One directory per version (#1241). The bundle names carry no version,
+    # so a flat cache made `--continue-at -` below "resume" the previous
+    # release's COMPLETE bundle: on the 0.34.0 -> 0.34.2 bump, the cached
+    # 0.34.0 amd64 bundle was already larger than 0.34.2's, curl took it as
+    # finished, and the ROCm bundle was appended to. The checksum caught
+    # both, so nothing was installed -- but no re-run could ever succeed.
+    ollama_bundle_dir: "{{ ollama_cache_dir }}/{{ ollama_version }}"
   block:
+
+    - name: Create this version's bundle directory
+      ansible.builtin.file:
+        path: "{{ ollama_bundle_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
 
     - name: Fetch the release checksums
       ansible.builtin.get_url:
         url: "{{ ollama_release_base }}/v{{ ollama_version }}/sha256sum.txt"
-        dest: "{{ ollama_cache_dir }}/sha256sum-{{ ollama_version }}.txt"
+        dest: "{{ ollama_bundle_dir }}/sha256sum.txt"
         owner: root
         group: root
         mode: "0644"
@@ -91,7 +107,7 @@
           curl --fail --location --silent --show-error
           --retry {{ ollama_download_retries }} --retry-all-errors --retry-delay 5
           --speed-limit 1024 --speed-time 120
-          --continue-at - --output {{ ollama_cache_dir }}/{{ item }}
+          --continue-at - --output {{ ollama_bundle_dir }}/{{ item }}
           {{ ollama_release_base }}/v{{ ollama_version }}/{{ item }}
       loop: "{{ ollama_bundles }}"
       changed_when: true
@@ -100,8 +116,8 @@
     # including the Windows ones this host never downloads.
     - name: Verify the bundles against the release checksums
       ansible.builtin.command:
-        cmd: sha256sum --check --strict --ignore-missing sha256sum-{{ ollama_version }}.txt
-        chdir: "{{ ollama_cache_dir }}"
+        cmd: sha256sum --check --strict --ignore-missing sha256sum.txt
+        chdir: "{{ ollama_bundle_dir }}"
       changed_when: false
 
     # Upstream's install.sh removes this directory before extracting
@@ -118,7 +134,7 @@
     - name: Extract the bundles  # noqa: command-instead-of-module
       ansible.builtin.command:
         cmd: >-
-          tar --zstd --extract --file {{ ollama_cache_dir }}/{{ item }}
+          tar --zstd --extract --file {{ ollama_bundle_dir }}/{{ item }}
           --directory {{ ollama_install_dir }}
       loop: "{{ ollama_bundles }}"
       changed_when: true
@@ -128,10 +144,27 @@
 
     - name: Drop the cached bundles
       ansible.builtin.file:
-        path: "{{ ollama_cache_dir }}/{{ item }}"
+        path: "{{ ollama_bundle_dir }}"
         state: absent
-      loop: "{{ ollama_bundles }}"
       when: not ollama_cache_keep | bool
+
+    # Only after this version extracted: until then an older cache is what
+    # a rollback would reinstall from. Also reaps the flat, unversioned
+    # files the cache held before it was split per version.
+    - name: Find other versions' cached bundles
+      ansible.builtin.find:
+        paths: "{{ ollama_cache_dir }}"
+        file_type: any
+        excludes: "{{ ollama_version }}"
+      register: ollama_stale_cache
+
+    - name: Drop other versions' cached bundles
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ ollama_stale_cache.files }}"
+      loop_control:
+        label: "{{ item.path }}"
 
 # The service user upstream's script used to create. Unchanged in shape:
 # a system account with its own group and a home at /usr/share/ollama,
