@@ -1,0 +1,59 @@
+---
+# ============================================================
+# agent-repos role defaults
+#
+# The repositories the agents work on, checked out on the agent host so
+# `never4ga context startup --cwd` has a repository to resolve from
+# (#1217, Brizza build step 4) and the agents have code to read.
+#
+# Decided by Joseph 2026-09-22: the host reaches the repositories through a
+# dedicated Gitea machine account, read-only. Gitea because it is
+# self-hosted — revoking the host is one click on a server he owns, and no
+# GitHub or GitLab credential ever lands here. Read-only because nothing in
+# step 4 needs more; whether agents push is Build 7's question.
+#
+# The access level is enforced by Gitea, not by this role: the machine
+# account is granted Read on each repository. Nothing on the host could
+# make a read grant write.
+# ============================================================
+
+# --- Per host (required) ---
+# The user the checkouts belong to. The role does not create it; it is the
+# user that owns the vault copy and runs Never4gA and the agents.
+agent_repos_user: ""
+
+# Where the checkouts go. Each repository lands at <root>/<name>.
+agent_repos_root: ""
+
+# Each entry is {name: <directory>, url: <ssh clone URL>}, and optionally
+# {version: <branch>}. The directory
+# name matters beyond tidiness: the vault's workspace documents list their
+# repositories by name, so a checkout under a different name would not
+# resolve to its workspace.
+agent_repos: []
+
+# The branch each checkout tracks, unless an entry names its own `version`.
+# `main`, because that is where every repository's work lands: never
+# committed to directly, only merged into.
+agent_repos_version: main
+
+# --- The key ---
+# Generated ON the host on the first run and never anywhere else. The
+# private half is never on the control machine and never in this
+# repository; the public half is what Joseph adds to the Gitea machine
+# account. A dedicated file rather than id_ed25519, so the key is
+# plainly for one purpose and nothing else picks it up by default.
+agent_repos_key_name: id_ed25519_gitea
+agent_repos_key_comment: "{{ inventory_hostname }} read-only Gitea checkouts"
+
+# --- The Gitea server ---
+agent_repos_git_host: git.bezaforge.dev
+agent_repos_git_port: 2222
+# Pinned rather than accepted on first use: a host that trusts whatever
+# answers first would hand its key to whoever answered. Measured
+# 2026-09-22 by ssh-keyscan from the laptop, after the #1244 re-pull, and
+# identical to the key the laptop has trusted since before it. The key
+# lives in Gitea's data volume, so recreating the container keeps it.
+agent_repos_git_host_key: >-
+  ssh-ed25519
+  AAAAC3NzaC1lZDI1NTE5AAAAINGObs11bAax7xnK/XlzZo0sA7plwVJ2IsV0IBcNDauP

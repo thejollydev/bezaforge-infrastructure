@@ -161,6 +161,12 @@ nfs_client: true
 #         the knowledge vault through it — verified, its origin is
 #         ssh://git@git.bezaforge.dev:2222 and that name resolves here —
 #         plus Joseph's laptop from The Bunker WiFi and WireGuard.
+#         And forge-agents (10.10.50.20), for its read-only checkouts
+#         (roles/agent-repos, #1217) — on this port only, not AdGuard's,
+#         which is why it is a per-port `allow` rather than an addition to
+#         docker_firewall_default_allow. Measured 2026-09-22 before the
+#         change: from forge-agents, Gitea answered on 443 and 2222 timed
+#         out, while the laptop reached 2222.
 #   3053  AdGuard admin UI. Browser access from the laptop. The adguard
 #         role's own API reconciliation is unaffected either way: it
 #         runs ON forge-ops against this host's own IP, and host-local
@@ -169,6 +175,7 @@ docker_firewall_ports:
   - name: "Gitea SSH"
     port: 2222
     proto: tcp
+    allow: "{{ docker_firewall_default_allow + ['10.10.50.20'] }}"
   - name: "AdGuard admin UI"
     port: 3053
     proto: tcp
