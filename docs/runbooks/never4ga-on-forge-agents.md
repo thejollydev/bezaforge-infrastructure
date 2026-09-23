@@ -155,7 +155,16 @@ What the failure message's ssh output means:
   account has no grant on that repository.
 
 The checkouts are updated on every run, and one with local changes stops the
-run rather than losing them. Read access is enforced by Gitea, not by the
+run rather than losing them.
+
+Each mapped checkout also needs its generated `AGENTS.md`, the pointer that
+sends a session starting there to its workspace; doctor reports
+`agent_pointer_missing` without it, and the first run with a checkout failed
+the doctor gate on exactly that. The role runs `never4ga adapters sync
+--apply` for it, but only when pointer writes are all it would do. A
+`.gitignore` edit (a tracked file: the checkout would go dirty and the next
+update would stop) or a skill deployment to a client on this host fails the
+run with what it wanted to do, rather than being done quietly. Read access is enforced by Gitea, not by the
 host: revoking the host is deleting its key, or its account, in Gitea.
 
 ## What is deliberately absent
