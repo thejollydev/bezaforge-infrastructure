@@ -91,8 +91,12 @@ expected and is not a fault.
 - **Root on forge-ops** (`sudo`, password — `joseph` has no passwordless sudo).
   Only steps 3, 5 and 8 need it; `joseph` is in the `docker` group, so every
   `docker` and `docker compose` command below runs unprivileged.
-- **An Ansible control host that is not forge-ops**, on `main`, with the
-  vault password available.
+- **An Ansible control host that is not forge-ops**, checked out on `main`,
+  with both the become password and the vault password to hand. Step 6 asks
+  for both.
+- **`tmux` on the control host if you are driving it remotely.** Step 6 pulls
+  about 40 G; a dropped SSH session from a phone kills the play partway, with
+  the network's services half up.
 - Roughly 40 G of egress and the time to pull it.
 
 ---
@@ -133,13 +137,12 @@ Expected at the time of writing: 30 containers, 41 images, 23 volumes,
 ### 3. Preserve what the #1236 core dumps are worth
 
 **This step destroys evidence if it is skipped.** Overlayfs snapshot 1977 holds
-hundreds of Outline/hocuspocus core dumps from 2026-09-06, 15 G on disk, and
+Outline/hocuspocus core dumps from 2026-09-06, 15 G on disk, and
 #1236 is open on explaining that crash. Removing every image removes the
 snapshot with them.
 
-The dumps are in a superseded layer, they are sparse, and a node core without
-its exact binary is close to unreadable. So preserve a **manifest and one
-representative dump**, not 15 G:
+The dumps are in a superseded layer and they are sparse. Preserve a
+**manifest and one representative dump**, not 15 G:
 
 ```bash
 ssh joseph@10.10.20.20
@@ -150,14 +153,24 @@ sudo find "$S/app" "$S/opt/hocuspocus" -maxdepth 1 -name 'core.*' \
   -printf '%p\t%s\t%b\t%TY-%Tm-%Td %TH:%TM:%TS\t%U\n' | sort > /tmp/cores.tsv
 sudo cp /tmp/cores.tsv "$D/manifest.tsv"
 wc -l "$D/manifest.tsv"
-# the largest dump, sparse-preserving, plus the binary it came from
+# the largest dump, sparse-preserving
 LARGEST=$(sort -t"$(printf '\t')" -k2 -rn "$D/manifest.tsv" | head -1 | cut -f1)
 echo "$LARGEST"
 sudo cp --sparse=always "$LARGEST" "$D/"
-sudo cp "$S/usr/local/bin/node" "$D/node" 2>/dev/null || \
-  sudo find "$S" -maxdepth 4 -name node -type f -exec cp {} "$D/node" \;
 sudo du -sh "$D"
 ```
+
+Do not look for the `node` binary in the snapshot. 1977 is a container's
+**writable** layer: it holds what the process wrote, the dumps, and none of the
+image's files. The binary lives in a lower, read-only image layer, and that
+layer goes in step 5 with the rest. A core without its exact binary is close
+to unreadable, so if the Outline version running on the day of the crash is
+the one pinned now, take `node` from the re-pulled image after step 6
+(`docker cp outline:/usr/local/bin/node …`). If the version has moved since,
+the binary is gone and #1236 should say so.
+
+On 2026-09-22 this found 16 dumps and kept `core.388`, 1.45 G apparent and
+826 M on disk.
 
 Then note in #1236 that the snapshot is gone and what survived.
 
@@ -195,31 +208,37 @@ docker system df           # Images 0, Containers 0, Local Volumes 23
 something, and it is exactly the image you cannot vouch for.
 
 With no containers and no images, nothing references the content store, so any
-remaining overlayfs snapshots are orphans. Check, and clear them if present:
+remaining overlayfs snapshots or blobs are orphans. Clearing them is safe
+**only here**, with Docker's own database holding no containers and no images,
+so the check refuses to go on otherwise:
 
 ```bash
-sudo du -sh /var/lib/docker/containerd
-sudo ls /var/lib/docker/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots | wc -l
-```
-
-If that count is not 0, stop Docker and clear the store outright — it is safe
-**only here**, with Docker's own database holding no containers and no images:
-
-```bash
-sudo systemctl stop docker.socket docker.service containerd.service
-sudo rm -rf /var/lib/docker/containerd/io.containerd.snapshotter.v1.overlayfs \
-            /var/lib/docker/containerd/io.containerd.content.v1.content
-sudo systemctl start containerd.service
-sleep 3
-sudo systemctl start docker.service docker.socket
+sudo bash -c '
+R=/var/lib/docker/containerd
+SNAP=$R/io.containerd.snapshotter.v1.overlayfs
+CONT=$R/io.containerd.content.v1.content
+c=$(docker ps -aq | wc -l); i=$(docker images -q | wc -l)
+[ "$c" -eq 0 ] && [ "$i" -eq 0 ] || { echo "REFUSING: $c containers, $i images"; exit 1; }
+n=$(ls "$SNAP/snapshots" 2>/dev/null | wc -l)
+b=$(find "$CONT/blobs" -type f 2>/dev/null | wc -l)
+echo "snapshots: $n  blobs: $b  root: $(du -sh "$R" | cut -f1)"
+[ "$n" -eq 0 ] && [ "$b" -eq 0 ] && { echo "nothing orphaned"; exit 0; }
+systemctl stop docker.socket docker.service containerd.service
+rm -rf "$SNAP" "$CONT"
+systemctl start containerd.service; sleep 3
+systemctl start docker.service docker.socket
+echo "cleared; root now $(du -sh "$R" | cut -f1)"'
 ```
 
 ### 6. Re-pull and bring the stack back
 
-From the Ansible control host, on `main`:
+From the Ansible control host, on `main` — the `deploy-stamp` role records the
+commit the play ran from, so a run from a branch stamps a commit `main` does
+not have:
 
 ```bash
-ansible-playbook ansible/site.yml --limit forge-ops
+cd ~/Projects/bezaforge-infrastructure && git switch main && git pull --ff-only
+tmux new -s repull 'cd ansible && ansible-playbook site.yml -l forge-ops --ask-become-pass --ask-vault-pass 2>&1 | tee -a /tmp/repull-1244-site.log; exec zsh'
 ```
 
 `docker_compose_v2` runs `docker compose up -d`; with no images present,
@@ -234,6 +253,13 @@ calibre-web), `outline`, `openproject`.
 If the play fails partway, note that **when every host in a play fails the
 playbook stops there** — later plays never start and are simply absent from the
 recap. Fix and re-run; the roles are idempotent.
+
+**Expect the first run to fail at `adguard : Read AdGuard's live rewrite
+table`** with `HTTP Error 404`. On 2026-09-22 it did: the task ran within a
+couple of seconds of the container starting, before AdGuard had registered its
+`/control` handlers, and the role does not wait for the API. A moment later the
+same URL answered 401. Re-run the same command. Traefik and AdGuard are already
+up by then, so DNS is back while the rest pulls.
 
 ### 7. Verify
 
@@ -342,7 +368,7 @@ suspicion. If the pulls cannot proceed, the recovery is to fix connectivity and
 pull again, not to restore anything.
 
 Before step 5, the run is abandonable at any point: bring the stacks back with
-`ansible-playbook ansible/site.yml --limit forge-ops` and nothing has changed.
+step 6's `ansible-playbook` command and nothing has changed.
 
 The old `/var/lib/containerd` stays in place until step 8's `rm`, but it is a
 rollback for the **relocation**, not for the images — and after a clean step 7
