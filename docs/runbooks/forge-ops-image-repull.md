@@ -121,9 +121,9 @@ Three non-empty answers, or stop here and fix the backstop.
 ```bash
 ssh joseph@10.10.20.20 'mkdir -p /tmp/repull-1244
 docker ps --format "{{.Names}}\t{{.Image}}" | sort > /tmp/repull-1244/containers-before.txt
-docker ps --format "{{.Image}}" | sort -u | while read i; do
-  printf "%s\t%s\n" "$i" "$(docker image inspect "$i" --format "{{index .RepoDigests 0}}" 2>/dev/null)"
-done > /tmp/repull-1244/digests-before.txt
+docker ps -q | xargs docker inspect --format "{{.Config.Image}} {{.Image}}" | while read ref id; do
+  printf "%s\t%s\n" "$ref" "$(docker image inspect "$id" --format "{{index .RepoDigests 0}}")"
+done | sort -u > /tmp/repull-1244/digests-before.txt
 docker images --format "{{.Repository}}:{{.Tag}}\t{{.ID}}" | sort > /tmp/repull-1244/images-before.txt
 docker volume ls -q | sort > /tmp/repull-1244/volumes-before.txt
 docker compose ls --format json > /tmp/repull-1244/projects-before.json
@@ -278,11 +278,18 @@ docker volume ls -q | sort | diff /tmp/repull-1244/volumes-before.txt - \
 Then the digests, which is the actual point of the run:
 
 ```bash
-docker ps --format "{{.Image}}" | sort -u | while read i; do
-  printf "%s\t%s\n" "$i" "$(docker image inspect "$i" --format "{{index .RepoDigests 0}}" 2>/dev/null)"
-done > /tmp/repull-1244/digests-after.txt
+docker ps -q | xargs docker inspect --format "{{.Config.Image}} {{.Image}}" | while read ref id; do
+  printf "%s\t%s\n" "$ref" "$(docker image inspect "$id" --format "{{index .RepoDigests 0}}")"
+done | sort -u > /tmp/repull-1244/digests-after.txt
 diff /tmp/repull-1244/digests-before.txt /tmp/repull-1244/digests-after.txt
 ```
+
+Go through each container's image **ID**, never its tag. An image pulled by
+digest carries no local tag, so `docker image inspect postgres:15-alpine`
+finds nothing after the re-pull — or, before it, finds whatever stale image
+last held that tag, which need not be the one the container runs. On
+2026-09-22 the tag lookup reported `postgres:15-alpine` as `5fe8ca7f…` while
+the containers ran the pinned `f7d23353…`.
 
 Every digest-pinned image must be **identical**. `cgr.dev/chainguard/minio` is
 expected to differ. A version-tagged image that differs is a re-pushed tag —
