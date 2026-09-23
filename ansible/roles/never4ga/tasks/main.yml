@@ -428,10 +428,15 @@
     quiet: true
   when: never4ga_verify
 
+# `--json`, and the pack's own `scope` rather than a search of the human
+# output. The first version looked for the workspace ID in the human
+# output, which names the workspace by its PATH and never prints the ID:
+# the first run that could exercise it (2026-09-22) failed on a pack that
+# had come back correctly, 33 items for Brizza.
 - name: Ask for the workspace's startup pack
   ansible.builtin.command:
     cmd: >-
-      {{ never4ga_bin }}/never4ga --actor ansible/never4ga-role
+      {{ never4ga_bin }}/never4ga --json --actor ansible/never4ga-role
       context startup --client ansible --cwd {{ never4ga_verify_repo }}
   become: true
   become_user: "{{ never4ga_user }}"
@@ -449,11 +454,16 @@
   ansible.builtin.assert:
     that:
       - never4ga_pack.rc == 0
-      - never4ga_verify_workspace in never4ga_pack.stdout
+      - (never4ga_pack.stdout | from_json).scope.workspace_id == never4ga_verify_workspace
+      - (never4ga_pack.stdout | from_json).scope.repository_root == never4ga_verify_repo
+      - (never4ga_pack.stdout | from_json)['items'] | length > 0
     fail_msg: >-
       `context startup` from {{ never4ga_verify_repo }} did not return the
       {{ never4ga_verify_workspace }} pack. Either the repository is not
-      mapped or the vault copy is incomplete.
+      mapped or the vault copy is incomplete. It answered (rc
+      {{ never4ga_pack.rc }}):
+      {{ (never4ga_pack.stdout | from_json).scope | default('no scope')
+         if never4ga_pack.rc == 0 else never4ga_pack.stderr }}
     quiet: true
   when:
     - never4ga_verify
