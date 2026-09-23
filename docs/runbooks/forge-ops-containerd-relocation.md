@@ -288,6 +288,13 @@ for u in git pm grafana; do curl -s -o /dev/null -w "$u %{http_code}\n" "https:/
 
 ### 8. Reclaim the old root, but not today
 
+> **This step moved.** #1244 found a corrupt image on disk after this copy and
+> folded a full re-pull of every image into the same outage, because both need
+> the host offline and the old root stops being a useful rollback once the
+> images have been replaced. Run
+> [`forge-ops-image-repull.md`](forge-ops-image-repull.md) instead; its step 8
+> is this one, in its proper place at the end.
+
 Leave `/var/lib/containerd` in place until the host has run a few days and
 survived a reboot. Then:
 
