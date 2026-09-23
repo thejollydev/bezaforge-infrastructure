@@ -13,6 +13,7 @@ goes wrong.
 | Index and databases | `~joseph/.local/share/never4ga/` | the service |
 | State | `~joseph/.local/state/never4ga/` | the service |
 | The service | `never4ga.service`, `systemd --user` as `joseph` | unit templated, control by `systemctl --user` |
+| Repository checkouts | `~joseph/Projects/<name>`, from Gitea with `~joseph/.ssh/id_ed25519_gitea` | `roles/agent-repos` |
 
 Two properties are worth stating before anything else, because both are
 easy to undo by accident.
@@ -102,14 +103,60 @@ ssh joseph@forge-agents never4ga --json doctor
 ssh joseph@forge-agents 'cd /home/joseph/Projects/brizza && never4ga --actor <client>/<model> context startup --client <client> --cwd "$PWD"'
 ```
 
-> **This one cannot pass yet, and the role skips it rather than pretending.**
-> There is no checkout of any project repository on this host, and no
-> credential to make one: the repositories are private and `git ls-remote`
-> over HTTPS from the host answers `could not read Username`. Filling
-> `never4ga_mappings` and `never4ga_verify_repo` in `host_vars` turns the
-> check on the moment that is resolved. Until then step 4 is half proven:
-> Never4gA is installed and reads the vault, and no repository resolves to a
-> workspace from this host.
+The repository comes from `roles/agent-repos`, which runs just before
+`roles/never4ga`. Until 2026-09-22 this test was skipped: the host had no
+checkout and no credential to make one. Joseph's ruling that day was a Gitea
+machine account with Read on each repository the agents need, and a key that
+exists only on this host.
+
+### Giving the host its checkouts
+
+This takes two runs, and the first one fails on purpose.
+
+**Once, in Gitea, before either run.** Create a user for the host
+(Site Administration → User Accounts → Create User Account; a name like
+`forge-agents`, no admin rights, and restricted if the option is offered).
+Then on each repository listed in `agent_repos` in `host_vars` — `brizza` to
+start — Settings → Collaborators → add the account with **Read**.
+
+**Also once: the firewall on `forge-ops`.** Gitea's SSH port is filtered by
+`roles/docker-firewall`, and this host's address has its own `allow` on port
+2222 only. Deploy it before the checkout runs, or the first run times out
+rather than printing the key:
+
+```bash
+ansible-playbook site.yml --limit forge-ops --tags docker-firewall --ask-become-pass --ask-vault-pass
+```
+
+**First run.** It generates `~joseph/.ssh/id_ed25519_gitea` on the host,
+pins Gitea's host key, asks Gitea for each repository, and stops with the
+public key in the failure message:
+
+```bash
+ansible-playbook site.yml --limit forge-agents --tags agent-repos --ask-become-pass --ask-vault-pass
+```
+
+Sign in to Gitea **as the host's account** (or, as an admin, add the key on
+its behalf) and add that public key under Settings → SSH / GPG Keys.
+
+**Second run.** It clones into `/home/joseph/Projects/<name>`, and the
+`never4ga` role then maps the checkout and asserts the pack:
+
+```bash
+ansible-playbook site.yml --limit forge-agents --tags agent-repos,never4ga --ask-become-pass --ask-vault-pass
+```
+
+What the failure message's ssh output means:
+
+- **`Connection timed out`** — the firewall. `forge-ops`' docker-firewall
+  has not been deployed with this host's `allow`.
+- **`Permission denied (publickey)`** — Gitea does not have the key yet.
+- **`does not exist` or `could not be found`** — the key is known, but the
+  account has no grant on that repository.
+
+The checkouts are updated on every run, and one with local changes stops the
+run rather than losing them. Read access is enforced by Gitea, not by the
+host: revoking the host is deleting its key, or its account, in Gitea.
 
 ## What is deliberately absent
 
@@ -117,12 +164,14 @@ ssh joseph@forge-agents 'cd /home/joseph/Projects/brizza && never4ga --actor <cl
   this host writes. A committer here would race it over a working tree
   Syncthing is writing underneath both of them — and `.git` is in the ignore
   patterns, so this copy has no git identity to commit with anyway.
-- **No MCP registration.** `never4ga adapters mcp` registers with the
+- **No MCP registration, yet.** `never4ga adapters mcp` registers with the
   clients it detects, and its client descriptors are data rather than code:
   the shipped three live in the package and a machine's own live in the
-  vault's `50_System/Integrations/`. A descriptor for the agent runtime
-  needs that runtime installed to measure its `mcp add` command against, and
-  that arrives in build step 5. See the note in the tracker item.
+  vault's `50_System/Integrations/`. Hermes arrived with build step 5 and
+  registers per profile (`hermes -p <profile> mcp add <name> --command <cmd>
+  --args ...`), and each agent already has a profile-bound command on `PATH`,
+  so each agent is its own descriptor. Those are written in the vault, not
+  here; see the tracker item.
 - **No `repair --apply`.** As above. It is not a default that can be
   overridden in `host_vars`; the role simply never calls it.
 

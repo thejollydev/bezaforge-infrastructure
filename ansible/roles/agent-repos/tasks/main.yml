@@ -1,0 +1,181 @@
+---
+# ============================================================
+# agent-repos role — checkouts for the agents (#1217)
+#
+# Step 4 of the Brizza build plan is done when `context startup` from a
+# mapped repository returns the Brizza pack. That needs a repository on the
+# host, and until now the host had none and no way to get one: the
+# repositories are private and it held no credential.
+#
+# ⚠️ THE FIRST RUN FAILS, BY DESIGN, AND SAYS WHAT TO DO. It generates the
+# host's key and stops, printing the public half, because Gitea does not
+# know the key yet and a clone would be refused. Joseph adds the key to the
+# machine account and runs again; the second run clones. A role that
+# carried on past a refused clone would leave never4ga's pack check to fail
+# later with a message about the wrong thing.
+# ============================================================
+
+- name: Check the role's inputs
+  ansible.builtin.assert:
+    that:
+      - agent_repos_user | length > 0
+      - agent_repos_root | length > 0
+    fail_msg: roles/agent-repos needs agent_repos_user and agent_repos_root in host_vars.
+    quiet: true
+
+- name: Read the user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ agent_repos_user }}"
+
+- name: Keep the user's home for the paths below
+  ansible.builtin.set_fact:
+    agent_repos_home: "{{ ansible_facts.getent_passwd[agent_repos_user][4] }}"
+
+- name: Keep the key's path
+  ansible.builtin.set_fact:
+    agent_repos_key: "{{ agent_repos_home }}/.ssh/{{ agent_repos_key_name }}"
+
+- name: Install git
+  ansible.builtin.apt:
+    name: git
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# ------------------------------------------------------------
+# The key and how ssh finds it
+# ------------------------------------------------------------
+
+- name: Create the user's ssh directory
+  ansible.builtin.file:
+    path: "{{ agent_repos_home }}/.ssh"
+    state: directory
+    owner: "{{ agent_repos_user }}"
+    group: "{{ agent_repos_user }}"
+    mode: '0700'
+
+# No passphrase: nobody is at this host to type one, and a passphrase held
+# beside the key in an agent would protect nothing. What protects it is the
+# 0600 file on a host only Joseph logs into, and a grant that is Read only.
+- name: Generate the host's Gitea key
+  ansible.builtin.command:
+    cmd: >-
+      ssh-keygen -q -t ed25519 -N ''
+      -C '{{ agent_repos_key_comment }}'
+      -f {{ agent_repos_key }}
+    creates: "{{ agent_repos_key }}"
+  become: true
+  become_user: "{{ agent_repos_user }}"
+
+- name: Trust the Gitea server's host key, and only that one
+  ansible.builtin.known_hosts:
+    path: "{{ agent_repos_home }}/.ssh/known_hosts"
+    name: "[{{ agent_repos_git_host }}]:{{ agent_repos_git_port }}"
+    key: "[{{ agent_repos_git_host }}]:{{ agent_repos_git_port }} {{ agent_repos_git_host_key }}"
+    state: present
+  become: true
+  become_user: "{{ agent_repos_user }}"
+
+# In the user's ssh config rather than passed to each clone, so a `git
+# pull` typed on the host, or run by an agent, uses the same key the role
+# did. ConnectTimeout because a port the firewall drops otherwise hangs
+# for two minutes before saying anything.
+- name: Point ssh at the key for the Gitea server
+  ansible.builtin.blockinfile:
+    path: "{{ agent_repos_home }}/.ssh/config"
+    create: true
+    owner: "{{ agent_repos_user }}"
+    group: "{{ agent_repos_user }}"
+    mode: '0600'
+    marker: "# {mark} ANSIBLE MANAGED — roles/agent-repos"
+    block: |
+      Host {{ agent_repos_git_host }}
+        Port {{ agent_repos_git_port }}
+        User git
+        IdentityFile {{ agent_repos_key }}
+        IdentitiesOnly yes
+        ConnectTimeout 15
+
+# ------------------------------------------------------------
+# Access, then the checkouts
+# ------------------------------------------------------------
+#
+# `command` tasks are skipped in a check run, so there is no key to read
+# and no answer from Gitea; everything from here converges only for real.
+
+- name: Create the checkout root
+  ansible.builtin.file:
+    path: "{{ agent_repos_root }}"
+    state: directory
+    owner: "{{ agent_repos_user }}"
+    group: "{{ agent_repos_user }}"
+    mode: '0755'
+
+# noqa: ansible.builtin.git has no ls-remote. This asks whether Gitea will
+# answer at all, and keeps ssh's own words for the failure message below;
+# a clone attempt would fail with a message about the clone instead.
+- name: Ask Gitea for each repository # noqa: command-instead-of-module
+  ansible.builtin.command:
+    cmd: "git ls-remote {{ item.url }} HEAD"
+  become: true
+  become_user: "{{ agent_repos_user }}"
+  loop: "{{ agent_repos }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: agent_repos_probe
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Read the public key
+  ansible.builtin.slurp:
+    src: "{{ agent_repos_key }}.pub"
+  register: agent_repos_public_key
+  when:
+    - not ansible_check_mode
+    - agent_repos_probe.results | selectattr('rc', 'defined') | rejectattr('rc', 'equalto', 0) | list | length > 0
+
+- name: Stop until Gitea lets this host read every repository
+  ansible.builtin.fail:
+    msg: |
+      Gitea refused {{ agent_repos_refused | join(', ') }} to {{ inventory_hostname }}.
+
+      If this is the first run, that is expected. Add this key to the Gitea
+      machine account (Settings -> SSH / GPG Keys -> Add Key), make sure the
+      account has Read on each repository above, and run the role again:
+
+      {{ agent_repos_public_key.content | b64decode | trim }}
+
+      What ssh said, per repository:
+      {% for r in agent_repos_probe.results if r.rc | default(0) != 0 %}
+        {{ r.item.name }}: {{ r.stderr | trim | default('no output', true) }}
+      {% endfor %}
+      "Connection timed out" means the firewall, not Gitea: forge-ops'
+      docker-firewall has to allow this host on {{ agent_repos_git_port }}.
+      "Permission denied" or "does not exist" means the key or the grant.
+  vars:
+    agent_repos_refused: >-
+      {{ agent_repos_probe.results | rejectattr('rc', 'equalto', 0)
+         | map(attribute='item.name') | list }}
+  when:
+    - not ansible_check_mode
+    - agent_repos_public_key is not skipped
+
+# A named branch rather than whatever the remote calls HEAD, so what the
+# host is tracking is written down. update with force off: a checkout is brought up to date on every run,
+# and one with local changes stops the run instead of losing them. An
+# agent's uncommitted work is exactly the kind of thing force would erase.
+- name: Clone or update each repository
+  ansible.builtin.git:
+    repo: "{{ item.url }}"
+    dest: "{{ agent_repos_root }}/{{ item.name }}"
+    version: "{{ item.version | default(agent_repos_version) }}"
+    update: true
+    force: false
+  become: true
+  become_user: "{{ agent_repos_user }}"
+  loop: "{{ agent_repos }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: not ansible_check_mode
