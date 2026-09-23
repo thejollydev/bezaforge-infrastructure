@@ -347,3 +347,34 @@ hermes_kanban_max_in_progress: 4
 # Without it one agent's fan-out takes every slot and the other two sit
 # idle behind it.
 hermes_kanban_max_in_progress_per_profile: 2
+
+# --- Never4gA, as every agent's MCP server (#1217) ---
+# Brizza ADR 0016: an agent that needs to find something looks in the vault
+# through Never4gA, and every agent loads Joseph's standards from it at the
+# start of its work. This is how an agent reaches it: Never4gA's own MCP
+# server, on stdio, registered in each profile's config.yaml.
+#
+# Written with `config set` rather than `hermes mcp add`, which asks which
+# tools to enable and whether to overwrite, and has no flag for either.
+# `config set` takes a JSON list as a real list — measured 2026-09-22 in a
+# throwaway HERMES_HOME; it is dotted indices (`key.0`) that produce the
+# dict the fallback comment in profile.yml describes.
+hermes_never4ga_mcp_enabled: true
+hermes_never4ga_mcp_name: never4ga
+hermes_never4ga_mcp_command: /usr/local/bin/never4ga-mcp
+# The vault the server reads. Per host; on forge-agents it is
+# never4ga_vault_path, the same copy roles/never4ga serves.
+hermes_never4ga_vault_path: ""
+
+# The tools an agent does NOT get. ADR 0020: OpenProject is Joseph's view
+# and the sync (Build 7, #1221) is the only thing that writes it; an agent
+# creating or changing a work package itself would go around both the sync
+# and his approval. Reading the tracker, and reading and writing the vault
+# (ADR 0016: agents write their own projects' documents directly), stay.
+#
+# Exact tool names as the server reports them. Hermes matches these when it
+# registers tools, so an excluded tool never reaches the agent at all.
+hermes_never4ga_mcp_exclude:
+  - never4ga_work_create
+  - never4ga_work_update
+  - never4ga_work_comment
