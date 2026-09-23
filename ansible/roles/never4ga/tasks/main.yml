@@ -303,6 +303,72 @@
   changed_when: true
 
 # ------------------------------------------------------------
+# The mapped repositories' agent pointers
+# ------------------------------------------------------------
+#
+# A mapped repository needs its generated AGENTS.md — the pointer that
+# sends a session starting there to its workspace — and doctor reports
+# `agent_pointer_missing` until it has one. On the laptop the pointers
+# already exist; a fresh checkout here has none, because they are
+# generated per machine and never committed. The first run with a
+# checkout (2026-09-22) failed the doctor gate on exactly that.
+#
+# `adapters sync` writes them. It is not `repair`: it writes into the
+# repositories and the clients' own directories, never into the vault.
+#
+# Applied only when all it would do is write pointers. Two other things
+# it can do are refused rather than done quietly:
+#   - editing a repository's .gitignore: that is a tracked file, so the
+#     checkout would go dirty and roles/agent-repos, which never forces
+#     an update, would stop on the next run;
+#   - deploying Never4gA's skills into a client it found here: that is
+#     a decision about what the agents see, not a side effect of a deploy.
+
+- name: Ask what adapters sync would change
+  ansible.builtin.command:
+    cmd: "{{ never4ga_bin }}/never4ga --json adapters sync"
+  become: true
+  become_user: "{{ never4ga_user }}"
+  environment:
+    HOME: "{{ never4ga_home }}"
+  register: never4ga_adapters_plan
+  changed_when: false
+
+- name: Keep what it would change
+  ansible.builtin.set_fact:
+    never4ga_pointer_writes: >-
+      {{ (never4ga_adapters_plan.stdout | from_json).pointers
+         | rejectattr('action', 'equalto', 'noop') | list }}
+    never4ga_skill_writes: "{{ (never4ga_adapters_plan.stdout | from_json).planned }}"
+  when: not ansible_check_mode
+
+- name: Refuse anything beyond writing pointers
+  ansible.builtin.assert:
+    that:
+      - never4ga_skill_writes | length == 0
+      - never4ga_pointer_writes | selectattr('file', 'equalto', '.gitignore') | list | length == 0
+    fail_msg: >-
+      `never4ga adapters sync` wants to do more than write pointers here:
+      skills {{ never4ga_skill_writes | to_json }}, pointers
+      {{ never4ga_pointer_writes | to_json }}. A .gitignore edit belongs in
+      the repository, committed from the laptop; deploying skills to a
+      client on this host is Joseph's call. Neither is done by this role.
+    quiet: true
+  when: not ansible_check_mode
+
+- name: Write the repositories' agent pointers
+  ansible.builtin.command:
+    cmd: "{{ never4ga_bin }}/never4ga adapters sync --apply"
+  become: true
+  become_user: "{{ never4ga_user }}"
+  environment:
+    HOME: "{{ never4ga_home }}"
+  when:
+    - not ansible_check_mode
+    - never4ga_pointer_writes | length > 0
+  changed_when: true
+
+# ------------------------------------------------------------
 # Verification — the test that fails without this role
 # ------------------------------------------------------------
 #
