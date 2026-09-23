@@ -28,12 +28,14 @@
     that:
       - hermes_user | length > 0
       - hermes_agents | length > 0
+      - not hermes_never4ga_mcp_enabled or hermes_never4ga_vault_path | length > 0
       - hermes_agents | map(attribute='name') | list | unique | length == hermes_agents | length
     fail_msg: >-
       roles/hermes-team needs hermes_user and a hermes_agents list in
       host_vars, with one entry per profile and no repeated name. Two
       profiles with one name would be two processes on one Hermes home,
-      which corrupts both agents' memory.
+      which corrupts both agents' memory. With Never4gA registered for the
+      agents, hermes_never4ga_vault_path is required too.
     quiet: true
 
 # The board is machine-global and one process dispatches from it. Upstream

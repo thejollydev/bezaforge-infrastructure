@@ -230,6 +230,108 @@
   notify: Restart hermes gateways
 
 # ------------------------------------------------------------
+# Never4gA, over MCP (#1217; Brizza ADR 0016)
+# ------------------------------------------------------------
+#
+# One entry in the profile's config.yaml. Compared whole, and replaced
+# whole when it differs: setting keys one by one over an old entry would
+# leave a key nobody set any more (a `tools.include` from an interactive
+# `hermes mcp add`, say) quietly narrowing what the agent sees.
+#
+# `--actor` names the agent, so a document it writes into the vault
+# records who wrote it (core/02 section 5.2) rather than `mcp/never4ga`.
+
+- name: "Read the Never4gA server held by {{ agent.name }}"
+  ansible.builtin.command:
+    cmd: "{{ hermes_bin }} -p {{ agent.name }} config get mcp_servers.{{ hermes_never4ga_mcp_name }}"
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  register: hermes_never4ga_mcp_probe
+  changed_when: false
+  failed_when: false
+  when: hermes_never4ga_mcp_enabled
+
+- name: "Replace the Never4gA server for {{ agent.name }}"
+  when:
+    - hermes_never4ga_mcp_enabled
+    - >-
+      hermes_never4ga_mcp_probe.rc != 0
+      or (hermes_never4ga_mcp_probe.stdout | from_yaml) != hermes_never4ga_mcp_wanted
+  vars:
+    hermes_never4ga_mcp_wanted:
+      command: "{{ hermes_never4ga_mcp_command }}"
+      args:
+        - --vault
+        - "{{ hermes_never4ga_vault_path }}"
+        - --actor
+        - "hermes-{{ agent.name }}/{{ agent.model | default(hermes_model_default) }}"
+      tools:
+        exclude: "{{ hermes_never4ga_mcp_exclude }}"
+      enabled: true
+  block:
+    - name: "Remove the old entry for {{ agent.name }}"
+      ansible.builtin.command:
+        argv:
+          - "{{ hermes_bin }}"
+          - -p
+          - "{{ agent.name }}"
+          - config
+          - unset
+          - "mcp_servers.{{ hermes_never4ga_mcp_name }}"
+      become: true
+      become_user: "{{ hermes_user }}"
+      environment:
+        HOME: "{{ hermes_home }}"
+      when: hermes_never4ga_mcp_probe.rc == 0
+      changed_when: true
+
+    # JSON for the two lists: `config set` parses the value, and a JSON
+    # list lands as a YAML list.
+    - name: "Write the Never4gA server for {{ agent.name }}"
+      ansible.builtin.command:
+        argv:
+          - "{{ hermes_bin }}"
+          - -p
+          - "{{ agent.name }}"
+          - config
+          - set
+          - "mcp_servers.{{ hermes_never4ga_mcp_name }}.{{ item.key }}"
+          - "{{ item.value }}"
+      become: true
+      become_user: "{{ hermes_user }}"
+      environment:
+        HOME: "{{ hermes_home }}"
+      loop:
+        - { key: command, value: "{{ hermes_never4ga_mcp_wanted.command }}" }
+        - { key: args, value: "{{ hermes_never4ga_mcp_wanted.args | to_json }}" }
+        - { key: tools.exclude, value: "{{ hermes_never4ga_mcp_wanted.tools.exclude | to_json }}" }
+        - { key: enabled, value: "true" }
+      loop_control:
+        label: "{{ item.key }}"
+      changed_when: true
+      notify: Restart hermes gateways
+
+# The test that fails without this: the profile's own `mcp test` starts the
+# server the way a gateway will and lists what it offers. Every run, not
+# once, because the server is a separate install (roles/never4ga) that can
+# break under this one.
+- name: "Test the Never4gA server from the profile of {{ agent.name }}"
+  ansible.builtin.command:
+    cmd: "{{ hermes_bin }} -p {{ agent.name }} mcp test {{ hermes_never4ga_mcp_name }}"
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  register: hermes_never4ga_mcp_test
+  changed_when: false
+  failed_when: >-
+    hermes_never4ga_mcp_test.rc != 0
+    or 'never4ga_context_startup' not in hermes_never4ga_mcp_test.stdout
+  when: hermes_never4ga_mcp_enabled
+
+# ------------------------------------------------------------
 # The board, from chat
 # ------------------------------------------------------------
 #

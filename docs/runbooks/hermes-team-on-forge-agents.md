@@ -151,6 +151,38 @@ The installer runs only for a first install, fetched fresh from upstream at
 the newest release with no checksum: a recorded hash of a script upstream
 edits routinely was a version pin in disguise.
 
+## How the agents reach the vault
+
+Each profile carries one MCP server, `never4ga`, written into its
+`config.yaml` by the role (#1217, Brizza ADR 0016):
+
+```yaml
+mcp_servers:
+  never4ga:
+    command: /usr/local/bin/never4ga-mcp
+    args: [--vault, /home/joseph/Vaults/never-knowledge, --actor, hermes-<agent>/<model>]
+    tools:
+      exclude: [never4ga_work_create, never4ga_work_update, never4ga_work_comment]
+    enabled: true
+```
+
+- **`--actor`** names the agent, so a document it writes into the vault
+  records who wrote it rather than `mcp/never4ga`.
+- **The three tracker-writing tools are excluded** (ADR 0020): OpenProject is
+  written by the sync (Build 7) and by Joseph, not by an agent directly.
+  Reading the tracker, and reading and writing the vault, stay.
+- **Written with `config set`, not `hermes mcp add`**, which prompts for tool
+  selection and for overwriting and has no flag for either. The entry is
+  compared whole and replaced whole, so an interactive edit is undone on the
+  next run rather than lingering.
+- **Tested on every run** with `hermes -p <agent> mcp test never4ga`, which
+  starts the server as a gateway would. A change here restarts the running
+  gateways, as any profile setting does.
+
+```bash
+ssh joseph@forge-agents '~/.local/bin/brizza mcp list; ~/.local/bin/brizza mcp test never4ga'
+```
+
 ## Giving the team work
 
 Tell Brizza, in `#brizza`, in plain words:

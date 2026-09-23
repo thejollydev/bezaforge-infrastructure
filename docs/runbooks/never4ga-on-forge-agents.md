@@ -173,14 +173,12 @@ host: revoking the host is deleting its key, or its account, in Gitea.
   this host writes. A committer here would race it over a working tree
   Syncthing is writing underneath both of them — and `.git` is in the ignore
   patterns, so this copy has no git identity to commit with anyway.
-- **No MCP registration, yet.** `never4ga adapters mcp` registers with the
-  clients it detects, and its client descriptors are data rather than code:
-  the shipped three live in the package and a machine's own live in the
-  vault's `50_System/Integrations/`. Hermes arrived with build step 5 and
-  registers per profile (`hermes -p <profile> mcp add <name> --command <cmd>
-  --args ...`), and each agent already has a profile-bound command on `PATH`,
-  so each agent is its own descriptor. Those are written in the vault, not
-  here; see the tracker item.
+- **No MCP registration from this role.** The agents reach Never4gA through
+  its MCP server, registered in each Hermes profile by `roles/hermes-team`
+  (`mcp_servers.never4ga`, with the agent named as `--actor` and the three
+  tracker-writing tools excluded under ADR 0020). `never4ga adapters mcp`
+  is not used for them: it registers with coding clients it detects, and
+  none is installed here.
 - **No `repair --apply`.** As above. It is not a default that can be
   overridden in `host_vars`; the role simply never calls it.
 

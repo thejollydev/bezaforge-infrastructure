@@ -102,6 +102,10 @@ never4ga_verify_repo: /home/joseph/Projects/brizza
 # each agent reads the vault as the user that owns it.
 hermes_user: joseph
 
+# The vault each agent reaches through Never4gA's MCP server: the copy
+# roles/never4ga serves, not a second one.
+hermes_never4ga_vault_path: "{{ never4ga_vault_path }}"
+
 # Joseph's Discord user ID — who every agent takes orders from.
 #
 # Held in the encrypted vault.yml, not here: this repository is public, and
