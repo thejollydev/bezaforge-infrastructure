@@ -105,14 +105,30 @@
 # not see, and it fires exactly when the role is doing something real —
 # an image bump, a first deploy, a DR rebuild.
 #
-# 404 vs 401 is the whole diagnosis and worth keeping: an unregistered
-# route answers 404, a registered one answers 401 without credentials.
-# Requiring 200 here means this also fails loudly, after a bounded wait,
+# The wait MUST carry credentials. Auth runs before routing, so without
+# them every /control/ path answers 401 — including one that does not
+# exist (probed 2026-09-25) — and an unauthenticated 401 proves nothing.
+# Only an authenticated request can tell 404 (not registered yet) from
+# 200. Requiring 200 here means this also fails loudly, after a bounded wait,
 # if the credentials in vault no longer match the ones AdGuard holds —
 # which is the other way these tasks can go wrong on a fresh rebuild.
-- name: Wait for the AdGuard control API to be ready
+#
+# ⚠️ WAIT ON A FILTERING ROUTE, NOT /control/status (#1245, 2026-09-22).
+# The first version of this waited on /control/status and the race came
+# back anyway: the wait passed, and the rewrite read two seconds later got
+# 404. The /control/ routes are not registered at once. In v0.107.79,
+# run() starts the web server with /control/status already on it, while
+# startDNSServer() runs in a goroutine that compiles the blocklists, starts
+# DNS, and only then calls filters.Start() — which is what registers
+# /control/rewrite/* and /control/filtering/*. So /control/status answers
+# 200 while every route this role uses is still 404, for as long as the
+# blocklists take to compile.
+#
+# /control/filtering/status is registered in that same synchronous call,
+# after all of rewrite/*, so a 200 from it means every route below exists.
+- name: Wait for AdGuard's filtering API to be ready
   ansible.builtin.uri:
-    url: "{{ adguard_api_url }}/control/status"
+    url: "{{ adguard_api_url }}/control/filtering/status"
     method: GET
     user: "{{ vault_adguard_admin_user }}"
     password: "{{ vault_adguard_admin_password }}"
@@ -123,10 +139,24 @@
   retries: 30
   delay: 2
   changed_when: false
+  # Judged by the assert below, which can say what went wrong — no_log
+  # reduces a failure here to a bare "censored" with no URL and no status.
+  failed_when: false
   # Same reasoning as the reads below: uri has no check-mode support, so
   # without this a dry run skips it and every later fact is undefined.
   check_mode: false
   no_log: true          # the request carries the admin password
+  when: adguard_rewrites_manage | bool or adguard_blocklists_manage | bool
+
+- name: Confirm AdGuard's filtering API answered
+  ansible.builtin.assert:
+    that: adguard_api_ready.status | default(-1) == 200
+    fail_msg: >-
+      {{ adguard_api_url }}/control/filtering/status still answered
+      {{ adguard_api_ready.status | default('nothing') }} after 60s.
+      404 means AdGuard has not registered its filtering routes yet;
+      401 means vault_adguard_admin_user/password do not match AdGuard's.
+    quiet: true
   when: adguard_rewrites_manage | bool or adguard_blocklists_manage | bool
 
 # ------------------------------------------------------------
