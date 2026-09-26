@@ -68,6 +68,21 @@
     mode: "0644"
   loop: "{{ compose_services | intersect(['netbox', 'langfuse', 'homepage', 'open-webui']) }}"
 
+# NetBox v2 API tokens are hashed with this pepper, and NetBox refuses one
+# shorter than 50 characters. Checked here so a missing or short value fails
+# the deploy by name, instead of every token save failing in the web UI.
+- name: Check NetBox's API token pepper
+  ansible.builtin.assert:
+    that:
+      - netbox_api_token_pepper is defined
+      - netbox_api_token_pepper | length >= 50
+    fail_msg: >-
+      netbox_api_token_pepper must be set in host_vars/forge-ops/vault.yml
+      and be at least 50 characters. Changing it invalidates every v2 token.
+    quiet: true
+  no_log: true
+  when: "'netbox' in compose_services"
+
 - name: Deploy env-var service .env files
   ansible.builtin.template:
     src: "{{ item }}-env.j2"
