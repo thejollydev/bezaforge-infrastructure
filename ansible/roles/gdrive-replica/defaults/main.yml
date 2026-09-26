@@ -33,12 +33,23 @@
 # lesson: install-only-when-missing roles rot silently).
 gdrive_replica_rclone_version: "1.74.3"
 
-# Run as the uid-1000 dataset owner, matching the bezapool/gdrive
-# 1000:1000 chown. The user is named vaultsync because the retired
-# vault-sync role created it; this role has created it since that role
-# was retired (2026-09-13). Renaming it would mean re-chowning the dataset.
+# The service account that owns bezapool/gdrive and bezapool/vault and
+# runs this replica and the hypervisor's Syncthing. It is named vaultsync
+# because the retired vault-sync role created it; this role has created it
+# since that role was retired (2026-09-13).
+#
+# ⚠️ UID 900, NOT 1000 (#965). It used to be 1000 — the first human uid,
+# which is joseph on every forge-* VM. The bezapool exports are sec=sys,
+# which trusts the client's NUMERIC uid, so joseph on an NFS client WAS
+# vaultsync on the hypervisor: an unprivileged `touch` in bezapool/gdrive
+# from forge-ops succeeded. 900 sits in the system range, below where
+# Debian allocates system accounts downward from 999 (989 was taken by
+# 2026-09), so no human and no packaged account will land on it.
+# Changing it on a live host is not something this role can do by itself —
+# usermod refuses while the user has processes — see
+# docs/runbooks/vaultsync-uid-migration.md.
 gdrive_replica_user: vaultsync
-gdrive_replica_user_uid: 1000
+gdrive_replica_user_uid: 900
 
 # rclone remote name (inside the templated rclone.conf) + dest.
 gdrive_replica_remote: gdrive
