@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# {{ ansible_managed }} — roles/dns-client/templates/dns-primary-check.sh.j2 (#638)
+# {{ ansible_managed }} — roles/dns-client/templates/dns-primary-check.sh.j2 (#638, #663)
 #
 # Exports whether this host is currently resolving through the PRIMARY DNS
-# server (AdGuard) or has silently fallen through to the secondary.
+# server (AdGuard) or has silently fallen through to the secondary — and,
+# since #663, moves it back to the primary once the primary answers again.
 #
 # WHY THIS EXISTS
 # ---------------
@@ -19,16 +20,29 @@
 #     gone while every dashboard still looks green.
 #
 # It also triggers on routine work: ANY deploy that restarts the adguard
-# container does this. It had already happened before the test that found
-# it, which is precisely the problem — nothing said so.
+# container does this. It did again on 2026-09-26 (#1245's verification
+# recreate parked forge-ops, forge-agents and the workstation), and each
+# time a human had to restart resolved by hand.
 #
-# The failover itself is correct and proven. This metric exists so the
-# LINGERING state is detected instead of discovered months later.
+# FAILBACK (#663)
+# ---------------
+# When resolved is on some other server AND the primary answers a direct
+# probe, restart systemd-resolved — the same remediation the runbooks gave
+# a human, ~1s of DNS interruption. resolved has no "prefer the first
+# server again" knob; a restart is the only thing that resets its choice.
 #
-# Remediation when this alerts (safe, ~1s of DNS interruption):
-#     ansible forge-ops,forge-ai,forge-erp -i inventory/hosts.yml \
-#       -m systemd -a "name=systemd-resolved state=restarted" \
-#       --become --ask-become-pass --ask-vault-pass
+# Two guards keep this from doing harm:
+#   * The primary must answer a DIRECT query (dig @primary), not a query
+#     through resolved. If AdGuard is still down, nothing is restarted and
+#     the host stays on the secondary, which is exactly where it should be.
+#   * At most one failback per {{ dns_client_failback_backoff }}s. If a restart does not bring
+#     resolved back to the primary, the next runs leave it alone, the
+#     metric stays 0 and "DNS Not Using Primary" fires after its window —
+#     a failback that does not work is reported, never retried forever.
+#
+# Every failback is recorded in bezaforge_dns_failback_total and
+# bezaforge_dns_failback_last_timestamp_seconds, so a routine bounce that
+# healed itself is still visible after the fact.
 
 set -uo pipefail
 
@@ -36,19 +50,49 @@ PRIMARY="{{ dns_client_servers[0] }}"
 PROBE="{{ dns_client_monitor_probe_name }}"
 OUT="{{ dns_client_monitor_metric_file }}"
 TMP="${OUT}.$$"
+FAILBACK="{{ 'true' if dns_client_failback | bool else 'false' }}"
+BACKOFF="{{ dns_client_failback_backoff }}"
+# StateDirectory= in the unit creates this; the counter must survive
+# reboots or the _total series would reset and read as "never".
+STATE="${STATE_DIRECTORY:-/var/lib/bezaforge-dns-check}/failback"
 
 # resolved reports no "Current DNS Server" until it has actually resolved
 # something — immediately after a restart the field is simply absent. Issue
 # one query first so a freshly-restarted, perfectly healthy host does not
 # read as "not on primary" and fire a false alert.
-resolvectl query --cache=no "${PROBE}" >/dev/null 2>&1 || true
+current_server() {
+    resolvectl query --cache=no "${PROBE}" >/dev/null 2>&1 || true
+    # ⚠️ `grep -m1` takes the FIRST "Current DNS Server" line, which differs
+    # by host and is correct in both cases: on forge-ops (method=resolved)
+    # the Global scope is listed first and carries the server list; on the
+    # netplan hosts the Global scope has no servers, so the first match is
+    # the link scope. Either way this is the server actually answering.
+    resolvectl status 2>/dev/null | grep -m1 'Current DNS Server' | awk '{print $4}'
+}
 
-# ⚠️ `grep -m1` takes the FIRST "Current DNS Server" line, which differs by
-# host and is correct in both cases: on forge-ops (method=resolved) the
-# Global scope is listed first and carries the server list; on the netplan
-# hosts the Global scope has no servers, so the first match is the link
-# scope. Either way this is the server actually answering.
-cur="$(resolvectl status 2>/dev/null | grep -m1 'Current DNS Server' | awk '{print $4}')"
+count=0
+last=0
+if [ -r "${STATE}" ]; then
+    read -r count last < "${STATE}" || true
+fi
+count="${count:-0}"
+last="${last:-0}"
+
+cur="$(current_server)"
+
+if [ "${FAILBACK}" = "true" ] && [ -n "${cur}" ] && [ "${cur}" != "${PRIMARY}" ]; then
+    now="$(date +%s)"
+    if [ $(( now - last )) -ge "${BACKOFF}" ] \
+       && [ -n "$(dig +short +time=2 +tries=1 @"${PRIMARY}" "${PROBE}" 2>/dev/null)" ]; then
+        echo "on ${cur}, primary ${PRIMARY} answers: restarting systemd-resolved to fail back"
+        systemctl restart systemd-resolved
+        count=$(( count + 1 ))
+        last="${now}"
+        printf '%s %s\n' "${count}" "${last}" > "${STATE}"
+        cur="$(current_server)"
+        echo "after failback: ${cur:-no current server}"
+    fi
+fi
 
 if [ "${cur}" = "${PRIMARY}" ]; then
     value=1
@@ -66,6 +110,12 @@ cat > "${TMP}" <<EOF
 # HELP bezaforge_dns_primary_in_use 1 if systemd-resolved is using the primary DNS server (AdGuard), 0 if it has fallen through to the secondary or has none.
 # TYPE bezaforge_dns_primary_in_use gauge
 bezaforge_dns_primary_in_use ${value}
+# HELP bezaforge_dns_failback_total Times this host was moved back to the primary DNS server by restarting systemd-resolved.
+# TYPE bezaforge_dns_failback_total counter
+bezaforge_dns_failback_total ${count}
+# HELP bezaforge_dns_failback_last_timestamp_seconds Unix time of the last failback to the primary DNS server, 0 if never.
+# TYPE bezaforge_dns_failback_last_timestamp_seconds gauge
+bezaforge_dns_failback_last_timestamp_seconds ${last}
 EOF
 chmod 0644 "${TMP}"
 mv -f "${TMP}" "${OUT}"

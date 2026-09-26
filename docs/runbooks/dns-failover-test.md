@@ -296,21 +296,25 @@ Failover times are the deliverable. Fill this in and paste it into #638:
 
 **The two numbers that matter.** A *stopped container* refuses immediately → failover in **under 100 ms**, which is the case you actually hit on every `--tags adguard` deploy. A *dead or unreachable host* has to time out → **~10.2 s** on the first query, then normal. Both are recoveries, not outages.
 
-⚠️ **Phase B leaves every host on the secondary and they do not fail back.** The same is true after *any* AdGuard bounce — a `--tags adguard` deploy, a forge-ops reboot, an `update.yml` pass. The "DNS Not Using Primary" Grafana alert catches the fleet; remediate with:
+⚠️ **Phase B leaves every host on the secondary; resolved does not fail back on its own.** The same is true after *any* AdGuard bounce — a `--tags adguard` deploy, a forge-ops reboot, an `update.yml` pass.
+
+**Since #663 the hosts fail themselves back.** The primary-DNS check that runs every 2 minutes (`roles/dns-client` on the fleet, `roles/networking` in `ansible-arch` on the workstation) restarts `systemd-resolved` when the host is off the primary *and* the primary answers a direct `dig`. So within about two minutes of AdGuard coming back, every host is on `10.10.20.20` again with nothing to run. Each failback is counted in `bezaforge_dns_failback_total`, so a bounce that healed itself still leaves a trace. The workstation is scraped by Prometheus (the `node-exporter-workstation` job) whenever it is on home WiFi, so "DNS Not Using Primary" covers it too.
+
+A failback is tried at most once per 30 minutes per host. If a restart does not land the host on the primary, the check leaves it alone and "DNS Not Using Primary" fires after its 30-minute window. That is the case to act on by hand:
 
 ```bash
 cd ~/Projects/bezaforge-infrastructure/ansible
-ansible forge-ops,forge-ai,forge-erp -i inventory/hosts.yml \
+ansible forge-ops,forge-ai,forge-erp,forge-agents -i inventory/hosts.yml \
   -m systemd -a "name=systemd-resolved state=restarted" \
   --become --ask-become-pass --ask-vault-pass
 ```
 
-⚠️ **The workstation needs a second, manual step — and nothing will remind you.** It carries the same resolver pair (`ansible-arch` `roles/networking`) and parks on the secondary identically, but it is **not in this inventory**, so the command above skips it; and it does **not** run `roles/dns-client`, so it emits no `bezaforge_dns_primary_in_use` textfile metric and the alert is blind to it. On the workstation:
+On the workstation:
 
 ```bash
 sudo systemctl restart systemd-resolved
 ```
 
-Confirm both with `resolvectl status | grep 'Current DNS Server'` — expect `10.10.20.20`. Caught for real on the 2026-08-09 fleet update: all four fleet hosts came back on the primary and the workstation sat on `10.10.10.10` unnoticed, because the only remediation written down was the four-host one.
+Confirm with `resolvectl status | grep 'Current DNS Server'` — expect `10.10.20.20`. Before #663 the workstation was the machine this happened to most and the one nothing could see: it parked three times in the 2026-08-09/10 session and again on 2026-09-26, and a human caught it every time.
 
 **Then close the loop:** whatever the result, #638's "done when" requires that no doc or comment claims protection that is not there. If failover did **not** work on some host, that outcome gets written down as an accepted, documented dependency — a known gap is a pass for this ticket; an *unknown* one is not.
