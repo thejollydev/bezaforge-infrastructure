@@ -113,3 +113,19 @@ dns_client_monitor_metric_file: /var/lib/prometheus/node-exporter/bezaforge_dns.
 dns_client_monitor_probe_name: "{{ dns_client_search_domains[0] }}"
 
 dns_client_monitor_interval: 2min
+
+# ------------------------------------------------------------
+# Failback to the primary (#663)
+# ------------------------------------------------------------
+# Detection alone meant a human restarting resolved after every AdGuard
+# bounce, fleet-wide, by hand. With this on, the check restarts
+# systemd-resolved when the host is off the primary AND the primary answers
+# a direct probe — the same remediation, done within one timer interval.
+# See templates/dns-primary-check.sh.j2 for the guards.
+dns_client_failback: true
+
+# Seconds between failback attempts. A restart that does not land the host
+# on the primary is not repeated inside this window, so a failback that
+# does not work shows up as "DNS Not Using Primary" (for: 30m) instead of
+# as resolved being restarted every two minutes forever.
+dns_client_failback_backoff: 1800

@@ -84,6 +84,15 @@
   when: dns_client_monitor | bool
   block:
 
+    - name: Ensure dig is installed for the failback probe
+      ansible.builtin.package:
+        name: bind9-dnsutils
+        state: present
+      # The failback (#663) must ask the primary DIRECTLY, bypassing
+      # resolved, to know whether it is back. Already present on every
+      # host today; declared so a fresh one does not skip failback with
+      # "dig: command not found".
+
     - name: Ensure the node_exporter textfile directory exists
       ansible.builtin.file:
         path: "{{ dns_client_monitor_metric_file | dirname }}"
