@@ -348,6 +348,17 @@
   loop: "{{ nfs_mounts }}"
   when: nfs_client | bool
 
+# A mount dropped from nfs_mounts would otherwise stay in fstab and stay
+# mounted — the mount module only acts on what it is given. Retiring one
+# used to be a hand step (#485); nfs_mounts_retired makes it part of the
+# run (#965).
+- name: Unmount retired NFS shares and remove them from fstab
+  ansible.posix.mount:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ nfs_mounts_retired | default([]) }}"
+  when: nfs_client | bool
+
 # "Create media directory structure" task REMOVED 2026-07-18 (#485): it created
 # movies/tv/music/... under /mnt/bezapool/media for Jellyfin. The media stack
 # was retired and the bezapool/media dataset destroyed, so media_dirs and this
