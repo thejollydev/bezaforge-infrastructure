@@ -349,13 +349,18 @@ dig +short git.bezaforge.dev @10.10.20.20
 df -h / /var/lib/docker
 ```
 
-`/` should have dropped by about the `du` figure above. Give Prometheus a
+`/` will **not** have dropped yet: the rename stays on the same filesystem and
+frees nothing (on 2026-09-25 it read 37 % before and after, with 46 G renamed).
+It drops by about the `du` figure only at the `rm` below. Give Prometheus a
 scrape interval and confirm the exporter still reports real filesystems — `/`
 at ~158 GB, not ~317 GB:
 
+Prometheus publishes no port on the host and `prometheus` resolves only on
+the Docker network, so ask from inside its container (`jq` runs on the host):
+
 ```bash
-curl -sG http://prometheus:9090/api/v1/query \
-  --data-urlencode 'query=node_filesystem_size_bytes{instance="forge-ops",fstype=~"ext4|xfs"}' \
+docker exec prometheus wget -qO- \
+  'http://localhost:9090/api/v1/query?query=node_filesystem_size_bytes%7Binstance%3D%22forge-ops%22%2Cfstype%3D~%22ext4%7Cxfs%22%7D' \
   | jq -r '.data.result[] | "\(.metric.mountpoint)\t\(.metric.device)\t\(.value[1])"'
 ```
 
@@ -364,6 +369,8 @@ Only then, and not the same day:
 ```bash
 sudo rm -rf /var/lib/containerd.old-982
 ```
+
+Then `df -h /` should have dropped by about the `du` figure.
 
 ---
 
