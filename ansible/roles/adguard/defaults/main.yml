@@ -141,3 +141,15 @@ adguard_api_url: "http://{{ production_ip }}:3053"
 # Turn it on deliberately, once a run has shown you exactly what it would
 # remove:  --tags adguard -e adguard_rewrites_prune=true
 adguard_rewrites_prune: false
+
+# ------------------------------------------------------------
+# Rate limit (#663)
+# ------------------------------------------------------------
+# Per device, 100 queries/s. AdGuard's default, 20/s per /24, let a single
+# restarted resolver exhaust its whole VLAN's budget and fail over to
+# dnsmasq. See tasks/main.yml. /128 for IPv6 because every device on a LAN
+# shares the same /64.
+adguard_ratelimit_manage: true
+adguard_ratelimit: 100
+adguard_ratelimit_subnet_len_ipv4: 32
+adguard_ratelimit_subnet_len_ipv6: 128

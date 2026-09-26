@@ -24,6 +24,7 @@
 #             picture-frame incident: the enabled lists filtered zero of
 #             a botnet's 51k queries, and nothing in code said what
 #             should have been enabled.
+#   MANAGED   Rate limit — per device, through the control API (#663).
 #   UNMANAGED Upstream servers, admin credentials, client settings.
 #             AdGuard-only, no mirror, no parity risk — a DR-rebuild
 #             concern rather than a drift concern. Excluded from #649
@@ -146,7 +147,7 @@
   # without this a dry run skips it and every later fact is undefined.
   check_mode: false
   no_log: true          # the request carries the admin password
-  when: adguard_rewrites_manage | bool or adguard_blocklists_manage | bool
+  when: adguard_rewrites_manage | bool or adguard_blocklists_manage | bool or adguard_ratelimit_manage | bool
 
 - name: Confirm AdGuard's filtering API answered
   ansible.builtin.assert:
@@ -157,7 +158,60 @@
       404 means AdGuard has not registered its filtering routes yet;
       401 means vault_adguard_admin_user/password do not match AdGuard's.
     quiet: true
-  when: adguard_rewrites_manage | bool or adguard_blocklists_manage | bool
+  when: adguard_rewrites_manage | bool or adguard_blocklists_manage | bool or adguard_ratelimit_manage | bool
+
+# ------------------------------------------------------------
+# Rate limit: per device, not per subnet (#663)
+# ------------------------------------------------------------
+# AdGuard's default is 20 queries/s per /24, so a whole VLAN shares one
+# budget of 20. A resolver that has just restarted with an empty cache
+# bursts past that on its own. Measured 2026-09-26 from the laptop: 60
+# rapid queries, about 20 answered, the rest silently dropped. resolved
+# reads the drops as a dead server and fails over to dnsmasq, which is why
+# #663's failback restarted the laptop's resolver and it came straight
+# back up on the secondary.
+#
+# Per device (/32) at 100/s: a normal burst fits, and one misbehaving
+# device (the picture-frame botnet, #964) is still throttled on its own
+# instead of spending its whole VLAN's budget. Set through the API, which
+# applies it live, so this never restarts AdGuard.
+- name: Read AdGuard's live DNS settings
+  ansible.builtin.uri:
+    url: "{{ adguard_api_url }}/control/dns_info"
+    method: GET
+    user: "{{ vault_adguard_admin_user }}"
+    password: "{{ vault_adguard_admin_password }}"
+    force_basic_auth: true
+    return_content: true
+  register: adguard_dns_info
+  changed_when: false
+  check_mode: false     # a read; see "Read AdGuard's live rewrite table"
+  no_log: true          # the request carries the admin password
+  when: adguard_ratelimit_manage | bool
+
+- name: Set AdGuard's rate limit
+  ansible.builtin.uri:
+    url: "{{ adguard_api_url }}/control/dns_config"
+    method: POST
+    user: "{{ vault_adguard_admin_user }}"
+    password: "{{ vault_adguard_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body: "{{ adguard_ratelimit_desired }}"
+    status_code: [200]
+  vars:
+    adguard_ratelimit_desired:
+      ratelimit: "{{ adguard_ratelimit | int }}"
+      ratelimit_subnet_len_ipv4: "{{ adguard_ratelimit_subnet_len_ipv4 | int }}"
+      ratelimit_subnet_len_ipv6: "{{ adguard_ratelimit_subnet_len_ipv6 | int }}"
+  changed_when: true
+  no_log: true          # the request carries the admin password
+  when:
+    - adguard_ratelimit_manage | bool
+    - (adguard_dns_info.json.ratelimit, adguard_dns_info.json.ratelimit_subnet_len_ipv4,
+       adguard_dns_info.json.ratelimit_subnet_len_ipv6)
+      != (adguard_ratelimit | int, adguard_ratelimit_subnet_len_ipv4 | int,
+          adguard_ratelimit_subnet_len_ipv6 | int)
 
 # ------------------------------------------------------------
 # Query log retention enforcement
