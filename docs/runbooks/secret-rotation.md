@@ -58,7 +58,7 @@ The following secret variable names appear in templates under `ansible/roles/*/t
 | `netbox_db_password` | Internal DB | `host_vars/forge-ops/vault.yml` | NetBox Postgres | — (initial) |
 | `netbox_secret_key` | App framework | `host_vars/forge-ops/vault.yml` | NetBox Django `SECRET_KEY` | — (initial) |
 | `netbox_superuser_password` | Admin UI | `host_vars/forge-ops/vault.yml` | NetBox superuser login | — (initial) |
-| `netbox_api_token_peppers` | App framework | `host_vars/forge-ops/vault.yml` | NetBox API token pepper | — (initial) |
+| `netbox_api_token_pepper` | App framework | `host_vars/forge-ops/vault.yml` | NetBox API token pepper (`API_TOKEN_PEPPER_1`, ≥50 chars). Changing it invalidates every v2 token | 2026-09-26 (replaced a value exposed in the public compose file) |
 | `langfuse_db_password` | Internal DB | `host_vars/forge-ops/vault.yml` | Langfuse Postgres | — (initial) |
 | `langfuse_nextauth_secret` | App framework | `host_vars/forge-ops/vault.yml` | Langfuse `NEXTAUTH_SECRET` (session signing) | — (initial) |
 | `homepage_jellyfin_api_key` | Internal API | `host_vars/forge-ops/vault.yml` | Homepage widget → Jellyfin | Removed 2026-07-18 (media stack retired — #485) |

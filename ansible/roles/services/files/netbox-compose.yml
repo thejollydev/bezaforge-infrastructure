@@ -28,7 +28,12 @@ services:
       REDIS_CACHE_PORT: "6379"
       SECRET_KEY: ${NETBOX_SECRET_KEY}
       METRICS_ENABLED: "true"
-      API_TOKEN_PEPPERS: '["m5_NVEA8-DJ6OlIgELkxIFNZL_7uwr9Iop0mxvX_vzc"]'
+      # netbox-docker reads API_TOKEN_PEPPER_1, not API_TOKEN_PEPPERS. The
+      # old line set the wrong name to a literal committed in this public
+      # repo, so v2 tokens failed with "API_TOKEN_PEPPERS is not defined".
+      # That value is burned and must never come back; the pepper lives in
+      # vault as netbox_api_token_pepper.
+      API_TOKEN_PEPPER_1: ${NETBOX_API_TOKEN_PEPPER}
     volumes:
       - /opt/bezaforge/netbox/media:/opt/netbox/netbox/media
       - /opt/bezaforge/netbox/reports:/opt/netbox/netbox/reports
