@@ -19,6 +19,19 @@ locale: en_US.UTF-8
 nfs_client: false
 
 # ------------------------------------------------------------
+# systemd-hygiene
+# ------------------------------------------------------------
+# openipmi.service can never start here. The M920q has no BMC — its remote
+# management is Intel AMT, not IPMI — and there is no /dev/ipmi*, so the
+# init script fails on every boot. It arrived 2026-09-14 as a dependency of
+# ipmitool, which prometheus-node-exporter-collectors recommends, exactly as
+# install-forge-agents.md step 10 predicted; first caught by health.yml after
+# the 2026-09-25 reboot. Masked rather than removed for the reason
+# host_vars/forge-hypervisor/vars.yml gives: upgrades bring Recommends back.
+systemd_masked_units:
+  - openipmi.service
+
+# ------------------------------------------------------------
 # Resolver config (roles/dns-client, #638)
 # ------------------------------------------------------------
 # The netplan key is `eno2`, read from the host 2026-09-14 without sudo:
