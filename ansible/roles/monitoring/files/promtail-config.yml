@@ -33,3 +33,27 @@ scrape_configs:
         target_label: 'service'
       - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
         target_label: 'compose_project'
+
+  # Process crashes (#1282). Since #1236 every core dump on this host is piped
+  # to systemd-coredump, which writes one journal entry per crash carrying the
+  # crashing command and, for most crashes, a stack trace. Before this job
+  # nothing read the journal, so 11 OpenProject segfaults (#679) and 15G of
+  # dumps (#1236) were found by hand, weeks late.
+  #
+  # `matches` filters inside the journal reader, so only crash entries are
+  # shipped (fc2e22bc... is systemd's catalogued MESSAGE_ID for "process
+  # dumped core"), not the whole journal. The "Coredump on forge-ops" alert
+  # counts this stream. It needs /etc/machine-id mounted from the host (see
+  # loki-compose.yml): the container's own is empty, and the reader uses it
+  # to find this host's journal directory.
+  - job_name: coredump
+    journal:
+      path: /var/log/journal
+      matches: MESSAGE_ID=fc2e22bc6ee647b6b90729ab34a250b1
+      max_age: 12h
+      labels:
+        job: coredump
+        host: forge-ops
+    relabel_configs:
+      - source_labels: ['__journal_coredump_comm']
+        target_label: 'comm'

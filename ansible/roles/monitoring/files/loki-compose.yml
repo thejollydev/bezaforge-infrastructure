@@ -44,6 +44,10 @@ services:
       # reject_old_samples_max_age) while rate-limiting the current ones (429).
       - /opt/bezaforge/loki/promtail-positions:/var/lib/promtail
       - /var/log:/var/log:ro
+      # The journal reader finds this host's journal under
+      # /var/log/journal/<machine-id>; the container's own machine-id is
+      # empty, so without this the coredump job (#1282) reads nothing.
+      - /etc/machine-id:/etc/machine-id:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     command: -config.file=/etc/promtail/config.yml

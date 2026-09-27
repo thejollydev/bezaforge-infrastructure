@@ -727,3 +727,72 @@ groups:
           isPaused: false
           notification_settings:
             receiver: Discord
+        # ============================================================
+        # Coredump on forge-ops (#1282)
+        # ============================================================
+        # The first rule on Loki rather than Prometheus. Every process crash on
+        # forge-ops, in a container or not, is piped to systemd-coredump
+        # (#1236), and promtail's coredump job ships each crash's journal entry
+        # with the crashing command as the `comm` label. Before this, 11
+        # OpenProject segfaults (#679) went unseen for weeks, found by hand.
+        #
+        # for: 0s and a 10m window: one crash fires at once, then resolves on
+        # its own ten minutes later. A crash loop keeps it firing, which is
+        # the case worth being woken for.
+        #
+        # ⚠️ noDataState: OK is the OPPOSITE of the DNS, drift and scrub rules,
+        # and deliberately. No crashes produces no log lines, so no data is
+        # the healthy state here. The cost: if promtail's journal job breaks,
+        # this rule goes silent rather than firing. Service Not Answering and
+        # Container Restarting still catch the outage a crash causes; this
+        # rule adds the WHY, and is not the only line of defence.
+        - uid: bfg9coredump001
+          title: Coredump on forge-ops
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: dfdxeounu8jr4c
+              model:
+                editorMode: code
+                expr: sum by (comm) (count_over_time({job="coredump", host="forge-ops"}[10m]))
+                queryType: instant
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          noDataState: OK
+          execErrState: OK
+          for: 0s
+          annotations:
+            summary: '{{ $labels.comm }} crashed and dumped core on forge-ops ({{ $values.A }} in the last 10m)'
+            description: 'A process on forge-ops died on a fatal signal (usually SIGSEGV or SIGABRT) and systemd-coredump caught it. Before #1236 such dumps were written silently into the crashing container''s writable layer; #679 (OpenProject, Ruby segfaults) is the reason this exists. See which process and why: ssh forge-ops coredumpctl list, then coredumpctl info <PID> for the signal, the executable and a stack trace. In Grafana Explore on Loki: {job="coredump"}. Dumps are kept under /var/lib/systemd/coredump for 2 weeks, capped at 2G each and 5G total (roles/coredump). If comm is ruby or puma, add the time to #679.'
+          isPaused: false
+          notification_settings:
+            receiver: Discord
