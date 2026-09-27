@@ -48,7 +48,7 @@
 | CPU | Intel i5-8500T |
 | RAM | 16GB DDR4 |
 | OS | Windows 11 |
-| Role | Occasional desktop; wired into the rack 2026-08-07 |
+| Role | Occasional desktop on Joseph's desk — not racked; cabled to the gateway through the rack's patch panel. First wired 2026-08-07, re-wired 2026-09-27 after an office reorg |
 
 ## Networking Equipment
 
