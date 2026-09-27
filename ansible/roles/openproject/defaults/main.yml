@@ -21,9 +21,14 @@
 # The logical dump is the authoritative restore path.
 # ============================================================
 
-# Upstream release pin (all-in-one image tag). Verified current
-# stable 2026-07-12 (released 2026-07-08). Renovate tracks this.
-openproject_release: "17.6.0"
+# Upstream release pin (all-in-one image tag). Renovate tracks this.
+# 17.8.0 (released 2026-09-02) is the first tag on Ruby 4.0.6; 17.6.0 and
+# 17.7.x ship 4.0.2, which kept segfaulting with YJIT off (#679).
+# 17.8 adds an opt-in, ONE-WAY conversion of "Version" to multi-value
+# "Target versions" (Administration > Work packages > Versions and
+# categories). It replaces the API's `version` property with
+# `targetVersions`, so leave it off until every API client reads the new field.
+openproject_release: "17.8.0"
 
 # Public URL — Traefik routes pm.bezaforge.dev → this container on
 # bezaforge-net. AdGuard rewrites the host to 10.10.20.20. The
