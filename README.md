@@ -100,6 +100,7 @@ Ansible automates all post-provisioning configuration for forge-ops. A single co
 | `openproject` | OpenProject Community PM (`pm.bezaforge.dev`) — all-in-one image (bundled Postgres/memcached/web/Rails workers) behind Traefik; the live work tracker (replaced Plane 2026-07, FORGE #455) |
 | `ollama` | GPU LLM inference on forge-ai (version-pinned install, env-file, UFW rules to VLANs 50/20/30, model seed list, custom Modelfile builds) |
 | `fail2ban` | SSH brute-force protection (forge-ops, forge-ai, forge-agents) |
+| `coredump` | Crash dumps piped to `systemd-coredump` on the host, capped at 2G each and 5G total, instead of written into the crashing container's layer (forge-ops, #1236). `coredumpctl list` shows every crash |
 | `node-exporter` | The distro `prometheus-node-exporter` with the systemd collector, on forge-agents. forge-ai and forge-erp run the same package, installed by hand |
 | `syncthing` | Knowledge vault files synced two-way by Syncthing between the laptop, `bezapool/vault` on the hypervisor and forge-agents (ADR 0012; `.git`, `.obsidian`, `.trash` excluded; the laptop is the only git actor), plus a sync check that pushes "in sync" and "conflict copies" monitors to Uptime Kuma. Replaced the `vault-sync` git clone, retired 2026-09-13. Runbook: `docs/runbooks/vault-syncthing.md` |
 | `gdrive-replica` | One-way nightly rclone mirror of Google Drive → `bezapool/gdrive` on the hypervisor (drive.readonly scope; replaces retired Insync — FORGE-35) |
@@ -277,6 +278,7 @@ bezaforge-infrastructure/
 │   └── roles/
 │       ├── common/                    # Base setup, SSH, UFW, NFS, sysctl, LLMNR off
 │       ├── fail2ban/                  # SSH brute-force protection
+│       ├── coredump/                  # Crash dumps to systemd-coredump, capped
 │       ├── node-exporter/             # Distro node_exporter (forge-agents)
 │       ├── docker/                    # Docker CE, directory tree, bezaforge-net
 │       ├── traefik/                   # Reverse proxy + TLS + middleware

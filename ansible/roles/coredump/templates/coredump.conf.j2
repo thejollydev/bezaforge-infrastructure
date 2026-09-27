@@ -1,0 +1,9 @@
+# Managed by Ansible — roles/coredump/templates/coredump.conf.j2
+# Caps for systemd-coredump on a Docker host (#1236). See the coredump role.
+[Coredump]
+Storage=external
+Compress=yes
+ProcessSizeMax={{ coredump_process_size_max }}
+ExternalSizeMax={{ coredump_external_size_max }}
+MaxUse={{ coredump_max_use }}
+KeepFree={{ coredump_keep_free }}

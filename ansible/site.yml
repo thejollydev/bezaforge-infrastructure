@@ -96,6 +96,11 @@
       tags: common
     - role: fail2ban
       tags: fail2ban
+    # Crash dumps to systemd-coredump on the host (#1236), before `docker`
+    # so no container starts under the relative pattern that wrote dumps
+    # into container layers.
+    - role: coredump
+      tags: coredump
     - role: docker
       tags: docker
     # Source-restricts Docker-PUBLISHED ports (#963). Immediately after

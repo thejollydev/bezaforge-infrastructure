@@ -1,0 +1,69 @@
+---
+# ============================================================
+# coredump — crash dumps go to systemd-coredump on the host
+# ============================================================
+# Debian ships /usr/lib/sysctl.d/10-coredump-debian.conf with
+# kernel.core_pattern=core: a RELATIVE pattern, so a crashing process writes
+# a full dump into its own working directory. Inside a container that is the
+# container's writable layer, and containers run with ulimit -c unlimited.
+# #1236 was the result: an OpenProject Ruby segfault on 2026-09-06 (#679) left
+# hundreds of dumps in /app and /opt/hocuspocus, 15G in one overlayfs
+# snapshot, and nothing on the host recorded that anything had crashed. It
+# was found two weeks later by accident, and blamed on the wrong service.
+#
+# systemd-coredump replaces the pattern with a pipe to itself. The kernel runs
+# the pipe helper in the HOST's namespaces, so a dump from any container lands
+# in /var/lib/systemd/coredump under the caps in defaults/main.yml, and every
+# crash gets a journal entry naming the executable (`coredumpctl list`).
+# Evidence is kept, bounded and visible, instead of hidden in a layer.
+
+- name: Install systemd-coredump
+  ansible.builtin.apt:
+    name: systemd-coredump
+    state: present
+  register: coredump_package
+
+- name: Create the coredump.conf drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/coredump.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# Read by systemd-coredump on every invocation, so no service to restart.
+- name: Cap dump size and total store
+  ansible.builtin.template:
+    src: coredump.conf.j2
+    dest: /etc/systemd/coredump.conf.d/60-bezaforge.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+# The package ships /usr/lib/sysctl.d/50-coredump.conf, which sorts after
+# Debian's 10-coredump-debian.conf and so wins at boot. Apply it now as well
+# rather than trusting the package's postinst to have done it, since a
+# running host would otherwise keep writing into container layers until the
+# next reboot.
+- name: Apply systemd-coredump's core_pattern now  # noqa: no-handler
+  ansible.builtin.command:
+    cmd: /usr/lib/systemd/systemd-sysctl /usr/lib/sysctl.d/50-coredump.conf
+  when: coredump_package.changed
+  changed_when: true
+
+- name: Read the live core_pattern
+  ansible.builtin.slurp:
+    src: /proc/sys/kernel/core_pattern
+  register: coredump_live_pattern
+
+# Loud, not silent. If the pipe is not in place the role has done nothing
+# useful, and a green run would say otherwise.
+- name: Assert dumps are piped to systemd-coredump
+  ansible.builtin.assert:
+    that:
+      - "(coredump_live_pattern.content | b64decode).startswith('|') and 'systemd-coredump' in (coredump_live_pattern.content | b64decode)"
+    fail_msg: >-
+      kernel.core_pattern is '{{ coredump_live_pattern.content | b64decode | trim }}',
+      not a pipe to systemd-coredump. Look for a later sysctl.d file
+      overriding /usr/lib/sysctl.d/50-coredump.conf.
+    quiet: true
