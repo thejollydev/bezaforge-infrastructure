@@ -1,0 +1,30 @@
+---
+# ============================================================
+# pve-notifications — Proxmox error events go to Discord
+# ============================================================
+# The full Discord webhook URL (https://discord.com/api/webhooks/<id>/<token>).
+# Set in host_vars; the role refuses to run without it.
+pve_notifications_discord_webhook_url: ""
+
+# Names of the webhook target and the matcher that routes to it.
+pve_notifications_target: discord
+pve_notifications_matcher: discord-errors
+
+# Severities the matcher sends to Discord. A failed vzdump job is `error`;
+# a successful one is `info`. The built-in default-matcher still sends
+# everything to mail-to-root, which is left alone.
+pve_notifications_severities:
+  - error
+
+# Proxmox renders these with Handlebars, not Jinja, so they are !unsafe to
+# stop Ansible templating them. The token is a Proxmox secret, stored in
+# /etc/pve/priv/notifications.cfg, so the URL here carries only the
+# placeholder.
+pve_notifications_url: !unsafe "https://discord.com/api/webhooks/{{ secrets.token }}"
+# Title only. Discord rejects a message over 2000 characters, and a vzdump
+# failure's body is the per-guest table plus every guest's log, so sending
+# it would make the notification fail exactly when it matters. The title
+# names the host and the outcome; the details are in the task log.
+pve_notifications_body: !unsafe >-
+  {"content": "**Proxmox {{ severity }}:** {{ escape title }}\nDetails in the
+  Proxmox task log (Datacenter → Tasks)."}
