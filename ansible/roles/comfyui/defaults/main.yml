@@ -132,8 +132,18 @@ comfyui_extra_args:
 #
 # ⚠️ The cost: rocprof / roctracer cannot attach to ComfyUI while this is
 # set. Nothing here profiles it — unset it for that session if that changes.
+#
+# GLIBC_TUNABLES fixes glibc's mmap threshold at 1 MiB (#1289). By default
+# glibc raises the threshold to the size of each mmapped block it frees, up
+# to 32 MiB. After that, weight-sized tensors come from the heap, and freeing
+# them does not give the RAM back while small objects remain above them. On
+# forge-ai a Qwen edit left ComfyUI holding 11-14 GB of anon RAM that /free
+# did not release, and a later --jobs set of Z-Image images passed MemoryMax
+# on that (OOM kills 2026-09-27 13:58 and 14:58). A 2 GB test of 1-30 MiB
+# blocks kept all 2 GB after free with the default, and 4 MB with this setting.
 comfyui_extra_env:
   HSA_TOOLS_DISABLE_REGISTER: "1"
+  GLIBC_TUNABLES: glibc.malloc.mmap_threshold=1048576
 
 # Memory cap for the service (systemd MemoryMax, MemorySwapMax). On 2026-09-13
 # a Qwen-Image set's /free moved its 14.4 GB diffusion model into RAM beside the
