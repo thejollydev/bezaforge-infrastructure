@@ -7,6 +7,8 @@ After=network-online.target
 [Service]
 Type=oneshot
 User={{ gdrive_replica_user }}
+# /run/gdrive-replica, owned by the user above, holds the script's lock.
+RuntimeDirectory=gdrive-replica
 ExecStart=/usr/local/bin/gdrive-replica.sh
 # Archive-tier job — stay out of the way of VM IO.
 Nice=10

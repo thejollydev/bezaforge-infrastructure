@@ -9,7 +9,14 @@
 # never deleted by it.
 set -euo pipefail
 
-exec 9>/tmp/gdrive-replica.lock
+# The lock lives in the unit's RuntimeDirectory, which systemd creates
+# owned by the service user on every start and removes on stop. It
+# used to be /tmp/gdrive-replica.lock, where a file left by one uid
+# blocks every other: after #965 renumbered vaultsync, the stale lock
+# from the last uid-1000 run failed every run as uid 900 (#1286).
+# Start it with `systemctl start gdrive-replica.service`, not by
+# running this script directly.
+exec 9>"${RUNTIME_DIRECTORY:?run via systemctl start gdrive-replica.service}/lock"
 if ! flock -n 9; then
   # A prior run still holds the lock. Log it — a wedged run must
   # be visible in journald, and we deliberately DON'T heartbeat,

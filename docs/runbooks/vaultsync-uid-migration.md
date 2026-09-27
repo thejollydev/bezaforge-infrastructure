@@ -47,6 +47,8 @@ Expect `uid=900(vaultsync) gid=900(vaultsync)`, `left at 1000: 0`, and no `/beza
 
 ZFS snapshots are read-only and keep the old numbers. A file restored from a snapshot taken before this date comes back owned by 1000, so re-chown it to vaultsync after restoring.
 
+⚠️ This step missed `/tmp/gdrive-replica.lock`, which the last uid-1000 run had left behind. `/tmp` is sticky and `fs.protected_regular=2`, so uid 900 could not open it, and the next nightly run failed on its first line (2026-09-27, #1286). The lock now lives in the unit's `RuntimeDirectory`, and the role removes the old file. Step 5's timer check could not catch it, because the service does not run until 03:30.
+
 ## 4. Hypervisor: converge and restart through the roles
 
 ```bash
