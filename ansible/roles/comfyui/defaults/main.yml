@@ -17,10 +17,9 @@ comfyui_app_dir: "{{ comfyui_root }}/ComfyUI"
 comfyui_venv: "{{ comfyui_root }}/venv"
 comfyui_python_dir: "{{ comfyui_root }}/python"
 
-# ComfyUI moved to github.com/Comfy-Org. v0.35.0 is the latest PUBLISHED
-# release (2026-09-09); v0.35.1 exists only as a tag.
+# ComfyUI moved to github.com/Comfy-Org. v0.37.0 is the pinned release.
 comfyui_repo: https://github.com/Comfy-Org/ComfyUI.git
-comfyui_version: v0.35.0
+comfyui_version: v0.37.0
 
 # uv supplies the interpreter and the venv. Python 3.13, not the host's 3.14:
 # ComfyUI's README says "Python 3.13 is very well supported" and "Python 3.14
