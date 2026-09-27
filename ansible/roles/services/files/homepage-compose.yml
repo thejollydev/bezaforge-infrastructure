@@ -4,7 +4,7 @@ networks:
 
 services:
   homepage:
-    image: ghcr.io/gethomepage/homepage:v2@sha256:643bd0be730d40f69d58028a55d1a896739333e8815786df42bc97f109ecbe61
+    image: ghcr.io/gethomepage/homepage:v2.4.0@sha256:643bd0be730d40f69d58028a55d1a896739333e8815786df42bc97f109ecbe61
     container_name: homepage
     restart: unless-stopped
     environment:
