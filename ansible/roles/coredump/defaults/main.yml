@@ -1,0 +1,19 @@
+---
+# ============================================================
+# coredump — crash dumps go to systemd-coredump on the host
+# ============================================================
+# Caps for /etc/systemd/coredump.conf.d/60-bezaforge.conf. systemd's own
+# defaults (32G per dump, 10% of /var in total) are sized for a desktop
+# where a crash is rare and interesting; on a Docker host one crash-looping
+# container can produce hundreds of them (#1236 found hundreds from one
+# afternoon). The largest dump that incident left was 1.45G apparent, from
+# an OpenProject Puma worker whose RSS runs ~0.9G, so 2G keeps a whole dump
+# of anything this fleet runs today.
+coredump_process_size_max: 2G
+coredump_external_size_max: 2G
+# Total the store may hold, and the space it must always leave free on /var.
+# The oldest dumps are removed first when either limit is hit. systemd-tmpfiles
+# also ages them out after 2 weeks (/usr/lib/tmpfiles.d/systemd.conf), which
+# is left alone.
+coredump_max_use: 5G
+coredump_keep_free: 20G
