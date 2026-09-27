@@ -1,0 +1,104 @@
+---
+# ============================================================
+# pve-notifications — Proxmox error events go to Discord
+# ============================================================
+# #1285: the nightly vzdump job failed for 48 nights (2026-08-10 to 09-26)
+# and nobody knew. The job uses the notification system, but the host had no
+# notifications.cfg, so every failure went to the built-in mail-to-root
+# target, which nothing reads. This adds a webhook target posting to the
+# Discord channel the Grafana alerts use, and a matcher sending error events
+# to it.
+#
+# Driven through pvesh rather than by templating /etc/pve/notifications.cfg:
+# the webhook's headers and secrets are serialized property strings whose
+# file format Proxmox does not document, and pvesh writes both files
+# (the secret goes to /etc/pve/priv/notifications.cfg) consistently.
+#
+# pvesh never returns a secret, so the live target cannot be compared with
+# the desired one. Instead each object's comment carries a fingerprint of
+# its desired settings, secret included, and the role updates the object
+# when the fingerprint differs. A change made in the web UI that leaves the
+# comment alone is not detected.
+
+- name: Assert the Discord webhook URL is set
+  ansible.builtin.assert:
+    that:
+      - pve_notifications_discord_webhook_url is match('^https://(discord|discordapp)\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+$')
+    fail_msg: >-
+      pve_notifications_discord_webhook_url is empty or is not a Discord
+      webhook URL. Set it in host_vars.
+    quiet: true
+
+- name: Build the desired target and matcher settings
+  ansible.builtin.set_fact:
+    pve_notifications_token: "{{ pve_notifications_discord_webhook_url | regex_replace('^https://(discord|discordapp)\\.com/api/webhooks/', '') }}"
+    pve_notifications_target_state: >-
+      {{ ([pve_notifications_url, pve_notifications_body, pve_notifications_discord_webhook_url]
+          | join('|') | hash('sha256'))[:16] }}
+    pve_notifications_matcher_state: >-
+      {{ ([pve_notifications_target, pve_notifications_severities | join(',')]
+          | join('|') | hash('sha256'))[:16] }}
+  no_log: true
+
+- name: Read the existing webhook targets
+  ansible.builtin.command:
+    cmd: pvesh get /cluster/notifications/endpoints/webhook --output-format json
+  register: pve_notifications_targets
+  changed_when: false
+
+- name: Read the existing matchers
+  ansible.builtin.command:
+    cmd: pvesh get /cluster/notifications/matchers --output-format json
+  register: pve_notifications_matchers
+  changed_when: false
+
+- name: Work out what needs writing
+  ansible.builtin.set_fact:
+    pve_notifications_live_target: >-
+      {{ pve_notifications_targets.stdout | from_json
+         | selectattr('name', 'equalto', pve_notifications_target) | first | default({}) }}
+    pve_notifications_live_matcher: >-
+      {{ pve_notifications_matchers.stdout | from_json
+         | selectattr('name', 'equalto', pve_notifications_matcher) | first | default({}) }}
+    pve_notifications_target_comment: "Managed by Ansible, roles/pve-notifications (state {{ pve_notifications_target_state }})"
+    pve_notifications_matcher_comment: "Managed by Ansible, roles/pve-notifications (state {{ pve_notifications_matcher_state }})"
+
+# create and set take the same options, so one task does both.
+- name: Write the Discord webhook target
+  ansible.builtin.command:
+    argv: >-
+      {{ ['pvesh']
+         + (['set', '/cluster/notifications/endpoints/webhook/' ~ pve_notifications_target]
+            if pve_notifications_live_target else
+            ['create', '/cluster/notifications/endpoints/webhook', '--name', pve_notifications_target])
+         + ['--method', 'post', '--url', pve_notifications_url]
+         + ['--header', 'name=Content-Type,value=' ~ ('application/json' | b64encode)]
+         + ['--body', pve_notifications_body | b64encode]
+         + ['--secret', 'name=token,value=' ~ (pve_notifications_token | b64encode)]
+         + ['--comment', pve_notifications_target_comment] }}
+  when: pve_notifications_live_target.comment | default('') != pve_notifications_target_comment
+  register: pve_notifications_target_write
+  changed_when: true
+  no_log: true
+
+- name: Write the matcher that routes errors to Discord
+  ansible.builtin.command:
+    argv: >-
+      {{ ['pvesh']
+         + (['set', '/cluster/notifications/matchers/' ~ pve_notifications_matcher]
+            if pve_notifications_live_matcher else
+            ['create', '/cluster/notifications/matchers', '--name', pve_notifications_matcher])
+         + ['--mode', 'all', '--target', pve_notifications_target]
+         + (['--match-severity'] | product(pve_notifications_severities) | flatten)
+         + ['--comment', pve_notifications_matcher_comment] }}
+  when: pve_notifications_live_matcher.comment | default('') != pve_notifications_matcher_comment
+  changed_when: true
+
+# Loud, not silent. A target that was just written is proved by delivering
+# to it: pvesh exits non-zero if Discord rejects the request. A re-run with
+# nothing to write sends nothing.
+- name: Send a test notification through the new target  # noqa: no-handler
+  ansible.builtin.command:
+    cmd: "pvesh create /cluster/notifications/targets/{{ pve_notifications_target }}/test"
+  when: pve_notifications_target_write is changed
+  changed_when: true

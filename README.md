@@ -103,6 +103,7 @@ Ansible automates all post-provisioning configuration for forge-ops. A single co
 | `coredump` | Crash dumps piped to `systemd-coredump` on the host, capped at 2G each and 5G total, instead of written into the crashing container's layer (forge-ops, #1236). `coredumpctl list` shows every crash |
 | `node-exporter` | The distro `prometheus-node-exporter` with the systemd collector, on forge-agents. forge-ai and forge-erp run the same package, installed by hand |
 | `syncthing` | Knowledge vault files synced two-way by Syncthing between the laptop, `bezapool/vault` on the hypervisor and forge-agents (ADR 0012; `.git`, `.obsidian`, `.trash` excluded; the laptop is the only git actor), plus a sync check that pushes "in sync" and "conflict copies" monitors to Uptime Kuma. Replaced the `vault-sync` git clone, retired 2026-09-13. Runbook: `docs/runbooks/vault-syncthing.md` |
+| `pve-notifications` | Proxmox error events, a failed backup job first, posted to the Grafana alerts' Discord channel by a webhook target and matcher driven through `pvesh` (forge-hypervisor, #1285). The built-in mail-to-root target is left as it was |
 | `gdrive-replica` | One-way nightly rclone mirror of Google Drive → `bezapool/gdrive` on the hypervisor (drive.readonly scope; replaces retired Insync — FORGE-35) |
 | `sanoid` | ZFS auto-snapshots on forge-hypervisor — per-dataset retention on `bezapool` **and `sharepool`** (vault 24h/14d/8w/12m, gdrive 24h/14d/8w/12m, forge-ops-backup 7d/4w/6m, forge-erp-backup, forge-agents-backup 7d/4w/6m, sharepool/files; backup datasets deliberately not snapshotted). Also owns the nightly `syncoid` replica `sharepool/files` → `bezapool/sharepool-backup`. |
 | `db-dumps` | Nightly 02:30 EDT `pg_dumpall` per Postgres container on forge-ops → NFS-mounted `bezapool/forge-ops-backup` |
@@ -296,6 +297,7 @@ bezaforge-infrastructure/
 │       ├── guest-agent/               # qemu-guest-agent on Proxmox VMs
 │       ├── rocm/                      # forge-ai ROCm as-built
 │       ├── syncthing/                 # Vault sync by Syncthing (hypervisor, forge-agents)
+│       ├── pve-notifications/         # Proxmox errors to Discord (hypervisor)
 │       ├── gdrive-replica/            # Nightly rclone Drive→bezapool mirror (hypervisor)
 │       ├── sanoid/                    # ZFS auto-snapshots on forge-hypervisor (bezapool)
 │       ├── db-dumps/                  # Nightly pg_dumpall per Postgres container → NFS

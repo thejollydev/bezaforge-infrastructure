@@ -102,3 +102,8 @@ syncthing_device_id: JF36NZO-2UEGQYX-2DGRU5K-W36QFD4-YNJ3XGR-2L63HRD-KCLPVQY-24P
 syncthing_check_enabled: true
 syncthing_check_insync_push_url: "{{ vault_syncthing_insync_push_url | default('') }}"
 syncthing_check_conflicts_push_url: "{{ vault_syncthing_conflicts_push_url | default('') }}"
+
+# --- pve-notifications (#1285) ---
+# The same Discord channel as the Grafana alerts. Read from forge-ops'
+# vaulted value rather than copied, so one rotation covers both.
+pve_notifications_discord_webhook_url: "{{ hostvars['forge-ops'].grafana_discord_webhook_url }}"
