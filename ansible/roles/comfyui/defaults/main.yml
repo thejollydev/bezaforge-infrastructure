@@ -17,12 +17,15 @@ comfyui_app_dir: "{{ comfyui_root }}/ComfyUI"
 comfyui_venv: "{{ comfyui_root }}/venv"
 comfyui_python_dir: "{{ comfyui_root }}/python"
 
-# ComfyUI moved to github.com/Comfy-Org. Held at v0.35.0, what forge-ai runs,
-# while --disable-pinned-memory below is tested on its own (#1288): v0.37.0
-# (#295) reworks the same pinned-memory code, so shipping both at once would
-# not say which one mattered. v0.37.0 follows as its own step (#1289).
+# ComfyUI moved to github.com/Comfy-Org. v0.37.0 (#1289) came after
+# --disable-pinned-memory was verified on v0.35.0 (#1288), so it went out as
+# its own step. It reworks pinned-memory eviction and, with comfy-aimdo, sends
+# text encoders to the GPU. On v0.35.0 a --jobs set of Z-Image images needed
+# about 15.5 GB of RAM above what ComfyUI held after /free. After a Qwen edit
+# ComfyUI held 11.2 GB, so a set then passed the 27G MemoryMax (OOM kill,
+# 2026-09-27 13:58).
 comfyui_repo: https://github.com/Comfy-Org/ComfyUI.git
-comfyui_version: v0.35.0
+comfyui_version: v0.37.0
 
 # uv supplies the interpreter and the venv. Python 3.13, not the host's 3.14:
 # ComfyUI's README says "Python 3.13 is very well supported" and "Python 3.14
