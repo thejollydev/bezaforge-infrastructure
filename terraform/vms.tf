@@ -235,10 +235,22 @@ module "forge_arcade" {
   #   - SSH still works (10.10.40.x, DHCP)              → fallback shell
   #   - forge-ai keeps the card                         → NO Ollama outage while debugging
   # Once input is confirmed in-guest, phase 2 restores hostpci + vga_type = "none".
-  usb_devices = [
-    { mapping = "logi-bolt" },    # usb0 — MX Keys S keyboard
-    { mapping = "logi-unifying" } # usb1 — M510 mouse
-  ]
+  #
+  # ⛔ DETACHED 2026-09-27 — this broke every backup of this VM for 48 nights.
+  # A stopped VM is backed up by starting it paused with its full hardware, and
+  # Proxmox refuses to start one whose mapped USB device is absent ("USB Mapping
+  # invalid (hardware probably changed)"). Both receivers were unplugged from the
+  # hypervisor around 2026-08-10, so the nightly job failed for VM 105 every night
+  # until 2026-09-27, silently (#1285). The last good backup was 2026-08-09.
+  #
+  # Steady-state play is a controller over Moonlight, which needs neither receiver.
+  # To run the phase 1 input test, plug both receivers into the hypervisor, restore
+  # the two entries below for that session, and remove them again afterwards. A VM
+  # whose backups depend on a dongle staying plugged in will fail again the next
+  # time one is borrowed.
+  #   { mapping = "logi-bolt" },    # usb0 — MX Keys S keyboard
+  #   { mapping = "logi-unifying" } # usb1 — M510 mouse
+  usb_devices = []
 
   # Occasional-use + contends for the GPU, so all three differ from the fleet default:
   #   started         — do NOT power on at apply; forge-ai still holds the card.
