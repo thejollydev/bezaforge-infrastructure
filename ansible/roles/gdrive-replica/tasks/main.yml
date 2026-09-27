@@ -61,6 +61,14 @@
     dest: /usr/local/bin/gdrive-replica.sh
     mode: "0755"
 
+# The script's lock moved to the unit's RuntimeDirectory (#1286). The old
+# /tmp one is owned by uid 1000 on hosts that ran before #965, and nothing
+# else ever removes it.
+- name: Remove the retired /tmp lock
+  ansible.builtin.file:
+    path: /tmp/gdrive-replica.lock
+    state: absent
+
 - name: Deploy systemd units (service + timer)
   ansible.builtin.template:
     src: "{{ item }}.j2"
