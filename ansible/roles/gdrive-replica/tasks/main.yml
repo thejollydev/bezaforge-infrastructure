@@ -55,11 +55,15 @@
     state: absent
   loop: "{{ gdrive_replica_prune_paths }}"
 
+# Readable only by the service user, which runs it: the heartbeat URL
+# rendered into it carries an Uptime Kuma push token (#1287).
 - name: Deploy sync script
   ansible.builtin.template:
     src: gdrive-replica.sh.j2
     dest: /usr/local/bin/gdrive-replica.sh
-    mode: "0755"
+    owner: root
+    group: "{{ gdrive_replica_user }}"
+    mode: "0750"
 
 # The script's lock moved to the unit's RuntimeDirectory (#1286). The old
 # /tmp one is owned by uid 1000 on hosts that ran before #965, and nothing

@@ -38,6 +38,8 @@ logger -t gdrive-replica "sync ok"
 
 # Freshness heartbeat (FORGE-40 pattern): ping Uptime Kuma on every
 # successful sync; Kuma alarms if the nightly goes quiet. Non-fatal.
-curl -fsS -m 10 "{{ gdrive_replica_heartbeat_url }}&msg=ok&ping=" >/dev/null 2>&1 || \
+# The query string of the URL Kuma hands out is dropped and replaced,
+# so the vaulted value can be pasted exactly as Kuma shows it.
+curl -fsS -m 10 "{{ gdrive_replica_heartbeat_url.split('?')[0] }}?status=up&msg=ok&ping=" >/dev/null 2>&1 || \
   logger -t gdrive-replica "heartbeat ping failed (Kuma unreachable?)"
 {% endif %}

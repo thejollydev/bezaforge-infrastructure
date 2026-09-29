@@ -80,6 +80,10 @@ gdrive_replica_rclone_flags: "--fast-list --transfers 4 --checkers 8"
 # Uptime Kuma freshness heartbeat (FORGE-40 pattern) — set a push
 # monitor URL (vaulted) to alarm when the nightly sync stops
 # happening; empty = disabled. Monitor interval should be ~26h.
+# The script pings only after a sync that succeeded, so a failed
+# run, a skipped run (held lock) and a timer that stops firing all
+# go quiet and turn the monitor down. Set on forge-hypervisor from
+# vault_gdrive_replica_heartbeat_url (#1287).
 gdrive_replica_heartbeat_url: ""
 
 # Secrets — define in host_vars/forge-hypervisor/vault.yml:
