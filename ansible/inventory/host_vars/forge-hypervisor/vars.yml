@@ -103,6 +103,15 @@ syncthing_check_enabled: true
 syncthing_check_insync_push_url: "{{ vault_syncthing_insync_push_url | default('') }}"
 syncthing_check_conflicts_push_url: "{{ vault_syncthing_conflicts_push_url | default('') }}"
 
+# --- gdrive-replica heartbeat (#1287) ---
+# The Uptime Kuma push monitor "Google Drive replica — nightly"
+# (Push, heartbeat interval 93600 s = 26 h). Runs start 03:30-03:35 and
+# have taken 10 s to 6 min, so 26 h leaves about two hours of slack
+# before one late night alarms. The push URL carries a Kuma token, so it
+# lives in vault.yml; until it is there the script is built without the
+# ping, as it always has been.
+gdrive_replica_heartbeat_url: "{{ vault_gdrive_replica_heartbeat_url | default('') }}"
+
 # --- pve-notifications (#1285) ---
 # The same Discord channel as the Grafana alerts. Read from forge-ops'
 # vaulted value rather than copied, so one rotation covers both.
