@@ -1,7 +1,7 @@
 ---
 # Connection
 ansible_host: 10.10.20.20
-ansible_user: joseph
+ansible_user: "{{ bezaforge_admin_user }}"
 
 # Machine identity
 hostname: forge-ops
@@ -104,7 +104,7 @@ nfs_mounts:
 nfs_mounts_retired:
   # bezapool/gdrive RW mount RETIRED 2026-09-26 (#965): no container or
   # unit had used it since Jellyfin and Seedbox went (#485), and it was
-  # the one path where joseph (uid 1000) here wrote as the hypervisor's
+  # the one path where the admin user (uid 1000) here wrote as the hypervisor's
   # vaultsync (also uid 1000, until #965 moved it to 900). The export
   # stanzas for 10.10.20.20 and 10.10.10.20 were removed with it.
   - /mnt/bezapool/gdrive

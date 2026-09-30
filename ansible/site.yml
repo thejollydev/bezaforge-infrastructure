@@ -93,7 +93,7 @@
       tags: dns-client
     # Read-only journal/log access for the admin user (#638 session). Same
     # four plays as dns-client because that is exactly the set of hosts with
-    # a `joseph` account — forge-hypervisor is root-only.
+    # the admin account — forge-hypervisor is root-only.
     - role: admin-access
       tags: admin-access
     - role: common
@@ -168,7 +168,7 @@
       tags: dns-client
     # Read-only journal/log access for the admin user (#638 session). Same
     # four plays as dns-client because that is exactly the set of hosts with
-    # a `joseph` account — forge-hypervisor is root-only.
+    # the admin account — forge-hypervisor is root-only.
     - role: admin-access
       tags: admin-access
     - role: common
@@ -301,7 +301,7 @@
       tags: dns-client
     # Read-only journal/log access for the admin user (#638 session). Same
     # four plays as dns-client because that is exactly the set of hosts with
-    # a `joseph` account — forge-hypervisor is root-only.
+    # the admin account — forge-hypervisor is root-only.
     - role: admin-access
       tags: admin-access
     - role: erpnext

@@ -5,7 +5,7 @@
 
 # The interactive admin account. Matches ansible_user on every host this
 # role runs against; forge-hypervisor is out of scope (root, no such user).
-admin_access_user: joseph
+admin_access_user: "{{ bezaforge_admin_user }}"
 
 # Read-only diagnostic groups.
 #   systemd-journal — read the system journal. Without it, `journalctl -u`

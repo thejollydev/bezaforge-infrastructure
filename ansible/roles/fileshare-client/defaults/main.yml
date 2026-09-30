@@ -13,7 +13,7 @@
 # VLAN (10.10.10.10). VLANs 20/50 → Mgmt routing is permitted by
 # the live Omada Gateway ACL (verified 2026-06-26, FORGE-18 —
 # see design/ip-allocation.md); VLAN 40 consumers instead need
-# membership in the `jolly-LOQ-arch` admin IP group (the Windows
+# membership in the workstation admin IP group (the Windows
 # dev PC lesson, 2026-07-02).
 #
 # Secret: vault_fileshare_smb_password lives in
@@ -30,7 +30,7 @@ fileshare_client_mountpoint: /mnt/bezashare
 fileshare_client_username: bezashare
 
 # Local ownership as seen THROUGH the mount. cifs has no per-file
-# ownership; everything appears as this uid/gid. 1000 = joseph (the
+# ownership; everything appears as this uid/gid. 1000 = the admin user (the
 # agent/service user on forge-ai).
 fileshare_client_uid: 1000
 fileshare_client_gid: 1000

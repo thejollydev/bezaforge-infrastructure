@@ -23,4 +23,4 @@ erpnext_app_project: erpnext-one
 # Docker engine (already present on forge-erp; ensured idempotently so the
 # host is rebuildable from scratch). docker-ce apt repo, Ubuntu.
 erpnext_install_docker: true
-erpnext_docker_user: joseph
+erpnext_docker_user: "{{ bezaforge_admin_user }}"

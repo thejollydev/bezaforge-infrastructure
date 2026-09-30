@@ -119,7 +119,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
         }
       }
       user_account {
-        username = "joseph"
+        username = var.cloud_init_user
         password = var.cloud_init_password
         keys     = [var.ssh_public_key]
       }
@@ -140,5 +140,12 @@ resource "proxmox_virtual_environment_vm" "vm" {
     # mid-handoff and VM 105 then failed to start because the GPU was taken.
     # Terraform still sets the initial state at create (`started = false` for 105).
     ignore_changes = [initialization, clone, started]
+
+    # The account name has no default in this public repository, so a VM
+    # built from the template must be given one explicitly.
+    precondition {
+      condition     = !var.create_from_template || var.cloud_init_user != ""
+      error_message = "cloud_init_user must be set for a VM built from the cloud-init template."
+    }
   }
 }

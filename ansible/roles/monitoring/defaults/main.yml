@@ -36,7 +36,7 @@ monitoring_deploy_drift_metric_script: /usr/local/bin/bezaforge-deploy-drift-met
 # deliberate: if either is down the check reports INVALID (exit 2) rather
 # than a pass. A watcher that cannot measure must never report healthy.
 monitoring_deploy_drift_gitea_url: https://git.bezaforge.dev
-monitoring_deploy_drift_gitea_repo: joseph/bezaforge-infrastructure
+monitoring_deploy_drift_gitea_repo: "{{ bezaforge_admin_user }}/bezaforge-infrastructure"
 monitoring_deploy_drift_prom_url: https://prometheus.bezaforge.dev
 monitoring_deploy_drift_branch: main
 

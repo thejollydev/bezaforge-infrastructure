@@ -1,5 +1,5 @@
 ! Title: BezaForge local threat blocklist
-! Homepage: https://git.bezaforge.dev/joseph/bezaforge-infrastructure
+! Homepage: https://github.com/thejollydev/bezaforge-infrastructure
 ! Syntax: AdGuard DNS filtering rules
 !
 ! Incident-derived indicators observed on THIS network, versioned in

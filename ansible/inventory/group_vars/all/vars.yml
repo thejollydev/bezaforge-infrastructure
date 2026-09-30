@@ -18,6 +18,17 @@
 ansible_python_interpreter: auto_silent
 
 # ------------------------------------------------------------
+# Personal values (#1335)
+# ------------------------------------------------------------
+# This repository is public, so the admin account, its email address and
+# the knowledge vault's name live in the encrypted vault.yml beside this
+# file and are referenced here. Everything else uses these names; the tree
+# carries none of the values.
+bezaforge_admin_user: "{{ vault_bezaforge_admin_user }}"
+bezaforge_admin_email: "{{ vault_bezaforge_admin_email }}"
+knowledge_vault_name: "{{ vault_knowledge_vault_name }}"
+
+# ------------------------------------------------------------
 # Admin SSH sources
 # ------------------------------------------------------------
 # IPs allowed to SSH to EVERY host, in addition to the management
@@ -144,8 +155,8 @@ bezaforge_dns_rewrites:
 # defaults) nothing is announced outside the network. A managed host's ID
 # is read from its own host_vars (syncthing_device_id), recorded after its
 # first run generates the identity. An empty ID leaves that device out.
-syncthing_folder_id: never-knowledge
-syncthing_folder_label: never-knowledge
+syncthing_folder_id: "{{ knowledge_vault_name }}"
+syncthing_folder_label: "{{ knowledge_vault_name }}"
 
 # Syncthing's syntax: no leading slash matches at any depth, a leading
 # slash only at the folder root. `.git` is excluded everywhere, so a nested
@@ -159,7 +170,7 @@ syncthing_ignore_patterns:
 # also what it listens on. `required: false` for the laptop, which is off or
 # away most of the day: the sync check only counts it while it is connected.
 syncthing_devices:
-  - name: jolly-LOQ-arch
+  - name: workstation
     id: QMHDJY4-EMFDOSG-3ILTR3D-LRT6252-3NS4QZ6-A2WMOR7-UROF2ZQ-LHNKKQP
     addresses: [dynamic]
     required: false

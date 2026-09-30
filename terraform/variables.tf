@@ -20,3 +20,9 @@ variable "cloud_init_password" {
   type        = string
   sensitive   = true
 }
+
+variable "cloud_init_user" {
+  description = "Name of the cloud-init user account on template-based VMs. Set it in terraform.tfvars, which is untracked; pass it to any module with create_from_template = true"
+  type        = string
+  default     = ""
+}

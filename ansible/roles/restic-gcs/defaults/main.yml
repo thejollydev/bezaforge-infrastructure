@@ -24,7 +24,7 @@ restic_backup_sources:
   # Knowledge vault clone (ADR 0002, 2026-06-06). Replaces the Drive-era
   # exemption (ADR 0001 Alt F — "already off-site via Google Drive"): the
   # vault left Drive, so it joins the GCS off-site set. ~140 MB, negligible.
-  # Repointed to never-knowledge by #791 — until then this shipped the
+  # Repointed to the knowledge vault by #791 — until then this shipped the
   # RETIRED Master-Mind vault offsite nightly while the live vault had no
   # offsite copy at all. Size drops to ~25 MB with the smaller corpus.
   - /bezapool/vault
