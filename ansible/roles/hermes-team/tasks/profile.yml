@@ -31,12 +31,13 @@
   changed_when: true
 
 # The role card IS the soul (ADR 0014: "the role cards ... are part of this
-# decision"). They are authored in the Brizza plan and travel here as
-# templates so the host's copy is reviewable in a diff rather than pasted
-# into a running agent.
+# decision"). They are authored in the private brizza repository and copied
+# verbatim from a checkout of it, so the host's copy is still reviewable in
+# a diff rather than pasted into a running agent. Copied, not templated:
+# a card is prose, and nothing in it should be read as Jinja.
 - name: "Write the soul for {{ agent.name }}"
-  ansible.builtin.template:
-    src: "{{ agent.soul }}"
+  ansible.builtin.copy:
+    src: "{{ hermes_souls_dir }}/{{ agent.soul }}"
     dest: "{{ hermes_profiles_dir }}/{{ agent.name }}/SOUL.md"
     owner: "{{ hermes_user }}"
     group: "{{ hermes_user }}"

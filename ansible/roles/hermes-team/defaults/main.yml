@@ -17,6 +17,12 @@
 # Never4gA as that user (ADR 0016, #1217).
 hermes_user: ""
 
+# Where the role cards are read from, on the CONTROL machine. The cards are
+# the agents' prompts and live in the private brizza repository
+# (team/souls/<agent>.md), not in this public one (#1335); this points at a
+# checkout of it. Each agent's `soul` names a file in this directory.
+hermes_souls_dir: ""
+
 # --- Staying current (decided by Joseph, 2026-09-18) ---
 # Hermes follows its NEWEST PUBLISHED RELEASE, automatically: on every
 # deploy, and nightly by a timer. Nothing here names a version.
@@ -100,7 +106,7 @@ hermes_installer_arguments:
   - --skip-setup
 
 # --- The agents ---
-# One entry per profile. `soul` names a template in this role; `model` is
+# One entry per profile. `soul` names a file in hermes_souls_dir; `model` is
 # what the profile's model.default is set to, and `dispatch` says whether
 # this agent's gateway runs the board's dispatcher (exactly one must, see
 # "The kanban board" below).

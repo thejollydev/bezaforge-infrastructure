@@ -30,13 +30,30 @@
       - hermes_agents | length > 0
       - not hermes_never4ga_mcp_enabled or hermes_never4ga_vault_path | length > 0
       - hermes_agents | map(attribute='name') | list | unique | length == hermes_agents | length
+      - hermes_souls_dir | length > 0
     fail_msg: >-
       roles/hermes-team needs hermes_user and a hermes_agents list in
       host_vars, with one entry per profile and no repeated name. Two
       profiles with one name would be two processes on one Hermes home,
       which corrupts both agents' memory. With Never4gA registered for the
-      agents, hermes_never4ga_vault_path is required too.
+      agents, hermes_never4ga_vault_path is required too, and
+      hermes_souls_dir must point at the role cards.
     quiet: true
+
+# Checked here, before any profile is touched, so a missing card stops the
+# run whole instead of leaving some agents rewritten and the rest not. The
+# usual cause is the brizza checkout being on a branch without team/souls/.
+- name: Require every agent's role card on the control machine
+  ansible.builtin.assert:
+    that: (hermes_souls_dir ~ '/' ~ item.soul) is file
+    fail_msg: >-
+      No role card at {{ hermes_souls_dir }}/{{ item.soul }} for
+      {{ item.name }}. The cards live in the private brizza repository under
+      team/souls/; check out a branch that has them, or fix hermes_souls_dir.
+    quiet: true
+  loop: "{{ hermes_agents }}"
+  loop_control:
+    label: "{{ item.name }}"
 
 # The board is machine-global and one process dispatches from it. Upstream
 # settles that with an flock taken once at gateway boot, so ownership falls

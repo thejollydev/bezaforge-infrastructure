@@ -9,7 +9,7 @@ three (#1218), what you have to do by hand, and the tests the step owes.
 | Hermes | `~joseph/.hermes/hermes-agent`, newest release | `roles/hermes-team`, then the nightly updater |
 | On `PATH` | `~joseph/.local/bin/hermes`, plus `<name>` per profile | the installer |
 | A profile | `~joseph/.hermes/profiles/<name>/` | the role |
-| A soul | that profile's `SOUL.md` | templated from the role card |
+| A soul | that profile's `SOUL.md` | copied from the role card in the private brizza repository (`team/souls/`) |
 | Credentials | that profile's `.env` | **you, by hand** |
 | A gateway | `hermes-gateway-<name>.service`, `systemd --user` | the role, started only on approval |
 

@@ -147,9 +147,13 @@ hermes_discord_allowed_users: "{{ vault_hermes_discord_allowed_users }}"
 # is `custom` pointed at forge-ai (see the role defaults for why the shape
 # matters). Malachi is the exception the role cards make explicitly: Codex
 # for code and anything needing real reasoning.
+# The role cards come from a checkout of the private brizza repository on
+# the machine running the playbook, the same way never4ga_wheel does.
+hermes_souls_dir: "{{ lookup('env', 'HOME') }}/Projects/brizza/team/souls"
+
 hermes_agents:
   - name: brizza
-    soul: soul-brizza.md.j2
+    soul: brizza.md
     model: gpt-5.6-luna
     # The board's only dispatcher. ADR 0014 makes her the orchestrator and
     # dispatch is orchestration; naming it here is what keeps it from
@@ -166,7 +170,7 @@ hermes_agents:
     # server.
     approved: true
   - name: samuel
-    soul: soul-samuel.md.j2
+    soul: samuel.md
     model: gpt-5.6-luna
     dispatch: false
     orchestrates: false
@@ -175,7 +179,7 @@ hermes_agents:
     # host.
     approved: true
   - name: malachi
-    soul: soul-malachi.md.j2
+    soul: malachi.md
     # Codex like the rest now, rather than a local coder model: the whole
     # team moved to Codex 2026-09-20, which is what his role card wanted
     # anyway. No login of his own to complete: Codex is single-use-refresh,
