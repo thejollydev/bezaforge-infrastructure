@@ -243,7 +243,7 @@ Models served locally — no external API calls for LLM inference.
 
 ## Backups
 
-Four-layer backup architecture (deployed 2026-05-17 — see ADR 0001 in the vault, `05_Projects/bezaforge-infrastructure/design/decisions/0001-backup-architecture.md`, for the full rationale):
+Four-layer backup architecture (deployed 2026-05-17):
 
 | Layer | Mechanism | Cadence | Scope |
 |-------|-----------|---------|-------|

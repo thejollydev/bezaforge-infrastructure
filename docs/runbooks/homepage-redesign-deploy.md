@@ -111,7 +111,5 @@ cp ~/Projects/bezacore-labs/brand-assets/bezaforge/exports/apple/bezaforge-apple
 cp ~/Projects/bezacore-labs/brand-assets/bezaforge/exports/pwa/bezaforge-maskable-512.png docker/homepage/images/bezaforge-pwa-512.png
 ```
 
-Brand palette + voice rules are documented in the vault at
-`05_Projects/intelligrace/strategy/brand.md` (Ember & Cobalt, locked
-2026-05-09). The `custom.css` token block at the top of the file mirrors
-those values — update both if the palette ever changes.
+The `custom.css` token block at the top of the file holds the palette.
+It is the copy in this repository to update if the palette changes.
