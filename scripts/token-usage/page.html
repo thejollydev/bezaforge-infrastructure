@@ -1,0 +1,390 @@
+<title>The Unbilled Month</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --ground:#f5f5f1; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e; --muted:#7d7b75;
+  --grid:#e1e0d9; --axis:#c3c2b7; --hair:rgba(11,11,11,.10); --wash:rgba(42,120,214,.07);
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#a9a79f;
+  --accent:#1c5cab;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;
+  --ground:#111110; --surface:#1a1a19; --ink:#f4f4f1; --ink-2:#c3c2b7; --muted:#8f8d86;
+  --grid:#2c2c2a; --axis:#44443f; --hair:rgba(255,255,255,.10); --wash:rgba(57,135,229,.12);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#6b6a64; --accent:#86b6ef;
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#111110; --surface:#1a1a19; --ink:#f4f4f1; --ink-2:#c3c2b7; --muted:#8f8d86;
+  --grid:#2c2c2a; --axis:#44443f; --hair:rgba(255,255,255,.10); --wash:rgba(57,135,229,.12);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#6b6a64; --accent:#86b6ef;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font:15px/1.6 var(--sans);padding-inline:16px}
+.wrap{max-width:980px;margin:0 auto;padding-block:40px 64px;display:grid;gap:56px}
+h1,h2,h3{text-wrap:balance;margin:0;font-weight:600}
+h2{font-size:1.35rem;letter-spacing:-.01em}
+p{margin:0;max-width:66ch}
+.eyebrow{font:500 .72rem/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.lede{color:var(--ink-2);font-size:1.02rem}
+.mono{font-family:var(--mono)}
+a{color:var(--accent)}
+
+/* hero: a meter reading */
+.hero{display:grid;gap:18px}
+.reading{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px}
+.reading .fig{font:600 clamp(3.2rem,11vw,6.2rem)/.95 var(--sans);letter-spacing:-.035em}
+.reading .unit{font:500 .85rem/1.3 var(--mono);color:var(--ink-2);max-width:26ch}
+.hero .lede{max-width:62ch}
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+.strip div{padding:14px 16px 14px 0;display:grid;gap:4px}
+.strip div + div{padding-left:16px;border-left:1px solid var(--hair)}
+.strip b{font:600 1.35rem/1.1 var(--sans)}
+.strip span{font:400 .78rem/1.35 var(--sans);color:var(--ink-2)}
+@media (max-width:560px){.strip div + div{border-left:0;padding-left:0}.strip div{border-top:1px solid var(--hair)}.strip div:first-child{border-top:0}}
+
+section{display:grid;gap:14px}
+.head{display:grid;gap:6px}
+.panel{background:var(--surface);border:1px solid var(--hair);border-radius:10px;padding:18px 18px 12px}
+.chart{position:relative;width:100%}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0 0 10px;padding:0;list-style:none;font-size:.8rem;color:var(--ink-2)}
+.legend li{display:flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.note{font-size:.8rem;color:var(--muted);max-width:none}
+details{margin-top:8px;font-size:.84rem}
+summary{cursor:pointer;color:var(--ink-2);font-size:.8rem;width:max-content}
+summary:focus-visible,.hit:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tscroll{overflow-x:auto;margin-top:8px}
+table{border-collapse:collapse;width:100%;font-size:.84rem}
+th,td{text-align:left;padding:7px 10px 7px 0;border-bottom:1px solid var(--hair);vertical-align:top}
+th{font:500 .7rem/1.3 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--mono);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+
+.tip{position:absolute;pointer-events:none;background:var(--surface);color:var(--ink);border:1px solid var(--hair);border-radius:8px;
+  box-shadow:0 6px 24px rgba(0,0,0,.12);padding:8px 10px;font-size:.78rem;line-height:1.45;min-width:150px;z-index:5}
+.tip b{display:block;font-weight:600;margin-bottom:2px}
+.tip .row{display:flex;justify-content:space-between;gap:14px;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.tip .row span:first-child{font-family:var(--sans);color:var(--ink-2);display:flex;align-items:center;gap:6px}
+.tip i{width:8px;height:8px;border-radius:2px;display:inline-block}
+
+.split{display:grid;grid-template-columns:1.1fr 1fr;gap:28px}
+@media (max-width:760px){.split{grid-template-columns:1fr}}
+.levers{display:grid;gap:14px;margin:0;padding:0;list-style:none}
+.levers li{display:grid;gap:3px;padding-left:14px;border-left:2px solid var(--grid)}
+.levers b{font-weight:600}
+.levers span{color:var(--ink-2);font-size:.92rem}
+.codex{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px}
+.codex .k{display:grid;gap:2px}
+.codex .k b{font:600 1.5rem/1.15 var(--sans)}
+.codex .k span{font-size:.8rem;color:var(--ink-2)}
+.meter{height:8px;border-radius:4px;background:var(--grid);overflow:hidden;margin-top:6px}
+.meter i{display:block;height:100%;background:var(--s1);border-radius:4px}
+.fine{display:grid;gap:10px;color:var(--ink-2);font-size:.88rem}
+.fine p{max-width:78ch}
+@media (prefers-reduced-motion:no-preference){.hit{transition:opacity .12s}}
+</style>
+
+<main class="wrap">
+  <header class="hero">
+    <div class="eyebrow" id="period"></div>
+    <div class="reading">
+      <span class="fig" id="total"></span>
+      <span class="unit">Claude Code tokens priced at API list rates.</span>
+    </div>
+    <p class="lede" id="lede"></p>
+    <div class="strip" id="strip"></div>
+  </header>
+
+  <section aria-labelledby="h-daily">
+    <div class="head">
+      <div class="eyebrow">Day by day</div>
+      <h2 id="h-daily">What each day would have cost, by model</h2>
+      <p class="lede" id="daily-lede"></p>
+    </div>
+    <div class="panel">
+      <ul class="legend" id="lg-daily"></ul>
+      <div class="chart" id="c-daily"></div>
+      <details><summary>Show the numbers</summary><div class="tscroll" id="t-daily"></div></details>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-type">
+    <div class="head">
+      <div class="eyebrow">Where the money goes</div>
+      <h2 id="h-type">Re-reading the conversation is the bill</h2>
+      <p class="lede" id="type-lede"></p>
+    </div>
+    <div class="panel">
+      <ul class="legend" id="lg-type"></ul>
+      <div class="chart" id="c-type"></div>
+      <details open><summary>Show the numbers</summary><div class="tscroll" id="t-type"></div></details>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-ctx">
+    <div class="head">
+      <div class="eyebrow">Context per call</div>
+      <h2 id="h-ctx">How much conversation each step carried</h2>
+      <p class="lede" id="ctx-lede"></p>
+    </div>
+    <div class="panel">
+      <div class="chart" id="c-ctx"></div>
+      <details><summary>Show the numbers</summary><div class="tscroll" id="t-ctx"></div></details>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-proj">
+    <div class="head">
+      <div class="eyebrow">By project</div>
+      <h2 id="h-proj">Where the sessions ran</h2>
+      <p class="lede">Grouped by the directory each session started in.</p>
+    </div>
+    <div class="panel">
+      <div class="chart" id="c-proj"></div>
+      <details><summary>Show the numbers</summary><div class="tscroll" id="t-proj"></div></details>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-top">
+    <div class="head">
+      <div class="eyebrow">Costliest sessions</div>
+      <h2 id="h-top">The twelve costliest sessions</h2>
+      <p class="lede">Long sessions cost the most because every step resends everything before it. Titles are the ones Claude Code gave each session.</p>
+    </div>
+    <div class="panel"><div class="tscroll" id="t-top"></div></div>
+  </section>
+
+  <section aria-labelledby="h-codex">
+    <div class="head">
+      <div class="eyebrow">Codex</div>
+      <h2 id="h-codex">The same question for Codex</h2>
+      <p class="lede" id="codex-lede"></p>
+    </div>
+    <div class="panel codex" id="codex"></div>
+  </section>
+
+  <section aria-labelledby="h-learn" class="split">
+    <div class="head" style="align-content:start">
+      <div class="eyebrow">What this teaches</div>
+      <h2 id="h-learn">If you ever pay by the token</h2>
+      <p class="lede">The price of a session depends mostly on how long it runs and how large the conversation grows, not on what the task is. These are the levers, roughly in order of size.</p>
+    </div>
+    <ul class="levers">
+      <li><b>End sessions between unrelated tasks</b><span>A fresh session starts from a few thousand tokens instead of two hundred thousand. Every later step is cheaper for it.</span></li>
+      <li><b>Pick the model per session</b><span>Re-reading costs $0.50 per million tokens on Opus 5 and $0.20 on Opus 5.5, so the same session costs noticeably less on 5.5. Sonnet 5 is $0.20 too, with cheaper writes and output.</span></li>
+      <li><b>Send heavy reading to subagents</b><span>A subagent reads in its own conversation and hands back a summary, so the main conversation stays small. Subagents were only <span id="sub-share"></span> of this month.</span></li>
+      <li><b>Output is the small part</b><span>What Claude writes was about a tenth of the cost. Asking for shorter answers helps less than keeping the conversation short.</span></li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="h-method" class="fine">
+    <div class="eyebrow">How this was counted</div>
+    <h3 id="h-method" style="font-size:1.05rem;color:var(--ink)">Method and limits</h3>
+    <p>Every assistant message in <span class="mono">~/.claude/projects/**/*.jsonl</span> records its model and its token counts. Repeated lines were removed by message and request id, and subagent transcripts are counted with the session that started them. Each token type is priced at its own rate from the Anthropic pricing page as fetched on <span id="prices-date"></span>; web searches at $10 per thousand. Days are local (<span id="tz"></span>).</p>
+    <div class="tscroll" id="t-prices"></div>
+    <p>This is what current habits would cost at list prices, not a quote. Paying per token would change the habits. Subscription usage limits are not in the transcripts, so this page cannot show how close any week came to them. Codex is priced at OpenAI's list rate for gpt-5.6-sol ($4 input, $0.40 cached input, $20 output per million tokens); its generated images are billed separately by OpenAI and are not in its logs, so they are not counted. Antigravity keeps no comparable record and is not included.</p>
+    <p>Claude Code deletes transcripts after <span class="mono">cleanupPeriodDays</span> in its settings, 30 by default. Raise it to keep the history this report reads.</p>
+  </section>
+</main>
+
+<script>
+const D = __DATA__;
+const $ = s => document.querySelector(s);
+const usd = (v, d = 0) => '$' + v.toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d});
+const usd2 = v => usd(v, 2);
+const pct = v => (v * 100).toFixed(v < 0.01 && v > 0 ? 1 : 0) + '%';
+const mtok = v => v >= 1e9 ? (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? Math.round(v / 1e3) + 'k' : String(v);
+const fmtDay = (s, opt = {month: 'short', day: 'numeric'}) => new Date(s + 'T12:00:00').toLocaleDateString('en-US', opt);
+const NS = 'http://www.w3.org/2000/svg';
+const el = (tag, attrs = {}, parent) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (parent) parent.appendChild(n); return n; };
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+function niceMax(v, ticks = 5) { const raw = v / ticks, mag = 10 ** Math.floor(Math.log10(raw)), step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw); return {max: Math.ceil(v / step) * step, step}; }
+function table(target, head, rows, numCols = []) {
+  const t = document.createElement('table');
+  t.innerHTML = '<thead><tr>' + head.map((h, i) => `<th${numCols.includes(i) ? ' class="n"' : ''}>${h}</th>`).join('') + '</tr></thead><tbody>' +
+    rows.map(r => '<tr>' + r.map((c, i) => `<td${numCols.includes(i) ? ' class="n"' : ''}>${c}</td>`).join('') + '</tr>').join('') + '</tbody>';
+  $(target).replaceChildren(t);
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+
+/* ---------- static text ---------- */
+const days = D.daily.length;
+$('#period').textContent = `${fmtDay(D.period[0], {month: 'long', day: 'numeric'})} – ${fmtDay(D.period[1], {month: 'long', day: 'numeric', year: 'numeric'})} · ${D.activeDays} active days`;
+$('#total').textContent = usd(D.total);
+const read = D.costByType.read / D.total, w1 = D.costByType.write1h / D.total;
+$('#lede').textContent = `${D.sessions} sessions made ${D.calls.toLocaleString()} calls to the model. Almost none of the cost is what you typed or what Claude wrote: ${pct(read)} is Claude re-reading the conversation on every step, and another ${pct(w1)} is storing it in the cache to be re-read.`;
+const strip = [
+  [D.sessions, 'sessions'], [D.calls.toLocaleString(), 'API calls, one per step'],
+  [usd2(D.medianSession), 'median session'], [usd(D.medianDay), 'median active day'],
+  [usd(D.maxSession), 'costliest session'], [usd(D.codex.cost, 2), 'Codex at API prices']];
+$('#strip').innerHTML = strip.map(([b, s]) => `<div><b>${b}</b><span>${s}</span></div>`).join('');
+$('#sub-share').textContent = pct(D.subagentCost / D.total);
+$('#daily-lede').textContent = `Stacked by model. The first day may be partial: nothing older than ${fmtDay(D.period[0], {month: 'long', day: 'numeric'})} survived in the transcripts.`;
+$('#prices-date').textContent = fmtDay(D.pricesFetched, {month: 'long', day: 'numeric', year: 'numeric'});
+$('#tz').textContent = D.timezone;
+
+const TYPES = [['read', 'Cache reads', '--s1'], ['write1h', '1-hour cache writes', '--s2'], ['output', 'Output', '--s3'], ['write5', '5-minute cache writes', '--s4'], ['input', 'Uncached input', '--s5']];
+const tokTotal = Object.values(D.tokens).reduce((a, b) => a + b, 0), costTotal = Object.values(D.costByType).reduce((a, b) => a + b, 0);
+$('#type-lede').textContent = `Every step Claude takes resends the whole conversation. Cached, those tokens cost a tenth of normal input or less, but there were ${mtok(D.tokens.read)} of them: ${pct(D.tokens.read / tokTotal)} of all tokens and ${pct(D.costByType.read / costTotal)} of the cost.`;
+$('#ctx-lede').textContent = `The median call carried ${mtok(D.ctx.median)} tokens of conversation, and ${pct(D.ctx.over200)} of calls carried more than 200k. Each bar counts calls in a 50k-token band.`;
+const cx = D.codex, cxTok = cx.input + cx.output;
+const plan = cx.plan ? ` on the ChatGPT ${cx.plan[0].toUpperCase() + cx.plan.slice(1)} plan` : '';
+const srcs = Object.entries(cx.sources || {}).map(([k, n]) => `${n} ${k === 'exec' ? 'non-interactive (codex exec)' : k === 'cli' ? 'interactive' : k}`).join(', ');
+$('#codex-lede').textContent = cx.runs ? `${cx.runs} Codex runs${plan}: ${srcs}. ${mtok(cxTok)} tokens in total, against ${mtok(tokTotal)} for Claude.` : 'No Codex sessions were found.';
+$('#codex').innerHTML = `
+  <div class="k"><b>${usd(cx.cost, 2)}</b><span>at OpenAI list prices, images not included</span></div>
+  <div class="k"><b>${mtok(cxTok)}</b><span>tokens: ${mtok(cx.cached)} cached input, ${mtok(cx.input - cx.cached)} fresh, ${mtok(cx.output)} output</span></div>
+  <div class="k"><b>${cx.peak5h}%</b><span>highest share of a 5-hour Plus window used</span><div class="meter" role="img" aria-label="${cx.peak5h} percent"><i style="width:${cx.peak5h}%"></i></div></div>
+  <div class="k"><b>${cx.peakWeek}%</b><span>highest share of a weekly Plus window used</span><div class="meter" role="img" aria-label="${cx.peakWeek} percent"><i style="width:${cx.peakWeek}%"></i></div></div>`;
+
+/* ---------- tooltip ---------- */
+function tipFor(host) {
+  let t = host.querySelector('.tip'); if (!t) { t = document.createElement('div'); t.className = 'tip'; t.hidden = true; host.appendChild(t); }
+  return {
+    show(html, x, y) { t.innerHTML = html; t.hidden = false; const w = t.offsetWidth, hw = host.clientWidth; let left = x + 14; if (left + w > hw) left = Math.max(0, x - w - 14); t.style.left = left + 'px'; t.style.top = Math.max(0, y - t.offsetHeight - 10) + 'px'; },
+    hide() { t.hidden = true; }
+  };
+}
+function bindHit(node, host, html) {
+  const tip = tipFor(host);
+  const at = e => { const r = host.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  node.addEventListener('pointermove', e => tip.show(html(), ...at(e)));
+  node.addEventListener('pointerleave', () => tip.hide());
+  node.addEventListener('focus', () => { const b = node.getBBox(), s = host.querySelector('svg'), k = s.clientWidth / s.viewBox.baseVal.width; tip.show(html(), (b.x + b.width / 2) * k, b.y * k); });
+  node.addEventListener('blur', () => tip.hide());
+}
+
+/* ---------- daily stacked bars ---------- */
+const MODEL_VAR = Object.fromEntries(D.models.map((m, i) => [m, m === 'Other' ? '--s5' : `--s${i + 1}`]));
+const MODEL_NAME = m => m === 'Other' ? D.otherModels.join(', ') : m;
+$('#lg-daily').innerHTML = D.models.map(m => `<li><i style="background:var(${MODEL_VAR[m]})"></i>${MODEL_NAME(m)} · ${usd(D.byModel[m])}</li>`).join('');
+function drawDaily() {
+  const host = $('#c-daily'), W = Math.max(320, host.clientWidth), H = W < 520 ? 240 : 300;
+  const m = {t: 10, r: 6, b: 26, l: 46}, iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const totals = D.daily.map(d => D.models.reduce((a, k) => a + d[k], 0));
+  const {max, step} = niceMax(Math.max(...totals));
+  const svg = el('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Daily API-equivalent cost, stacked by model'});
+  const y = v => m.t + ih - v / max * ih;
+  for (let v = 0; v <= max + 1e-9; v += step) {
+    el('line', {x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: css(v === 0 ? '--axis' : '--grid'), 'stroke-width': 1}, svg);
+    const t = el('text', {x: m.l - 8, y: y(v) + 4, 'text-anchor': 'end', fill: css('--muted'), 'font-size': 11, 'font-family': css('--mono')}, svg); t.textContent = usd(v);
+  }
+  const bw = iw / D.daily.length, gap = Math.max(2, bw * .22), w = bw - gap;
+  D.daily.forEach((d, i) => {
+    const x = m.l + i * bw + gap / 2; let acc = 0;
+    const segs = D.models.filter(k => d[k] > 0);
+    segs.forEach((k, j) => {
+      const y0 = y(acc), y1 = y(acc + d[k]); acc += d[k];
+      const h = Math.max(0, y0 - y1 - (j ? 2 : 0));
+      if (j === segs.length - 1 && h > 4) {
+        const r = Math.min(4, w / 2), top = y0 - h - (j ? 0 : 0);
+        el('path', {d: `M${x},${y0 - (j ? 2 : 0)} V${y1 + r} Q${x},${y1} ${x + r},${y1} H${x + w - r} Q${x + w},${y1} ${x + w},${y1 + r} V${y0 - (j ? 2 : 0)} Z`, fill: css(MODEL_VAR[k])}, svg);
+      } else el('rect', {x, y: y1, width: w, height: h, fill: css(MODEL_VAR[k])}, svg);
+    });
+    const hit = el('rect', {x: m.l + i * bw, y: m.t, width: bw, height: ih, fill: 'transparent', class: 'hit', tabindex: 0, 'aria-label': `${fmtDay(d.day)}: ${usd2(totals[i])}`}, svg);
+    bindHit(hit, host, () => `<b>${fmtDay(d.day, {weekday: 'short', month: 'short', day: 'numeric'})} · ${usd2(totals[i])}</b>` +
+      D.models.filter(k => d[k] > 0).reverse().map(k => `<div class="row"><span><i style="background:var(${MODEL_VAR[k]})"></i>${MODEL_NAME(k)}</span><span>${usd2(d[k])}</span></div>`).join(''));
+    if (i % 7 === 0 || i === D.daily.length - 1 && i % 7 > 3) {
+      const t = el('text', {x: x + w / 2, y: H - 8, 'text-anchor': 'middle', fill: css('--muted'), 'font-size': 11, 'font-family': css('--mono')}, svg); t.textContent = fmtDay(d.day);
+    }
+  });
+  host.querySelector('svg')?.remove(); host.prepend(svg);
+}
+table('#t-daily', ['Day', ...D.models.map(MODEL_NAME), 'Total'], D.daily.map((d, i) => [fmtDay(d.day, {weekday: 'short', month: 'short', day: 'numeric'}), ...D.models.map(k => usd2(d[k])), usd2(D.models.reduce((a, k) => a + d[k], 0))]), D.models.map((_, i) => i + 1).concat(D.models.length + 1));
+
+/* ---------- token type: share of tokens vs share of cost ---------- */
+$('#lg-type').innerHTML = TYPES.map(([k, n, v]) => `<li><i style="background:var(${v})"></i>${n}</li>`).join('');
+function drawType() {
+  const host = $('#c-type'), W = Math.max(320, host.clientWidth), narrow = W < 520;
+  const lw = narrow ? 0 : 118, rows = [['Share of tokens', D.tokens, tokTotal, mtok], ['Share of cost', D.costByType, costTotal, v => usd(v)]];
+  const bh = 34, rowGap = narrow ? 44 : 22, top = narrow ? 18 : 0, H = rows.length * (bh + rowGap) + top;
+  const svg = el('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Token types as a share of tokens and of cost'});
+  rows.forEach(([label, src, tot, fmt], r) => {
+    const y0 = top + r * (bh + rowGap) + (narrow ? 0 : rowGap / 2);
+    const lt = el('text', narrow ? {x: 0, y: y0 - 6, fill: css('--ink-2'), 'font-size': 12} : {x: 0, y: y0 + bh / 2 + 4, fill: css('--ink-2'), 'font-size': 12}, svg); lt.textContent = label;
+    const iw = W - lw; let x = lw;
+    TYPES.forEach(([k, n, v], i) => {
+      const share = src[k] / tot, w = share * iw; if (w <= 0) return;
+      const segW = Math.max(w - 2, .5);
+      el('rect', {x, y: y0, width: segW, height: bh, rx: i === 0 ? 4 : 0, fill: css(v)}, svg);
+      if (segW > 64) { const t = el('text', {x: x + 8, y: y0 + bh / 2 + 4, fill: '#ffffff', 'font-size': 12, 'font-weight': 600}, svg); t.textContent = pct(share); }
+      const hit = el('rect', {x, y: y0 - 3, width: Math.max(w, 6), height: bh + 6, fill: 'transparent', class: 'hit', tabindex: 0, 'aria-label': `${n}: ${pct(share)} of ${label.toLowerCase().replace('share of ', '')}`}, svg);
+      bindHit(hit, host, () => `<b>${n}</b><div class="row"><span>${label}</span><span>${pct(share)}</span></div><div class="row"><span>${label.endsWith('tokens') ? 'Tokens' : 'Cost'}</span><span>${fmt(src[k])}</span></div>`);
+      x += w;
+    });
+  });
+  host.querySelector('svg')?.remove(); host.prepend(svg);
+}
+const OPUS = {read: .5, write1h: 10, output: 25, write5: 6.25, input: 5};
+table('#t-type', ['Token type', 'Tokens', 'Share of tokens', 'Opus 5 rate / MTok', 'Cost', 'Share of cost'],
+  TYPES.map(([k, n]) => [n, mtok(D.tokens[k]), pct(D.tokens[k] / tokTotal), usd(OPUS[k], 2), usd2(D.costByType[k]), pct(D.costByType[k] / costTotal)]), [1, 2, 3, 4, 5]);
+
+/* ---------- context histogram ---------- */
+function drawCtx() {
+  const host = $('#c-ctx'), W = Math.max(320, host.clientWidth), H = W < 520 ? 220 : 260;
+  const m = {t: 22, r: 8, b: 30, l: 50}, iw = W - m.l - m.r, ih = H - m.t - m.b, n = D.ctx.hist.length, bs = D.ctx.binSize;
+  const {max, step} = niceMax(Math.max(...D.ctx.hist));
+  const svg = el('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Histogram of conversation size per API call'});
+  const y = v => m.t + ih - v / max * ih, xOf = tok => m.l + tok / (n * bs) * iw;
+  for (let v = 0; v <= max + 1e-9; v += step) {
+    el('line', {x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: css(v === 0 ? '--axis' : '--grid')}, svg);
+    const t = el('text', {x: m.l - 8, y: y(v) + 4, 'text-anchor': 'end', fill: css('--muted'), 'font-size': 11, 'font-family': css('--mono')}, svg); t.textContent = v.toLocaleString();
+  }
+  const bw = iw / n;
+  D.ctx.hist.forEach((c, i) => {
+    const x = m.l + i * bw + 1, w = bw - 2, yt = y(c), r = Math.min(4, w / 2, (y(0) - yt) / 2);
+    el('path', {d: `M${x},${y(0)} V${yt + r} Q${x},${yt} ${x + r},${yt} H${x + w - r} Q${x + w},${yt} ${x + w},${yt + r} V${y(0)} Z`, fill: css('--s1')}, svg);
+    const lo = i * bs, label = i === n - 1 ? `${lo / 1000}k tokens or more` : `${lo / 1000}k–${(lo + bs) / 1000}k tokens`;
+    const hit = el('rect', {x: m.l + i * bw, y: m.t, width: bw, height: ih, fill: 'transparent', class: 'hit', tabindex: 0, 'aria-label': `${label}: ${c} calls`}, svg);
+    bindHit(hit, host, () => `<b>${label}</b><div class="row"><span>Calls</span><span>${c.toLocaleString()}</span></div><div class="row"><span>Share</span><span>${pct(c / D.calls)}</span></div>`);
+  });
+  for (let k = 0; k <= n; k += (W < 520 ? 4 : 2)) {
+    const t = el('text', {x: xOf(k * bs), y: H - 10, 'text-anchor': 'middle', fill: css('--muted'), 'font-size': 11, 'font-family': css('--mono')}, svg); t.textContent = k === n ? `${k * bs / 1000}k+` : `${k * bs / 1000}k`;
+  }
+  const mx = xOf(D.ctx.median);
+  el('line', {x1: mx, x2: mx, y1: m.t - 6, y2: y(0), stroke: css('--ink'), 'stroke-width': 1.5, 'stroke-dasharray': '4 3'}, svg);
+  const t = el('text', {x: mx + 6, y: m.t - 8, fill: css('--ink'), 'font-size': 12, 'font-weight': 600}, svg); t.textContent = `median ${mtok(D.ctx.median)}`;
+  host.querySelector('svg')?.remove(); host.prepend(svg);
+}
+table('#t-ctx', ['Tokens of conversation', 'Calls', 'Share'], D.ctx.hist.map((c, i) => [i === D.ctx.hist.length - 1 ? `${i * 50}k or more` : `${i * 50}k–${(i + 1) * 50}k`, c.toLocaleString(), pct(c / D.calls)]), [1, 2]);
+
+/* ---------- projects ---------- */
+const TOPN = 10, projRows = D.projects.slice(0, TOPN), rest = D.projects.slice(TOPN);
+if (rest.length) projRows.push({name: `${rest.length} others`, cost: rest.reduce((a, p) => a + p.cost, 0), other: true});
+function drawProj() {
+  const host = $('#c-proj'), W = Math.max(320, host.clientWidth), narrow = W < 520;
+  const lw = narrow ? 0 : 190, vw = 72, rh = narrow ? 44 : 28, H = projRows.length * rh + 4;
+  const svg = el('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'API-equivalent cost by project'});
+  const max = projRows[0].cost, iw = W - lw - vw;
+  projRows.forEach((p, i) => {
+    const y0 = i * rh + (narrow ? 18 : 4), bh = narrow ? 14 : 18;
+    const lt = el('text', narrow ? {x: 0, y: y0 - 4, fill: css('--ink-2'), 'font-size': 12} : {x: 0, y: y0 + bh / 2 + 4, fill: css('--ink-2'), 'font-size': 12}, svg); lt.textContent = p.name;
+    const w = Math.max(2, p.cost / max * iw), r = Math.min(4, w / 2);
+    el('path', {d: `M${lw},${y0} H${lw + w - r} Q${lw + w},${y0} ${lw + w},${y0 + r} V${y0 + bh - r} Q${lw + w},${y0 + bh} ${lw + w - r},${y0 + bh} H${lw} Z`, fill: css(p.other ? '--s5' : '--s1')}, svg);
+    const vt = el('text', {x: lw + w + 8, y: y0 + bh / 2 + 4, fill: css('--ink'), 'font-size': 12, 'font-family': css('--mono')}, svg); vt.textContent = usd(p.cost);
+  });
+  host.querySelector('svg')?.remove(); host.prepend(svg);
+}
+table('#t-proj', ['Project', 'Cost', 'Share'], D.projects.map(p => [esc(p.name), usd2(p.cost), pct(p.cost / D.total)]), [1, 2]);
+
+/* ---------- top sessions & prices ---------- */
+$('#h-top').textContent = `Twelve sessions, ${pct(D.top.reduce((a, s) => a + s.cost, 0) / D.total)} of the month`;
+table('#t-top', ['Started', 'Session', 'Project', 'Mostly', 'Calls', 'Cost'],
+  D.top.map(s => [fmtDay(s.day), esc(s.title), esc(s.project), MODEL_NAME(s.model), s.calls.toLocaleString(), usd2(s.cost)]), [4, 5]);
+table('#t-prices', ['Model', 'Input', '5-min write', '1-hour write', 'Cache read', 'Output'], [
+  ['Claude Fable 5.1', 10, 12.5, 20, .25, 50], ['Claude Fable 5', 10, 12.5, 20, 1, 50], ['Claude Opus 5.5', 4, 5, 8, .2, 20],
+  ['Claude Opus 5', 5, 6.25, 10, .5, 25], ['Claude Sonnet 5', 2, 2.5, 4, .2, 10], ['Claude Haiku 4.5', 1, 1.25, 2, .1, 5]
+].map(([n, ...v]) => [n, ...v.map(x => usd(x, 2))]), [1, 2, 3, 4, 5]);
+
+/* ---------- render & re-render ---------- */
+const drawAll = () => { drawDaily(); drawType(); drawCtx(); drawProj(); };
+drawAll();
+let rt; new ResizeObserver(() => { clearTimeout(rt); rt = setTimeout(drawAll, 80); }).observe($('.wrap'));
+try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', drawAll); new MutationObserver(drawAll).observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']}); } catch (e) {}
+</script>
