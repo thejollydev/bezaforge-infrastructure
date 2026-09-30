@@ -213,6 +213,12 @@ variable "cloud_init_password" {
   default     = ""
 }
 
+variable "cloud_init_user" {
+  description = "Name of the cloud-init user account. Personal, so it comes from the untracked terraform.tfvars rather than this public repository (#1335); required when create_from_template is true"
+  type        = string
+  default     = ""
+}
+
 variable "vga_type" {
   description = "Virtual VGA card. 'std' (default) gives a 16 MB stdvga sufficient for GDM/X11 on Linux guests; 'none' for true headless VMs that won't run a desktop session. Other valid values: qxl, qxl2-4, vmware, virtio, virtio-gl, serial0-3."
   type        = string

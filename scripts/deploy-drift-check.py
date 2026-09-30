@@ -70,6 +70,11 @@ USAGE
   scripts/deploy-drift-check.py --hosts     # which hosts report stamps
   ROLES_OVERRIDE=adguard,ollama scripts/deploy-drift-check.py
 
+  GITEA_REPO (owner/name) is read from the environment, as the forge-ops
+  wrapper sets it; run by hand from a checkout, it comes from that
+  checkout's Gitea push URL. The owner is not written here because this
+  repository is public (#1335).
+
 EXIT CODES
   0  every stamped host is current with main
   1  at least one host is BEHIND main on at least one role
@@ -81,7 +86,9 @@ EXIT CODES
 
 import json
 import os
+import re
 import ssl
+import subprocess
 import sys
 import urllib.error
 import urllib.parse
@@ -89,7 +96,26 @@ import urllib.request
 from datetime import datetime
 
 GITEA_URL = os.environ.get("GITEA_URL", "https://git.bezaforge.dev")
-GITEA_REPO = os.environ.get("GITEA_REPO", "joseph/bezaforge-infrastructure")
+
+
+def _repo_from_checkout():
+    """owner/name from this checkout's Gitea push URL, or "" outside one."""
+    host = urllib.parse.urlparse(GITEA_URL).hostname or ""
+    try:
+        urls = subprocess.run(
+            ["git", "remote", "get-url", "--push", "--all", "origin"],
+            capture_output=True, text=True, timeout=5, check=True,
+        ).stdout.split()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    for url in urls:
+        m = re.search(re.escape(host) + r"(?::\d+)?[:/]([^/]+/[^/]+?)(?:\.git)?$", url)
+        if host and m:
+            return m.group(1)
+    return ""
+
+
+GITEA_REPO = os.environ.get("GITEA_REPO") or _repo_from_checkout()
 PROM_URL = os.environ.get("PROM_URL", "https://prometheus.bezaforge.dev")
 BRANCH = os.environ.get("BRANCH", "main")
 ROLES_PATH = os.environ.get("ROLES_PATH", "ansible/roles")
@@ -128,6 +154,8 @@ def _get(url):
 
 def gitea_roles():
     """Every role directory on the branch, read from git rather than a list."""
+    if not GITEA_REPO:
+        raise Unreachable("GITEA_REPO is not set and this is not a checkout with a Gitea push URL")
     url = (
         f"{GITEA_URL}/api/v1/repos/{GITEA_REPO}/contents/"
         f"{urllib.parse.quote(ROLES_PATH)}?ref={urllib.parse.quote(BRANCH)}"

@@ -14,7 +14,7 @@ services:
         condition: service_healthy
     environment:
       SUPERUSER_NAME: admin
-      SUPERUSER_EMAIL: joseph@bezacore.com
+      SUPERUSER_EMAIL: {{ bezaforge_admin_email }}
       SUPERUSER_PASSWORD: ${NETBOX_SUPERUSER_PASSWORD}
       ALLOWED_HOSTS: "netbox.bezaforge.dev localhost netbox"
       DB_HOST: netbox-postgres

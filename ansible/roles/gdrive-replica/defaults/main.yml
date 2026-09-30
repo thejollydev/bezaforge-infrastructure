@@ -18,7 +18,7 @@
 #
 # One-time prereqs (Joseph, interactive):
 #   1. Own Google OAuth client ID (Desktop app) on the
-#      joseph.soper.dev@gmail.com account — consent screen MUST
+#      Drive owner's Google account — consent screen MUST
 #      be published to Production (Testing-mode refresh tokens
 #      expire after 7 days).
 #   2. Token minted on the laptop via `rclone config` with
@@ -39,8 +39,8 @@ gdrive_replica_rclone_version: "1.74.3"
 # since that role was retired (2026-09-13).
 #
 # ⚠️ UID 900, NOT 1000 (#965). It used to be 1000 — the first human uid,
-# which is joseph on every forge-* VM. The bezapool exports are sec=sys,
-# which trusts the client's NUMERIC uid, so joseph on an NFS client WAS
+# which is the admin user on every forge-* VM. The bezapool exports are sec=sys,
+# which trusts the client's NUMERIC uid, so the admin user on an NFS client WAS
 # vaultsync on the hypervisor: an unprivileged `touch` in bezapool/gdrive
 # from forge-ops succeeded. 900 sits in the system range, below where
 # Debian allocates system accounts downward from 999 (989 was taken by

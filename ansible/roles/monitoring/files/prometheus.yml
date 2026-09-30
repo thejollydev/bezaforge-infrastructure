@@ -74,7 +74,7 @@ scrape_configs:
     static_configs:
       - targets: ['10.10.40.99:9100']
         labels:
-          instance: 'jolly-LOQ-arch'
+          instance: 'workstation'
           role: 'workstation'
 
   # ============================================================

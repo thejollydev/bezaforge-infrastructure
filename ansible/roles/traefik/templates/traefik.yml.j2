@@ -32,7 +32,7 @@ providers:
 certificatesResolvers:
   letsencrypt:
     acme:
-      email: joseph@bezacore.com
+      email: {{ bezaforge_admin_email }}
       storage: /certs/acme.json
       dnsChallenge:
         provider: cloudflare

@@ -1,7 +1,7 @@
 ---
 # Connection
 ansible_host: 10.10.20.50
-ansible_user: joseph
+ansible_user: "{{ bezaforge_admin_user }}"
 
 # ------------------------------------------------------------
 # Resolver config (roles/dns-client, #638)
