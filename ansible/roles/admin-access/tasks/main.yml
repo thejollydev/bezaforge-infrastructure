@@ -24,7 +24,7 @@
 # so putting this there would cover half the fleet and look complete.
 #
 # forge-hypervisor is deliberately NOT in scope: its ansible_user is root,
-# there is no `joseph` user on that host at all (`id joseph` -> no such
+# there is no admin user on that host at all (`id <user>` -> no such
 # user), and root already reads the full journal. Adding it there would
 # fail on a nonexistent user.
 

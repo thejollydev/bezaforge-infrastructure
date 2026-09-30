@@ -82,8 +82,8 @@
   ansible.builtin.copy:
     src: docker-compose.yml
     dest: "{{ bezaforge_root }}/adguard/docker-compose.yml"
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: '0644'
   notify: restart adguard
 

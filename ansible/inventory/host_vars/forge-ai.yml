@@ -1,7 +1,7 @@
 ---
 # Connection
 ansible_host: 10.10.50.10
-ansible_user: joseph
+ansible_user: "{{ bezaforge_admin_user }}"
 
 # Machine identity
 hostname: forge-ai

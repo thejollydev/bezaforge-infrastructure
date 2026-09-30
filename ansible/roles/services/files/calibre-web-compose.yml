@@ -16,7 +16,7 @@ services:
     container_name: calibre-web
     restart: unless-stopped
     environment:
-      # joseph (uid/gid 1000) — matches the bind-mount dir ownership the
+      # the admin user (uid/gid 1000) — matches the bind-mount dir ownership the
       # services role creates, so CWA can read/write config + library.
       PUID: "1000"
       PGID: "1000"

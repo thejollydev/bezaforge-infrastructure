@@ -6,7 +6,7 @@
 
 # Connection
 ansible_host: 10.10.50.20
-ansible_user: joseph
+ansible_user: "{{ bezaforge_admin_user }}"
 
 # Machine identity
 hostname: forge-agents
@@ -52,11 +52,11 @@ dns_client_netplan_id: eno2
 # Vault sync (roles/syncthing, #1216)
 # ------------------------------------------------------------
 # The same path as the laptop's copy, so Never4gA's configuration carries
-# over in build step 4. Runs as joseph, as Brizza v1's agent did. If the
+# over in build step 4. Runs as the admin user, as Brizza v1's agent did. If the
 # agents get users of their own they will need a shared group, and the
 # packaged unit's UMask=7027 creates files without group write.
-syncthing_user: joseph
-syncthing_folder_path: /home/joseph/Vaults/never-knowledge
+syncthing_user: "{{ bezaforge_admin_user }}"
+syncthing_folder_path: "/home/{{ bezaforge_admin_user }}/Vaults/{{ knowledge_vault_name }}"
 # Empty until the first run generates the identity and prints the ID to
 # record here (docs/runbooks/vault-syncthing.md).
 syncthing_device_id: WV54WLV-YC4BPXG-CB7LGKH-LZSQFZ7-WYXDUAH-XV7SR6L-UKT3XNF-YFNCAQW
@@ -75,11 +75,11 @@ syncthing_ufw_allow_from: "{{ ['10.10.10.10'] + common_admin_ssh_sources }}"
 #
 # Gitea, not GitHub: the clone URL is the third push URL every repository
 # already mirrors to, so the checkout is as current as the last push.
-agent_repos_user: joseph
-agent_repos_root: /home/joseph/Projects
+agent_repos_user: "{{ bezaforge_admin_user }}"
+agent_repos_root: "/home/{{ bezaforge_admin_user }}/Projects"
 agent_repos:
   - name: brizza
-    url: ssh://git@git.bezaforge.dev:2222/joseph/brizza.git
+    url: "ssh://git@git.bezaforge.dev:2222/{{ bezaforge_admin_user }}/brizza.git"
 
 # ------------------------------------------------------------
 # Never4gA (roles/never4ga, #1217)
@@ -92,8 +92,8 @@ agent_repos:
 # built by hand first — the package is unreleased, its repository is
 # private, and this host holds no credential for it. See
 # docs/runbooks/never4ga-on-forge-agents.md.
-never4ga_user: joseph
-never4ga_vault_path: /home/joseph/Vaults/never-knowledge
+never4ga_user: "{{ bezaforge_admin_user }}"
+never4ga_vault_path: "/home/{{ bezaforge_admin_user }}/Vaults/{{ knowledge_vault_name }}"
 never4ga_wheel: "{{ lookup('env', 'HOME') }}/Projects/never4ga/dist/never4ga-0.1.0.dev0-py3-none-any.whl"
 
 # Repositories the agents work on, mapped so `context startup --cwd`
@@ -101,19 +101,19 @@ never4ga_wheel: "{{ lookup('env', 'HOME') }}/Projects/never4ga/dist/never4ga-0.1
 # which runs first.
 never4ga_mappings:
   - workspace: 01a04efd-1861-7352-8245-8c0c6a001f79   # Brizza
-    path: /home/joseph/Projects/brizza
+    path: "/home/{{ bezaforge_admin_user }}/Projects/brizza"
 
 # Step 4's done-when, asserted on every run: `doctor` clean, and the Brizza
 # pack returned from inside the Brizza checkout.
 never4ga_verify_workspace: 01a04efd-1861-7352-8245-8c0c6a001f79
-never4ga_verify_repo: /home/joseph/Projects/brizza
+never4ga_verify_repo: "/home/{{ bezaforge_admin_user }}/Projects/brizza"
 
 # ------------------------------------------------------------
 # The agent team (roles/hermes-team, #1218)
 # ------------------------------------------------------------
 # Brizza ADRs 0014 and 0015. Same user as the vault copy and Never4gA, so
 # each agent reads the vault as the user that owns it.
-hermes_user: joseph
+hermes_user: "{{ bezaforge_admin_user }}"
 
 # The vault each agent reaches through Never4gA's MCP server: the copy
 # roles/never4ga serves, not a second one.

@@ -102,9 +102,9 @@
 # groups without removing any existing group memberships.
 # Without append, joseph would be removed from sudo and any
 # other groups. This is a common Ansible footgun.
-- name: Add joseph to docker group
+- name: Add the admin user to the docker group
   ansible.builtin.user:
-    name: joseph
+    name: "{{ bezaforge_admin_user }}"
     groups: docker
     append: true
 
@@ -194,8 +194,8 @@
   ansible.builtin.file:
     path: "{{ bezaforge_root }}/{{ item }}"
     state: directory
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: '0755'
   loop:
     - traefik

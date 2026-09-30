@@ -74,7 +74,7 @@ comfyui_custom_nodes:
 comfyui_listen: 0.0.0.0
 comfyui_port: 8188
 comfyui_ufw_allow_from:
-  - 10.10.40.99  # jolly-LOQ-arch over WiFi, where imagegen runs (matches roles/ollama)
+  - 10.10.40.99  # the workstation over WiFi, where imagegen runs (matches roles/ollama)
 
 # No --disable-smart-memory. It was here to give the card back to Ollama after
 # every job, and it crashed the first Qwen-Image run (2026-09-13): it offloads

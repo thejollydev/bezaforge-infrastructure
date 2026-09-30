@@ -44,8 +44,8 @@
   ansible.builtin.copy:
     src: prometheus.yml
     dest: "{{ bezaforge_root }}/prometheus/prometheus.yml"
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: '0644'
   notify: restart prometheus
 
@@ -74,8 +74,8 @@
   ansible.builtin.copy:
     src: blackbox-config.yml
     dest: "{{ bezaforge_root }}/prometheus/blackbox-config.yml"
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: '0644'
   notify: restart prometheus
 
@@ -102,8 +102,8 @@
   ansible.builtin.copy:
     src: prometheus-compose.yml
     dest: "{{ bezaforge_root }}/prometheus/docker-compose.yml"
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: '0644'
   notify: restart prometheus
 
@@ -135,8 +135,8 @@
   ansible.builtin.template:
     src: grafana-compose.yml.j2
     dest: "{{ bezaforge_root }}/grafana/docker-compose.yml"
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: '0600'
   notify: restart grafana
 
@@ -244,8 +244,8 @@
   ansible.builtin.copy:
     src: loki-config.yml
     dest: "{{ bezaforge_root }}/loki/config.yml"
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: '0644'
   notify: restart loki
 
@@ -267,8 +267,8 @@
   ansible.builtin.copy:
     src: promtail-config.yml
     dest: "{{ bezaforge_root }}/loki/promtail-config.yml"
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: '0644'
   notify: restart loki
 
@@ -304,8 +304,8 @@
   ansible.builtin.copy:
     src: loki-compose.yml
     dest: "{{ bezaforge_root }}/loki/docker-compose.yml"
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: '0644'
   notify: restart loki
 

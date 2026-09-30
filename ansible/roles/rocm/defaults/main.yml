@@ -18,4 +18,4 @@ rocm_gpu_groups:
 # handled in roles/ollama (it's created by Ollama's installer, which runs
 # after this role).
 rocm_gpu_users:
-  - joseph
+  - "{{ bezaforge_admin_user }}"

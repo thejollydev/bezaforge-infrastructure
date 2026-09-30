@@ -31,16 +31,18 @@
   ansible.builtin.file:
     path: "{{ bezaforge_root }}/traefik/config/dynamic"
     state: directory
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: '0755'
 
+# Templated only for the ACME contact address, which is personal and comes
+# from the encrypted vars (#1335). Nothing else in it is Jinja.
 - name: Deploy Traefik static config
-  ansible.builtin.copy:
-    src: traefik.yml
+  ansible.builtin.template:
+    src: traefik.yml.j2
     dest: "{{ bezaforge_root }}/traefik/config/traefik.yml"
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: '0644'
   notify: restart traefik
 
@@ -48,8 +50,8 @@
   ansible.builtin.copy:
     src: middleware.yml
     dest: "{{ bezaforge_root }}/traefik/config/dynamic/middleware.yml"
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: '0644'
   # No restart needed — Traefik's file provider watches this
   # directory and picks up changes automatically
@@ -62,8 +64,8 @@
   ansible.builtin.copy:
     src: "{{ item }}"
     dest: "{{ bezaforge_root }}/traefik/config/dynamic/{{ item }}"
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: '0644'
   loop:
     - erp.yml
@@ -133,8 +135,8 @@
   ansible.builtin.template:
     src: docker-compose.yml.j2
     dest: "{{ bezaforge_root }}/traefik/docker-compose.yml"
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: '0600'
   notify: restart traefik
 

@@ -22,8 +22,8 @@
   ansible.builtin.file:
     path: "{{ bezaforge_root }}/{{ item }}"
     state: directory
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: "0755"
   loop: "{{ compose_services }}"
 
@@ -49,8 +49,8 @@
   ansible.builtin.template:
     src: "{{ item }}-compose.yml.j2"
     dest: "{{ bezaforge_root }}/{{ item }}/docker-compose.yml"
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: "0600"
   loop: "{{ compose_services | intersect(['gitea']) }}"
 # taiga removed from intersect list 2026-05-22 (retired — see guide 12).
@@ -63,10 +63,22 @@
   ansible.builtin.copy:
     src: "{{ item }}-compose.yml"
     dest: "{{ bezaforge_root }}/{{ item }}/docker-compose.yml"
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: "0644"
-  loop: "{{ compose_services | intersect(['netbox', 'langfuse', 'homepage', 'open-webui']) }}"
+  loop: "{{ compose_services | intersect(['langfuse', 'homepage', 'open-webui']) }}"
+
+# NetBox's compose is the same kind of file, templated only for the
+# superuser's email address, which is personal and comes from the encrypted
+# vars (#1335). Same owner and mode as the loop above.
+- name: Deploy NetBox compose file
+  ansible.builtin.template:
+    src: netbox-compose.yml.j2
+    dest: "{{ bezaforge_root }}/netbox/docker-compose.yml"
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
+    mode: "0644"
+  when: "'netbox' in compose_services"
 
 # NetBox v2 API tokens are hashed with this pepper, and NetBox refuses one
 # shorter than 50 characters. Checked here so a missing or short value fails
@@ -87,8 +99,8 @@
   ansible.builtin.template:
     src: "{{ item }}-env.j2"
     dest: "{{ bezaforge_root }}/{{ item }}/.env"
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: "0600"
   loop: "{{ compose_services | intersect(['netbox', 'langfuse', 'homepage', 'open-webui']) }}"
 
@@ -103,8 +115,8 @@
   ansible.builtin.file:
     path: "{{ bezaforge_root }}/homepage/{{ item }}"
     state: directory
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: "0755"
   loop:
     - config
@@ -115,8 +127,8 @@
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../docker/homepage/config/"
     dest: "{{ bezaforge_root }}/homepage/config/"
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: "0644"
     directory_mode: "0755"
   when: "'homepage' in compose_services"
@@ -126,8 +138,8 @@
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../docker/homepage/images/"
     dest: "{{ bezaforge_root }}/homepage/images/"
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: "0644"
     directory_mode: "0755"
   when: "'homepage' in compose_services"
@@ -156,8 +168,8 @@
   ansible.builtin.copy:
     src: "{{ item }}-compose.yml"
     dest: "{{ bezaforge_root }}/{{ item }}/docker-compose.yml"
-    owner: joseph
-    group: joseph
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
     mode: "0644"
   loop: "{{ compose_services | intersect(['uptime-kuma', 'calibre-web']) }}"
 
