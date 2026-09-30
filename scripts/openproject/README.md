@@ -79,5 +79,4 @@ docker cp op_provision_rails.rb openproject:/tmp/ && \
 - The Claude-in-Chrome automation tab can render the Description/Status widgets
   **blank** when they're fine in a real browser — verify data via the API, not that tab.
 
-Background: OpenProject migration + rationale live in the vault
-(`05_Projects/bezaforge-infrastructure/`) and the Outline runbooks.
+Background on the OpenProject migration lives in the Outline runbooks.
