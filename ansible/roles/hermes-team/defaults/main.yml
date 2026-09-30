@@ -17,11 +17,11 @@
 # Never4gA as that user (ADR 0016, #1217).
 hermes_user: ""
 
-# Where the role cards are read from, on the CONTROL machine. The cards are
-# the agents' prompts and live in the private brizza repository
-# (team/souls/<agent>.md), not in this public one (#1335); this points at a
-# checkout of it. Each agent's `soul` names a file in this directory.
-hermes_souls_dir: ""
+# The team directory of a checkout of the private brizza repository, on the
+# CONTROL machine. It holds roster.yml, which sets hermes_agents below, and
+# souls/<agent>.md, the role cards. Both are internal and stay out of this
+# public repository (#1335).
+hermes_team_dir: ""
 
 # --- Staying current (decided by Joseph, 2026-09-18) ---
 # Hermes follows its NEWEST PUBLISHED RELEASE, automatically: on every
@@ -106,7 +106,8 @@ hermes_installer_arguments:
   - --skip-setup
 
 # --- The agents ---
-# One entry per profile. `soul` names a file in hermes_souls_dir; `model` is
+# Read from <hermes_team_dir>/roster.yml, never set here or in host_vars.
+# One entry per profile. `soul` names a file in <hermes_team_dir>/souls/; `model` is
 # what the profile's model.default is set to, and `dispatch` says whether
 # this agent's gateway runs the board's dispatcher (exactly one must, see
 # "The kanban board" below).
@@ -115,7 +116,7 @@ hermes_installer_arguments:
 # ADR 0014 principle 2: nothing starts without Joseph's approval. The role
 # creates the profile, writes its soul and installs its gateway service, but
 # it does not START a gateway until Joseph sets `approved: true` for that
-# agent in host_vars — and not before its Discord token exists on the host.
+# agent in the roster — and not before its Discord token exists on the host.
 # That is the difference between a profile being ready and an agent running.
 hermes_agents: []
 
