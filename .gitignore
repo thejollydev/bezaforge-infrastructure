@@ -49,7 +49,7 @@ __pycache__/
 
 # BEGIN never4ga agent instruction files (ADR-0025)
 # These are generated pointers, not content. What they used to carry
-# lives in the never-knowledge vault and reaches a session through the
+# lives in the Never4gA vault and reaches a session through the
 # Context Pack.
 AGENTS.md
 CLAUDE.md
