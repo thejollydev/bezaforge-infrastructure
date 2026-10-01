@@ -130,60 +130,9 @@ hermes_never4ga_vault_path: "{{ never4ga_vault_path }}"
 # refuses to start an approved agent until it is set.
 hermes_discord_allowed_users: "{{ vault_hermes_discord_allowed_users }}"
 
-# Build 5a's three. Brizza first, with the approval flow and the daily
-# memory-write digest, then Samuel and Malachi so a task can be researched
-# and reviewed. Jeremiah, Zechariah, Elijah and Isaiah join in #1219.
-#
-# ⚠️ `approved` IS JOSEPH'S SWITCH AND IT IS OFF. ADR 0014 principle 2:
-# nothing starts until he approves its first run. Each agent also needs a
-# Discord application (Message Content + Server Members intents) and its
-# token placed at ~/.hermes/profiles/<name>/.env, which the role never
-# writes. Until both are true the role creates the profile and leaves it
-# waiting, which is the expected state between one application and the next.
-#
-# Models follow ADR 0014 principle 3 — local by default, a subscription
-# Joseph already pays for only where local would drastically worsen the
-# result, and no metered API spend. Bare Ollama names, because the provider
-# is `custom` pointed at forge-ai (see the role defaults for why the shape
-# matters). Malachi is the exception the role cards make explicitly: Codex
-# for code and anything needing real reasoning.
-hermes_agents:
-  - name: brizza
-    soul: soul-brizza.md.j2
-    model: gpt-5.6-luna
-    # The board's only dispatcher. ADR 0014 makes her the orchestrator and
-    # dispatch is orchestration; naming it here is what keeps it from
-    # falling to whichever gateway systemd starts first. Moving it means
-    # moving this line, not restarting things until the lock lands well.
-    dispatch: true
-    # The one agent who can put work on the board from chat. Joseph hands
-    # out work by talking to her, and she turns it into cards. Brizza only,
-    # by his ruling 2026-09-20: the others get their board tools from the
-    # dispatcher when it runs them.
-    orchestrates: true
-    # Approved 2026-09-19: her Discord application exists with both
-    # privileged intents, her token is on the host and she is in the
-    # server.
-    approved: true
-  - name: samuel
-    soul: soul-samuel.md.j2
-    model: gpt-5.6-luna
-    dispatch: false
-    orchestrates: false
-    # Approved 2026-09-20: application created with both privileged
-    # intents, invited with the same permissions as Brizza, token on the
-    # host.
-    approved: true
-  - name: malachi
-    soul: soul-malachi.md.j2
-    # Codex like the rest now, rather than a local coder model: the whole
-    # team moved to Codex 2026-09-20, which is what his role card wanted
-    # anyway. No login of his own to complete: Codex is single-use-refresh,
-    # so the one grant at the root covers every profile.
-    model: gpt-5.6-luna
-    dispatch: false
-    orchestrates: false
-    # Approved 2026-09-20: application created with both privileged
-    # intents, invited with the same permissions as the other two, his
-    # channel opened to his role, token on the host. The team is complete.
-    approved: true
+# The roster (which agents exist, their role cards, models, dispatch and
+# approval) is internal, so it lives in the private brizza repository with
+# the role cards, not in this public one (#1335). The role reads
+# team/roster.yml and team/souls/ from a checkout of it on the machine
+# running the playbook, the same way never4ga_wheel does.
+hermes_team_dir: "{{ lookup('env', 'HOME') }}/Projects/brizza/team"

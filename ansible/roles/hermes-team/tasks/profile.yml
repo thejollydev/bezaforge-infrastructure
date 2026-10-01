@@ -31,12 +31,13 @@
   changed_when: true
 
 # The role card IS the soul (ADR 0014: "the role cards ... are part of this
-# decision"). They are authored in the Brizza plan and travel here as
-# templates so the host's copy is reviewable in a diff rather than pasted
-# into a running agent.
+# decision"). They are authored in the private brizza repository and copied
+# verbatim from a checkout of it, so the host's copy is still reviewable in
+# a diff rather than pasted into a running agent. Copied, not templated:
+# a card is prose, and nothing in it should be read as Jinja.
 - name: "Write the soul for {{ agent.name }}"
-  ansible.builtin.template:
-    src: "{{ agent.soul }}"
+  ansible.builtin.copy:
+    src: "{{ hermes_team_dir }}/souls/{{ agent.soul }}"
     dest: "{{ hermes_profiles_dir }}/{{ agent.name }}/SOUL.md"
     owner: "{{ hermes_user }}"
     group: "{{ hermes_user }}"
@@ -198,7 +199,7 @@
 # default is true" — and on the first deploy it skipped the dispatcher key
 # on Brizza for exactly that reason, leaving her config.yaml without it.
 # Her dispatching then rested on a default the nightly release update is
-# free to change, and nothing here would have noticed: host_vars would
+# free to change, and nothing here would have noticed: the roster would
 # still say `dispatch: true` and the roster check would still pass.
 #
 # So the one key that names the dispatcher is written whether or not it

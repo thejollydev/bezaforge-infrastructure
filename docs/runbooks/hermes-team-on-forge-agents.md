@@ -9,7 +9,8 @@ three (#1218), what you have to do by hand, and the tests the step owes.
 | Hermes | `~joseph/.hermes/hermes-agent`, newest release | `roles/hermes-team`, then the nightly updater |
 | On `PATH` | `~joseph/.local/bin/hermes`, plus `<name>` per profile | the installer |
 | A profile | `~joseph/.hermes/profiles/<name>/` | the role |
-| A soul | that profile's `SOUL.md` | templated from the role card |
+| A soul | that profile's `SOUL.md` | copied from the role card in the private brizza repository (`team/souls/`) |
+| The roster | `team/roster.yml` in the private brizza repository: every agent, its role card, model, dispatch and approval | **you, in brizza**, through a PR |
 | Credentials | that profile's `.env` | **you, by hand** |
 | A gateway | `hermes-gateway-<name>.service`, `systemd --user` | the role, started only on approval |
 
@@ -23,7 +24,7 @@ git. The credential reaches the host through `hermes setup` or your own hand,
 and the role's only job is to notice whether it is there.
 
 **It starts no agent.** ADR 0014 principle 2 — nothing runs until you approve
-its first run. A gateway starts only for an agent whose `host_vars` entry says
+its first run. A gateway starts only for an agent whose roster entry says
 `approved: true` *and* whose token is present. Everything else gets a profile
 and waits, which is the normal state between one Discord application and the
 next.
@@ -58,8 +59,8 @@ Without it every agent denies every message, yours included, and the role
 refuses to start an approved agent rather than let it come up silent.
 
 The profile has to exist first, so the order is: run the role once, create the
-application, place the token, set your user ID and `approved: true`, run the
-role again.
+application, place the token, set your user ID, set `approved: true` in the
+roster, run the role again.
 
 ### Every new agent needs its own channel overwrite
 
@@ -230,6 +231,44 @@ than a suggestion.
       in one server, and says to test it before relying on it.
 - [ ] A Bot Mode room with three agents.
 - [ ] An agent-to-agent message across profiles.
+
+## Renaming an agent
+
+`hermes profile rename <old> <new>` does most of it. It moves
+`~/.hermes/profiles/<old>/` to `<new>/`, so memory, sessions, the `.env` token
+and the Codex login travel with the profile. It also replaces the `<old>`
+wrapper on `PATH` and moves Hermes' own session and routing state to the new
+name. Nothing has to be copied across by hand.
+
+**It removes the old gateway unit only if that gateway is running when you
+rename it.** Rename a running agent and `hermes-gateway-<old>.service` is
+disabled, stopped and deleted for you. Rename a stopped one and the unit is
+left behind; remove it yourself:
+
+```bash
+systemctl --user disable --now hermes-gateway-<old>.service; rm -f ~/.config/systemd/user/hermes-gateway-<old>.service; systemctl --user daemon-reload
+```
+
+A leftover unit is not harmless: the nightly updater restarts
+`hermes-gateway-*.service`, which would start a gateway for a profile that no
+longer exists.
+
+In order:
+
+1. **On forge-agents**, as the admin user, rename the profile while its
+   gateway is running: `hermes profile rename <old> <new>`. The agent goes
+   offline here and stays offline until step 5.
+2. **In brizza**, the roster entry and the role card carry the new name, with
+   `approved: false`. Land it and have the laptop's brizza checkout on that
+   commit, because the role reads the checkout, not the remote.
+3. **Deploy the role.** It writes the new soul and replaces the Never4gA
+   server entry, so the agent writes as `hermes-<new>/<model>` from then on.
+   What it wrote before keeps `hermes-<old>`.
+4. **On Discord**, rename the application, the bot's username, its channel
+   and its role. The token does not change, and the channel's permission
+   overwrite follows the role, not its name.
+5. **Set `approved: true`** in the roster and deploy again. The role installs
+   and starts `hermes-gateway-<new>.service`.
 
 ## When something goes wrong
 

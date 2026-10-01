@@ -12,7 +12,7 @@
 #     credential is there and says so.
 #   - It does not start an agent. ADR 0014 principle 2 — nothing runs until
 #     Joseph approves its first run — so a gateway starts only for an agent
-#     whose host_vars entry says `approved: true`.
+#     whose roster entry says `approved: true`.
 #   - It does not run `hermes setup`. That is interactive and would ask for
 #     a model and tokens the role has opinions about and credentials it
 #     refuses to hold.
@@ -23,6 +23,24 @@
 # hermes-update-release moves the checkout from release to release.
 # ============================================================
 
+# The roster and the role cards are internal and live in the private brizza
+# repository (#1335). Read before the input checks, which check what the
+# roster holds.
+- name: Require the team directory on the control machine
+  ansible.builtin.assert:
+    that:
+      - hermes_team_dir | length > 0
+      - (hermes_team_dir ~ '/roster.yml') is file
+    fail_msg: >-
+      No roster at {{ hermes_team_dir }}/roster.yml. hermes_team_dir must
+      point at the team/ directory of a brizza checkout on the machine
+      running the playbook, on a branch that has team/roster.yml.
+    quiet: true
+
+- name: Read the roster
+  ansible.builtin.include_vars:
+    file: "{{ hermes_team_dir }}/roster.yml"
+
 - name: Check the role's inputs
   ansible.builtin.assert:
     that:
@@ -31,12 +49,28 @@
       - not hermes_never4ga_mcp_enabled or hermes_never4ga_vault_path | length > 0
       - hermes_agents | map(attribute='name') | list | unique | length == hermes_agents | length
     fail_msg: >-
-      roles/hermes-team needs hermes_user and a hermes_agents list in
-      host_vars, with one entry per profile and no repeated name. Two
+      roles/hermes-team needs hermes_user in host_vars and a roster with
+      one entry per profile and no repeated name. Two
       profiles with one name would be two processes on one Hermes home,
       which corrupts both agents' memory. With Never4gA registered for the
       agents, hermes_never4ga_vault_path is required too.
     quiet: true
+
+# Checked here, before any profile is touched, so a missing card stops the
+# run whole instead of leaving some agents rewritten and the rest not. The
+# usual cause is the brizza checkout being on a branch without team/souls/.
+- name: Require every agent's role card on the control machine
+  ansible.builtin.assert:
+    that: (hermes_team_dir ~ '/souls/' ~ item.soul) is file
+    fail_msg: >-
+      No role card at {{ hermes_team_dir }}/souls/{{ item.soul }} for
+      {{ item.name }}. The roster names it but the brizza checkout does not
+      have it; check out a branch where team/roster.yml and team/souls/
+      agree.
+    quiet: true
+  loop: "{{ hermes_agents }}"
+  loop_control:
+    label: "{{ item.name }}"
 
 # The board is machine-global and one process dispatches from it. Upstream
 # settles that with an flock taken once at gateway boot, so ownership falls
@@ -396,7 +430,7 @@
       a profile and a gateway service but {{ 'is' if hermes_waiting | length == 1 else 'are' }}
       not running. Each needs a Discord application with the Message Content
       and Server Members intents, its token on the host, and
-      `approved: true` in host_vars. ADR 0014 principle 2: nothing starts
+      `approved: true` in the roster. ADR 0014 principle 2: nothing starts
       until you approve its first run.
   vars:
     hermes_waiting: "{{ hermes_agents | rejectattr('approved', 'defined') | map(attribute='name') | list
