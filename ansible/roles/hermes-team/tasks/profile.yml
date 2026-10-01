@@ -177,6 +177,20 @@
         value: "{{ hermes_fallback_base_url }}"
       - key: fallback_model.context_length
         value: "{{ hermes_fallback_context_length }}"
+      # The self-improvement review runs on forge-ai, not Codex (see
+      # defaults). The model_overrides key is the 64K window the routed
+      # review would otherwise misread as 262K; it is keyed by provider and
+      # model, so it covers the fallback as well.
+      - key: auxiliary.background_review.provider
+        value: "{{ hermes_background_review_provider }}"
+      - key: auxiliary.background_review.model
+        value: "{{ hermes_background_review_model }}"
+      - key: auxiliary.background_review.base_url
+        value: "{{ hermes_background_review_base_url }}"
+      - key: auxiliary.background_review.max_input_tokens
+        value: "{{ hermes_background_review_max_input_tokens }}"
+      - key: "model_overrides.{{ hermes_background_review_provider }}.{{ hermes_background_review_model }}.context_window"
+        value: "{{ hermes_fallback_context_length }}"
 
 # argv rather than a cmd string: `hermes_model_base_url` is deliberately
 # empty under an openai-codex primary, and an empty value vanishes from a

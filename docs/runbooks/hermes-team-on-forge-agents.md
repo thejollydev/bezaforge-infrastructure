@@ -383,6 +383,22 @@ authorization URL and waits for the code pasted back.
 stops all three agents at once — they are less independent than their
 per-profile Discord tokens suggest.
 
+**The self-improvement review runs on forge-ai, not Codex.** After every
+turn Hermes forks the agent to ask whether a memory or skill should be saved
+(`auxiliary.background_review`). It is what proposes the memory writes held
+for your approval, so it stays on, but the role routes it to the local
+fallback model so it spends nothing from the Codex allowance (Joseph,
+2026-09-30, #1334). A 💾 line in Discord after a reply is this review. To see
+it run, and on which model:
+
+```bash
+ssh joseph@forge-agents 'grep -h "model=gemma4" ~/.hermes/profiles/*/logs/agent.log | tail -5'
+```
+
+If it cannot reach forge-ai, Hermes logs a warning naming
+`auxiliary.background_review.provider` and runs the review on the agent's own
+Codex model instead, so an outage on forge-ai quietly moves this cost back.
+
 **Everything is suddenly slower and dumber at once.** All three agents share
 ONE ChatGPT account, so they exhaust the Codex allowance together and fall
 back to forge-ai together. That is the design — a shared local fallback
@@ -411,8 +427,9 @@ the gateway runs from the default profile, so the root `~/.hermes/config.yaml`
 and `.env` are its own:
 
 - **Per agent**, read from `~/.hermes/profiles/<name>/` on each turn: model
-  and fallback, `agent.max_turns`, memory approval, MCP servers, toolsets, and
-  the Discord settings and token in `.env`.
+  and fallback, `agent.max_turns`, memory approval, MCP servers, toolsets, the
+  self-improvement review's model, and the Discord settings and token in
+  `.env`.
 - **Host-wide**, read from the root only: `kanban.*`,
   `group_sessions_per_user`, and the process environment, which is where a
   served turn reads `HERMES_API_TIMEOUT` and `HERMES_STREAM_READ_TIMEOUT`.
