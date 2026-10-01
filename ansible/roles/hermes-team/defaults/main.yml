@@ -208,6 +208,34 @@ hermes_fallback_context_length: 65536
 hermes_api_timeout: 1800
 hermes_stream_read_timeout: 1800
 
+# --- The self-improvement review, on forge-ai (Joseph, 2026-09-30) ---
+# After every turn Hermes forks the agent, replays the conversation and asks
+# whether anything should be saved as a memory or a skill
+# (auxiliary.background_review). It is what proposes the memory writes ADR
+# 0016 holds for approval, so it stays on — but on the agent's own model it
+# spent the shared Codex allowance after every turn: about 20 of Brizza's 67
+# calls on the first board task under one gateway (#1334). Routed to the
+# local fallback it costs the subscription nothing, and Hermes replays a
+# compact digest instead of the whole conversation when the review runs on
+# a different model.
+#
+# Same model, provider and endpoint as the fallback, so forge-ai keeps one
+# model resident rather than two (see the fallback block above).
+hermes_background_review_provider: "{{ hermes_fallback_provider }}"
+hermes_background_review_model: "{{ hermes_fallback_model }}"
+hermes_background_review_base_url: "{{ hermes_fallback_base_url }}"
+
+# ⚠️ TWO GUARDS AGAINST THE 262K TRAP. Ollama's /api/show reports the
+# model's maximum, not the 64K the -64k variant serves, and nothing in the
+# review's routing carries fallback_model.context_length across. So:
+#   - a model_overrides entry declares the real window for that provider and
+#     model, which is the first thing Hermes' context lookup consults;
+#   - max_input_tokens caps the SUM of input over one review loop (it stops
+#     before crossing it), so even a misjudged window cannot send a request
+#     the server would truncate. 75% of 64K, the same fraction Hermes uses
+#     when it derives the cap itself.
+hermes_background_review_max_input_tokens: 49152
+
 # The defence in depth behind the shape above. If any of these appears in
 # a profile's .env, the run FAILS: a fallback to a paid provider can only
 # bill if it has a key, so refusing the keys means a misrouted request
