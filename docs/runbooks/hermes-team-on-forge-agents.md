@@ -10,9 +10,10 @@ three (#1218), what you have to do by hand, and the tests the step owes.
 | On `PATH` | `~joseph/.local/bin/hermes`, plus `<name>` per profile | the installer |
 | A profile | `~joseph/.hermes/profiles/<name>/` | the role |
 | A soul | that profile's `SOUL.md` | copied from the role card in the private brizza repository (`team/souls/`) |
-| The roster | `team/roster.yml` in the private brizza repository: every agent, its role card, model, dispatch and approval | **you, in brizza**, through a PR |
+| The roster | `team/roster.yml` in the private brizza repository: every agent, its role card, model and approval | **you, in brizza**, through a PR |
 | Credentials | that profile's `.env` | **you, by hand** |
-| A gateway | `hermes-gateway-<name>.service`, `systemd --user` | the role, started only on approval |
+| The gateway | `hermes-gateway.service`, `systemd --user`: **one for the whole team**, run from the default profile `~joseph/.hermes` (Brizza ADR-0024) | the role |
+| Approval | `gateway.parked` in a profile the roster has not approved; the gateway skips it | the role, from the roster |
 
 ## Three things the role will not do
 
@@ -24,10 +25,16 @@ git. The credential reaches the host through `hermes setup` or your own hand,
 and the role's only job is to notice whether it is there.
 
 **It starts no agent.** ADR 0014 principle 2 — nothing runs until you approve
-its first run. A gateway starts only for an agent whose roster entry says
-`approved: true` *and* whose token is present. Everything else gets a profile
-and waits, which is the normal state between one Discord application and the
-next.
+its first run. One gateway serves every profile on the host (Brizza
+ADR-0024), so an agent is kept from running by **parking** it: the role puts
+a `gateway.parked` marker in every profile whose roster entry does not say
+`approved: true`, and the gateway skips any profile carrying one. An approved
+agent is unparked, and it has a bot to answer with once its token is in its
+`.env`. Everything else gets a profile and waits, which is the normal state
+between one Discord application and the next.
+
+The gateway rescans profiles every 30 seconds, so parking, unparking and a
+newly placed token all take effect without a restart.
 
 **It does not run `hermes setup`.** That is interactive, and it asks for a
 model and tokens — one of which the role has opinions about and the other of
@@ -96,6 +103,38 @@ channel overwrite is the part that decides what an agent can actually reach.
 the run fails. That is deliberate: a misrouted request can only bill if there
 is a key to bill with.
 
+## Converting to one gateway (once)
+
+Until Hermes v2026.9.24 each agent ran its own gateway,
+`hermes-gateway-<name>.service`. That release serves every profile from one
+gateway per host and refuses `hermes -p <name> gateway install` (rc 78), so
+the team moved to one (Brizza ADR-0024). A host converts once, by hand,
+**before** the role is deployed; the role refuses to run while any
+`hermes-gateway-<name>.service` remains, because that gateway and the shared
+one would both answer the same bot.
+
+On forge-agents, in your own terminal, as `joseph`:
+
+```bash
+hermes gateway migrate --multiplex
+```
+
+It checks first (no two profiles share a bot token, every profile's config
+loads), writes a manifest to `~/.hermes/gateway_migration.json`, sets
+`gateway.multiplex_profiles: true` in the root config, stops, disables and
+deletes each `hermes-gateway-<name>.service`, then installs and starts
+`hermes-gateway.service` and waits up to 90 seconds for it to serve every
+profile. It asks before acting when it has a terminal. If it is interrupted,
+run it again: it resumes from the manifest. Then deploy the role, which moves
+the board's caps to the root config, writes the timeouts to the root `.env`
+and removes the board settings the profiles no longer use.
+
+Until that deploy the board runs on Hermes' defaults (no per-agent cap, a
+global cap of 8). It is minutes, and nothing is lost.
+
+A newly built host needs none of this: the role installs
+`hermes-gateway.service` itself.
+
 ## Deploying it
 
 ```bash
@@ -113,9 +152,9 @@ every item on all three profiles.
 > run above. One thing to know about it: it prints the *effective* value,
 > defaults included, not what is in `config.yaml`. A key sitting at its
 > default therefore reads as already set while being absent from the file,
-> which is why `Write the dispatcher key, default or not` exists alongside
-> the loop. A key absent from `DEFAULT_CONFIG` prints nothing and exits 1;
-> one present there but null prints `null` and exits 0.
+> which is why `Write the dispatcher key for the host, default or not`
+> exists beside the loop. A key absent from `DEFAULT_CONFIG` prints nothing
+> and exits 1; one present there but null prints `null` and exits 0.
 
 ### Staying current
 
@@ -133,8 +172,8 @@ commits a day).
   on it, exits. Otherwise fetches that release, reinstalls dependencies
   exactly as the installer does (`uv sync --locked`, which checks every
   package against the SHA-256 in that release's lockfile), runs
-  `hermes config migrate` on every profile, and restarts agents that were
-  already running. Agents that are not running stay stopped.
+  `hermes config migrate` on every profile, and restarts
+  `hermes-gateway.service` if it is running. Parked agents stay parked.
 - **If any step fails, it rolls back** to the previous version and exits
   non-zero. The unit is left failed, and the fleet's failed-unit alert
   reports it — a night the update did not happen is never silent.
@@ -177,8 +216,8 @@ mcp_servers:
   compared whole and replaced whole, so an interactive edit is undone on the
   next run rather than lingering.
 - **Tested on every run** with `hermes -p <agent> mcp test never4ga`, which
-  starts the server as a gateway would. A change here restarts the running
-  gateways, as any profile setting does.
+  starts the server as the gateway would. A change here restarts the
+  gateway, as any profile setting does.
 
 ```bash
 ssh joseph@forge-agents '~/.local/bin/brizza mcp list; ~/.local/bin/brizza mcp test never4ga'
@@ -235,40 +274,28 @@ than a suggestion.
 ## Renaming an agent
 
 `hermes profile rename <old> <new>` does most of it. It moves
-`~/.hermes/profiles/<old>/` to `<new>/`, so memory, sessions, the `.env` token
-and the Codex login travel with the profile. It also replaces the `<old>`
-wrapper on `PATH` and moves Hermes' own session and routing state to the new
-name. Nothing has to be copied across by hand.
-
-**It removes the old gateway unit only if that gateway is running when you
-rename it.** Rename a running agent and `hermes-gateway-<old>.service` is
-disabled, stopped and deleted for you. Rename a stopped one and the unit is
-left behind; remove it yourself:
-
-```bash
-systemctl --user disable --now hermes-gateway-<old>.service; rm -f ~/.config/systemd/user/hermes-gateway-<old>.service; systemctl --user daemon-reload
-```
-
-A leftover unit is not harmless: the nightly updater restarts
-`hermes-gateway-*.service`, which would start a gateway for a profile that no
-longer exists.
+`~/.hermes/profiles/<old>/` to `<new>/`, so memory, sessions, the `.env` token,
+the Codex login and a `gateway.parked` marker travel with the profile. It also
+replaces the `<old>` wrapper on `PATH` and moves Hermes' own session and
+routing state to the new name. Nothing has to be copied across by hand.
 
 In order:
 
-1. **On forge-agents**, as the admin user, rename the profile while its
-   gateway is running: `hermes profile rename <old> <new>`. The agent goes
-   offline here and stays offline until step 5.
-2. **In brizza**, the roster entry and the role card carry the new name, with
+1. **In brizza**, set the agent's roster entry to `approved: false` and
+   deploy, which parks it. The agent goes offline here and stays offline
+   until step 6.
+2. **On forge-agents**, as the admin user: `hermes profile rename <old> <new>`.
+3. **In brizza**, the roster entry and the role card carry the new name, still
    `approved: false`. Land it and have the laptop's brizza checkout on that
    commit, because the role reads the checkout, not the remote.
-3. **Deploy the role.** It writes the new soul and replaces the Never4gA
+4. **Deploy the role.** It writes the new soul and replaces the Never4gA
    server entry, so the agent writes as `hermes-<new>/<model>` from then on.
    What it wrote before keeps `hermes-<old>`.
-4. **On Discord**, rename the application, the bot's username, its channel
+5. **On Discord**, rename the application, the bot's username, its channel
    and its role. The token does not change, and the channel's permission
    overwrite follows the role, not its name.
-5. **Set `approved: true`** in the roster and deploy again. The role installs
-   and starts `hermes-gateway-<new>.service`.
+6. **Set `approved: true`** in the roster and deploy again. The role unparks
+   the profile and the gateway serves it within 30 seconds.
 
 ## When something goes wrong
 
@@ -279,17 +306,30 @@ the newest release and rolled back. Its journal says which step failed:
 ssh joseph@forge-agents 'journalctl --user -u hermes-update.service -n 50'
 ```
 
-**A gateway will not start.** It is a `systemd --user` unit, so it needs the
-user manager, which needs lingering.
+**The gateway will not start.** It is a `systemd --user` unit, so it needs the
+user manager, which needs lingering. One unit serves the whole team, so when
+it is down every agent is.
 
 ```bash
-ssh joseph@forge-agents 'systemctl --user status hermes-gateway-brizza.service'
-ssh joseph@forge-agents 'journalctl --user -u hermes-gateway-brizza.service -n 50'
+ssh joseph@forge-agents 'systemctl --user status hermes-gateway.service'
+ssh joseph@forge-agents 'journalctl --user -u hermes-gateway.service -n 50'
 ```
 
-**Two agents fight over one identity.** If two profiles are given the same bot
-token, the second gateway is blocked with an error naming the conflicting
-profile. Never point two processes at one profile either — both write memory
+**One approved agent does not answer.** Look for a park marker, then for the
+gateway saying it skipped the profile:
+
+```bash
+ssh joseph@forge-agents 'ls ~/.hermes/profiles/*/gateway.parked'
+ssh joseph@forge-agents 'journalctl --user -u hermes-gateway.service -n 200 | grep -i parked'
+```
+
+A marker on an approved agent means the roster the role last read did not
+approve it; deploy again from an up-to-date brizza checkout. `hermes -p <name>
+gateway stop` also parks a profile, and `hermes -p <name> gateway start`
+unparks it, but the role puts the roster's answer back on its next run.
+
+**Two agents fight over one identity.** Two profiles must never share a bot
+token: `hermes gateway migrate` refuses to run while they do. Never point two processes at one profile either — both write memory
 automatically and they corrupt each other. The role refuses a repeated name in
 `hermes_agents` for that reason.
 
@@ -350,32 +390,43 @@ rather than one model each, because only one ~16 GiB model fits the card and
 per-agent fallbacks would evict each other. Confirm with `ollama ps` on
 forge-ai showing `gemma4:26b-64k` loaded.
 
-**Cards sit in `ready` and nothing picks them up.** One process dispatches the
-whole machine's board, and it is named rather than raced for: exactly one
-entry in `hermes_agents` carries `dispatch: true`, which the role writes to
-that profile as `kanban.dispatch_in_gateway`. Brizza holds it. Check that her
-gateway is up and that it took the lock:
+**Cards sit in `ready` and nothing picks them up.** The gateway dispatches the
+whole machine's board, reading `kanban.dispatch_in_gateway` from the ROOT
+config, where the role writes it as `true`. Check that the gateway is up and
+that it took the lock:
 
 ```bash
-ssh joseph@forge-agents 'grep "kanban dispatcher" ~/.hermes/profiles/brizza/logs/gateway.log | tail -5'
+ssh joseph@forge-agents 'journalctl --user -u hermes-gateway.service -n 500 | grep "kanban dispatcher" | tail -5'
 ```
 
 `holding singleton dispatcher lock` is the line you want. `another gateway
-already holds the dispatcher lock` on Brizza means something else took it
-first — that gateway will not retry, so restart Brizza's *after* stopping the
-other. The board itself is machine-global at `~/.hermes/kanban.db`, shared by
-every profile on purpose, and the dispatcher spawns each worker as the task's
-assignee, so one dispatcher is not one agent doing all the work.
+already holds the dispatcher lock` means a second gateway is running on the
+host, which should not exist: look for a leftover per-agent unit. The board
+itself is machine-global at `~/.hermes/kanban.db`, shared by every profile on
+purpose, and the dispatcher spawns each worker as the task's assignee, so one
+dispatcher is not one agent doing all the work.
 
-**A setting in `~/.hermes/config.yaml` has no effect.** It would not. Each
-gateway runs with `HERMES_HOME` pointed at its own profile directory, and
-Hermes reads `config.yaml` from there with no root file layered beneath it.
-The root config is read only by a bare `hermes` invocation with no profile.
-Settings that must reach an agent belong in
-`~/.hermes/profiles/<name>/config.yaml`, which is what the role's `config set`
-tasks write.
+**A setting has no effect.** Check which file it belongs in. Since ADR-0024
+the gateway runs from the default profile, so the root `~/.hermes/config.yaml`
+and `.env` are its own:
+
+- **Per agent**, read from `~/.hermes/profiles/<name>/` on each turn: model
+  and fallback, `agent.max_turns`, memory approval, MCP servers, toolsets, and
+  the Discord settings and token in `.env`.
+- **Host-wide**, read from the root only: `kanban.*`,
+  `group_sessions_per_user`, and the process environment, which is where a
+  served turn reads `HERMES_API_TIMEOUT` and `HERMES_STREAM_READ_TIMEOUT`.
+  Board workers are separate processes and read those two from their
+  profile's `.env`, so the role writes them in both places.
+
+Measured in the v2026.9.24 source on 2026-09-30, for #1345.
 
 ## What was in the root config, and what it cost
+
+> **History, from before ADR-0024.** Everything below assumes no gateway
+> read the root file, which stopped being true when the team moved to one
+> gateway run from the default profile. The audit still explains what the
+> root file is; the trim is not to be repeated.
 
 The whole root file was audited on 2026-09-20 (#1218), key by key, against
 `hermes_cli.config.DEFAULT_CONFIG`. It is worth knowing what it turned out to
@@ -414,7 +465,8 @@ amendment proposed against ADR 0015.
 
 ### Trimming the root file
 
-A one-off, not a converging task; nothing in the role manages this file.
+A one-off, done on 2026-09-20, and **not to be run again**: its header comment
+is wrong since ADR-0024, and the role now manages some of this file's keys.
 
 ```bash
 ssh joseph@forge-agents 'cp ~/.hermes/config.yaml ~/.hermes/config.yaml.bak && cat > ~/.hermes/config.yaml' <<'EOF'

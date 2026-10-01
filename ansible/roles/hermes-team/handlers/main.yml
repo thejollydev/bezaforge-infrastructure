@@ -1,12 +1,16 @@
 ---
 # A soul or a model change is only in effect once the agent rereads it, and
-# an agent rereads it when its gateway restarts. Only approved, running
-# agents are restarted: an unapproved one has nothing running to restart,
-# and starting it here would be the role granting an approval that is
-# Joseph's to give (ADR 0014 principle 2).
-- name: Restart hermes gateways
+# an agent rereads it when the gateway serving it restarts. Since Brizza
+# ADR-0024 that is one gateway for the whole team, so a change to any agent
+# restarts all of them for a few seconds, once per run however many agents
+# changed.
+#
+# Restarting does not grant an approval: a parked agent stays parked across
+# a restart, because the host skips any profile with the marker (ADR 0014
+# principle 2, enforced by parking).
+- name: Restart the hermes gateway
   ansible.builtin.systemd_service:
-    name: "hermes-gateway-{{ item.name }}.service"
+    name: "{{ hermes_gateway_unit }}"
     scope: user
     state: restarted
   become: true
@@ -14,7 +18,4 @@
   environment:
     XDG_RUNTIME_DIR: "/run/user/{{ hermes_uid }}"
     DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ hermes_uid }}/bus"
-  loop: "{{ hermes_agents | selectattr('approved', 'defined') | selectattr('approved') | list }}"
-  loop_control:
-    label: "{{ item.name }}"
   when: not ansible_check_mode

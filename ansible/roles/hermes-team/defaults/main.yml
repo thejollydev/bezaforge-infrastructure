@@ -107,16 +107,16 @@ hermes_installer_arguments:
 
 # --- The agents ---
 # Read from <hermes_team_dir>/roster.yml, never set here or in host_vars.
-# One entry per profile. `soul` names a file in <hermes_team_dir>/souls/; `model` is
-# what the profile's model.default is set to, and `dispatch` says whether
-# this agent's gateway runs the board's dispatcher (exactly one must, see
-# "The kanban board" below).
+# One entry per profile. `soul` names a file in <hermes_team_dir>/souls/,
+# and `model` is what the profile's model.default is set to. A `dispatch`
+# field is ignored: with one gateway there is one dispatcher (ADR-0024).
 #
 # ⚠️ `approved` IS THE GATE, AND IT DEFAULTS TO FALSE EVERYWHERE.
 # ADR 0014 principle 2: nothing starts without Joseph's approval. The role
-# creates the profile, writes its soul and installs its gateway service, but
-# it does not START a gateway until Joseph sets `approved: true` for that
-# agent in the roster — and not before its Discord token exists on the host.
+# creates the profile and writes its soul, but the profile stays PARKED —
+# a gateway.parked marker the host gateway skips — until Joseph sets
+# `approved: true` for that agent in the roster. An approved agent also
+# needs its Discord token on the host before it has a bot to answer with.
 # That is the difference between a profile being ready and an agent running.
 hermes_agents: []
 
@@ -200,6 +200,11 @@ hermes_fallback_context_length: 65536
 
 # Local models answer slowly on a long context, and Hermes' own timeouts
 # are sized for hosted APIs. The local-Ollama guide raises both.
+#
+# Written to the host's .env AND each profile's. They are read with a plain
+# os.getenv, so a turn served by the shared gateway sees the host process's
+# environment (the root .env), while a board worker is its own process and
+# loads its profile's .env.
 hermes_api_timeout: 1800
 hermes_stream_read_timeout: 1800
 
@@ -287,10 +292,20 @@ hermes_discord_history_backfill_limit: 50
 # changes nothing in Discord: the tool is never offered in a Discord session.
 hermes_bot_mode_marker: true
 
-# --- The service ---
-# Each profile gets its own gateway service. A user manager only runs while
-# the user has a session unless lingering is on, and nobody logs into the
-# team host — the same reason roles/never4ga enables it.
+# --- The service (Brizza ADR-0024) ---
+# ONE gateway for the whole team. Hermes v2026.9.24 serves every profile on
+# a host from a single `hermes gateway run`, by maintainer ruling, and
+# refuses a per-profile `gateway install` with rc 78. So the host gateway is
+# installed from the default profile (~/.hermes) and serves the default plus
+# every named profile that is not parked.
+#
+# The name has no suffix (`get_service_name` in hermes_cli/gateway.py), and
+# that matters: the old `hermes-gateway-*.service` glob does not match it.
+hermes_gateway_unit: hermes-gateway.service
+
+# A user manager only runs while the user has a session unless lingering is
+# on, and nobody logs into the team host — the same reason roles/never4ga
+# enables it.
 hermes_enable_linger: true
 
 # --- The kanban board (ADR 0020) ---
@@ -302,41 +317,18 @@ hermes_enable_linger: true
 # process dispatches from it. That much is upstream's design and this role
 # does not fight it.
 #
-# What this role decides is WHICH process, because upstream leaves it to
-# chance. Every gateway tries an flock at
-# ~/.hermes/kanban/.dispatcher.lock once at boot; the winner dispatches for
-# its process lifetime and a loser logs one line and leaves the watcher for
-# good. It never tries again.
+# Since Brizza ADR-0024 there is one gateway on the host, so there is one
+# dispatcher by construction. Until then each agent ran its own gateway,
+# every one raced for an flock at boot, and the role named the winner with
+# a `dispatch: true` roster field; that field and the per-profile
+# kanban.dispatch_in_gateway it wrote are gone.
 #
-# Two consequences, both of which arrive with the second gateway:
-#
-#   - Whichever gateway systemd happens to start first after a reboot
-#     becomes the dispatcher. Nothing declares it and nothing records it
-#     but a log line.
-#   - If that gateway stops for good — `approved: false`, a removed agent —
-#     dispatch stops machine-wide. The others gave up at boot and will not
-#     take over until they are themselves restarted. Cards simply sit in
-#     ready.
-#
-# So the role names the dispatcher instead: `dispatch: true` on exactly one
-# agent, written into that profile's config.yaml as
-# kanban.dispatch_in_gateway, and false on every other. The flock goes back
-# to being what its own docstring calls it — a backstop — rather than the
-# mechanism. Upstream agrees: "`dispatch_in_gateway` is the primary
-# control; this is the backstop."
-#
-# ⚠️ DEFAULTS TO FALSE, and the input check refuses a roster without
-# exactly one. A roster with none dispatches nothing; a roster with two is
-# the race this exists to remove.
-#
-# Which agent is not arbitrary: ADR 0014 makes Brizza the orchestrator, and
-# the dispatcher is orchestration.
-
-# ⚠️ PER-PROFILE, NOT ROOT. ~/.hermes/config.yaml is NOT read by any
-# gateway: the unit sets HERMES_HOME to the profile directory, and
-# `get_config_path()` is `get_hermes_home()/config.yaml` with no root layer
-# beneath it. Settings that must reach an agent go in its own profile's
-# config.yaml, which is what the `config set` loop in profile.yml does.
+# ⚠️ ROOT, NOT PER-PROFILE. The dispatcher runs in the host process, which
+# reads kanban.* from the ROOT ~/.hermes/config.yaml only
+# (`_kanban_dispatcher_boot`, `_resolve_dispatcher_settings` in gateway/).
+# So the caps below and dispatch_in_gateway are written there, by main.yml.
+# Everything about an agent itself — model, soul, turn limit, MCP servers,
+# Discord — is still read from that agent's own profile on each turn.
 
 # The host never runs more than this many workers at once, across every
 # board and both dispatch lanes. Unset upstream, which derives it from

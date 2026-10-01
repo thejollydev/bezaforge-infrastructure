@@ -77,10 +77,13 @@ migrate_configs() {
     done
 }
 
-# Only agents that are already running are restarted. An agent Joseph has
-# not approved is not running, and an update is no reason to start it.
+# One gateway serves the whole team (Brizza ADR-0024), and it is restarted
+# only if it is already running: an update is no reason to start it. Named
+# exactly, because the old 'hermes-gateway-*.service' glob does not match
+# it and updates would silently stop reaching the agents. A parked agent
+# stays parked across the restart.
 restart_running_agents() {
-    systemctl --user try-restart 'hermes-gateway-*.service' || true
+    systemctl --user try-restart '{{ hermes_gateway_unit }}' || true
 }
 
 rollback() {

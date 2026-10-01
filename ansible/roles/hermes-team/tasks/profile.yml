@@ -30,6 +30,30 @@
   when: not hermes_profile_probe.stat.exists
   changed_when: true
 
+# Parked straight after it is created, before anything else is written to
+# it. One gateway serves every profile on the host (Brizza ADR-0024), and
+# `profile create` signals the host to rescan, so a new profile is served
+# the moment it exists. An unapproved agent is therefore parked here rather
+# than at the end of this file. ADR 0014 principle 2: nothing runs without Joseph's
+# approval, and since ADR-0024 the way an agent does not run is the
+# gateway.parked marker, which the host skips. The marker's contents are
+# irrelevant to Hermes; it only has to exist.
+#
+# A brand-new profile also has no Discord token yet, so even in the moment
+# before this task it has no bot to answer with.
+#
+# `force: false`, so an existing marker is left as it is and a converged
+# host reports no change.
+- name: "Park, unless approved, {{ agent.name }}"
+  ansible.builtin.copy:
+    content: ""
+    dest: "{{ hermes_profiles_dir }}/{{ agent.name }}/gateway.parked"
+    force: false
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_user }}"
+    mode: '0644'
+  when: not (agent.approved | default(false))
+
 # The role card IS the soul (ADR 0014: "the role cards ... are part of this
 # decision"). They are authored in the private brizza repository and copied
 # verbatim from a checkout of it, so the host's copy is still reviewable in
@@ -42,7 +66,7 @@
     owner: "{{ hermes_user }}"
     group: "{{ hermes_user }}"
     mode: '0644'
-  notify: Restart hermes gateways
+  notify: Restart the hermes gateway
 
 # The Bot Mode marker (see defaults). Merged into profile.yaml rather than
 # templated, because Hermes and the desktop app both write that file
@@ -100,9 +124,9 @@
 # ⚠️ IT RESOLVES RATHER THAN READS. The value printed is the effective
 # one, defaults included, not what config.yaml holds. So a key sitting at
 # its default reads as already set while being absent from the file, and
-# this loop will never write it — which is what the dispatcher-key task
-# below exists to handle. A key absent from DEFAULT_CONFIG prints nothing
-# and exits 1; one present there but null prints `null` and exits 0. Both
+# this loop will never write it — which is what the host's dispatcher-key
+# task in main.yml exists to handle. A key absent from DEFAULT_CONFIG
+# prints nothing and exits 1; one present there but null prints `null` and exits 0. Both
 # compare unequal to a real value, so both converge on the first run.
 - name: "Read the settings already held by {{ agent.name }}"
   ansible.builtin.command:
@@ -132,23 +156,11 @@
         value: "{{ hermes_memory_write_approval | string | lower }}"
       # ⚠️ Unset is UNLIMITED, not a modest default: resolve_turn_limit
       # returns sys.maxsize for a missing agent.max_turns. On every
-      # profile, because a gateway reads only its own config.yaml — the
-      # root file's 500 reached none of them.
+      # profile, because each turn reads its own profile's config.yaml,
+      # under the shared gateway as before; the root file's 500 never
+      # reached any of them.
       - key: agent.max_turns
         value: "{{ hermes_agent_max_turns }}"
-      # Which gateway dispatches the shared board, named rather than
-      # raced for. False on every agent but one; the input check in
-      # main.yml refuses a roster where that is not so.
-      - key: kanban.dispatch_in_gateway
-        value: "{{ agent.dispatch | default(false) | string | lower }}"
-      # Both caps on every profile, dispatcher or not: whichever gateway
-      # ends up holding the lock reads its OWN profile's config, so a cap
-      # written only to Brizza's would vanish the moment the dispatcher
-      # moved.
-      - key: kanban.max_in_progress
-        value: "{{ hermes_kanban_max_in_progress }}"
-      - key: kanban.max_in_progress_per_profile
-        value: "{{ hermes_kanban_max_in_progress_per_profile }}"
       # The local fallback, shared by every agent. `fallback_model` is the
       # LEGACY key and that is intentional: `fallback_providers` is the
       # current one and is a LIST, which `config set` cannot write —
@@ -192,43 +204,48 @@
   # would read max_in_progress=4 as already satisfied by a stored 14.
   when: item.item.value | string != item.stdout | default('') | trim
   changed_when: true
-  notify: Restart hermes gateways
+  notify: Restart the hermes gateway
 
-# `config get` answers with the EFFECTIVE value, defaults included, so the
-# loop above cannot tell "written as true" from "true because upstream's
-# default is true" — and on the first deploy it skipped the dispatcher key
-# on Brizza for exactly that reason, leaving her config.yaml without it.
-# Her dispatching then rested on a default the nightly release update is
-# free to change, and nothing here would have noticed: the roster would
-# still say `dispatch: true` and the roster check would still pass.
-#
-# So the one key that names the dispatcher is written whether or not it
-# differs. The loop above still catches a wrong value; this catches an
-# absent one. They never both fire: a wrong value is written by the loop,
-# and the probe then finds it.
-- name: "See whether the dispatcher key is written for {{ agent.name }}"
+# The board's settings left over from one gateway per agent. Since Brizza
+# ADR-0024 the dispatcher runs in the host gateway and reads kanban.* from
+# the root config only (main.yml writes them there), so these copies decide
+# nothing. They are removed rather than left, because a profile still
+# saying `dispatch_in_gateway: false` misleads whoever reads it, and
+# `hermes -p <agent> kanban` reads it to report whether the board is being
+# dispatched. A no-op once they are gone.
+- name: "Look for board settings left in the profile of {{ agent.name }}"
   ansible.builtin.command:
     cmd: >-
-      grep -qE '^[[:space:]]*dispatch_in_gateway:'
+      grep -qE '^[[:space:]]+{{ item }}:'
       {{ hermes_profiles_dir }}/{{ agent.name }}/config.yaml
   become: true
   become_user: "{{ hermes_user }}"
-  register: hermes_dispatch_key_probe
+  loop:
+    - dispatch_in_gateway
+    - max_in_progress
+    - max_in_progress_per_profile
+  register: hermes_stale_kanban_probe
   changed_when: false
   failed_when: false
 
-- name: "Write the dispatcher key, default or not, for {{ agent.name }}"
+- name: "Remove them from the profile of {{ agent.name }}"
   ansible.builtin.command:
-    cmd: >-
-      {{ hermes_bin }} -p {{ agent.name }} config set kanban.dispatch_in_gateway
-      {{ agent.dispatch | default(false) | string | lower }}
+    argv:
+      - "{{ hermes_bin }}"
+      - -p
+      - "{{ agent.name }}"
+      - config
+      - unset
+      - "kanban.{{ item.item }}"
   become: true
   become_user: "{{ hermes_user }}"
   environment:
     HOME: "{{ hermes_home }}"
-  when: hermes_dispatch_key_probe.rc != 0
+  loop: "{{ hermes_stale_kanban_probe.results }}"
+  loop_control:
+    label: "kanban.{{ item.item }}"
+  when: item.rc == 0
   changed_when: true
-  notify: Restart hermes gateways
 
 # ------------------------------------------------------------
 # Never4gA, over MCP (#1217; Brizza ADR 0016)
@@ -312,7 +329,7 @@
       loop_control:
         label: "{{ item.key }}"
       changed_when: true
-      notify: Restart hermes gateways
+      notify: Restart the hermes gateway
 
 # The test that fails without this: the profile's own `mcp test` starts the
 # server the way a gateway will and lists what it offers. Every run, not
@@ -383,7 +400,7 @@
       {{ hermes_chat_toolsets_probe.stdout is search('(^|\s)enabled\s+kanban\s') }}
   when: hermes_orchestrates | bool != hermes_has_board | bool
   changed_when: true
-  notify: Restart hermes gateways
+  notify: Restart the hermes gateway
 
 # ------------------------------------------------------------
 # Discord
@@ -421,7 +438,7 @@
     - { key: HERMES_STREAM_READ_TIMEOUT, value: "{{ hermes_stream_read_timeout }}" }
   loop_control:
     label: "{{ item.key }}"
-  notify: Restart hermes gateways
+  notify: Restart the hermes gateway
 
 - name: "Look for a paid-provider key in the .env for {{ agent.name }}"
   ansible.builtin.command:
@@ -470,13 +487,14 @@
   when: hermes_token_probe.rc != 0
 
 # ------------------------------------------------------------
-# The gateway
+# Approval
 # ------------------------------------------------------------
 #
-# Installed for every approved agent whose token is present, and started
-# only then. An agent with no token or no approval keeps its profile and
-# waits — which is the normal state between Joseph creating one Discord
-# application and the next.
+# The host gateway serves every profile that is not parked (Brizza
+# ADR-0024), so an approved agent is unparked here, last, after the checks
+# below have passed. An agent with approval but no token is unparked too and
+# simply has no bot until Joseph places one: the host rescans each served
+# profile's .env every 30 seconds and picks the token up by itself.
 
 # An approved agent with no allowlist would come online and deny everyone,
 # Joseph included — safe, and indistinguishable from broken. Refuse it here
@@ -531,47 +549,12 @@
     quiet: true
   when: agent.approved | default(false)
 
-# `gateway install` asks two questions — start it now, and start it on
-# login — and under Ansible the prompt goes to a captured pipe while stdin
-# is a terminal nobody is typing into, so the task hangs with nothing to
-# read. Both answers are given on the command line, and `stdin: ""` closes
-# the input so a future prompt fails at once instead of waiting forever.
-# Same trap the Hermes installer sets, and the same defence.
-#
-# Both answers are `no` because the task below owns the service's
-# lifecycle: ADR 0014 principle 2 puts starting an agent behind Joseph's
-# approval, and that belongs in one place rather than two.
-- name: "Install the gateway service for {{ agent.name }}"
-  ansible.builtin.command:
-    cmd: >-
-      {{ hermes_bin }} -p {{ agent.name }} gateway install
-      --no-start-now --no-start-on-login
-    creates: "{{ hermes_home }}/.config/systemd/user/hermes-gateway-{{ agent.name }}.service"
-    stdin: ""
-  become: true
-  become_user: "{{ hermes_user }}"
-  environment:
-    HOME: "{{ hermes_home }}"
-  when:
-    - agent.approved | default(false)
-    - hermes_token_probe.rc == 0
-
-# ADR 0014 principle 2, enforced rather than described: an agent runs when
-# Joseph has said so for that agent, and not because the role reached this
-# line.
-- name: "Enable and start the gateway for {{ agent.name }}"
-  ansible.builtin.systemd_service:
-    name: "hermes-gateway-{{ agent.name }}.service"
-    scope: user
-    daemon_reload: true
-    enabled: true
-    state: started
-  become: true
-  become_user: "{{ hermes_user }}"
-  environment:
-    XDG_RUNTIME_DIR: "/run/user/{{ hermes_uid }}"
-    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ hermes_uid }}/bus"
-  when:
-    - agent.approved | default(false)
-    - hermes_token_probe.rc == 0
-    - not ansible_check_mode
+# ADR 0014 principle 2, enforced rather than described: an agent is served
+# when Joseph has said so for that agent, and not because the role reached
+# this line. The host notices within 30 seconds (its rescan interval); so
+# does it notice a marker the task near the top of this file put back.
+- name: "Unpark, approved, {{ agent.name }}"
+  ansible.builtin.file:
+    path: "{{ hermes_profiles_dir }}/{{ agent.name }}/gateway.parked"
+    state: absent
+  when: agent.approved | default(false)
