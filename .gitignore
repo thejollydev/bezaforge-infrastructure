@@ -47,7 +47,7 @@ __pycache__/
 /.claudeignore
 /.graphifyignore
 
-# BEGIN never4ga agent instruction files (ADR-0025)
+# BEGIN never4ga agent instruction files
 # Agent instruction files are generated on each machine and never
 # committed.
 AGENTS.md
