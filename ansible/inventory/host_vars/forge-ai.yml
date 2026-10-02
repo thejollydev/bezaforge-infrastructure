@@ -133,8 +133,8 @@ ollama_extra_env:
 # ran at Ollama's 4096 default. That is not a quiet degradation: Ollama
 # truncates the prompt from the front until the user turn falls off the
 # end, then answers HTTP 500 "no user query found in messages" — an error
-# naming nothing to do with context. Samuel hit it on his first tool call,
-# 2026-09-20, on a turn of ~5,600 tokens.
+# naming nothing to do with context. The Researcher hit it on the first
+# tool call, 2026-09-20, on a turn of ~5,600 tokens.
 #
 # 64K, NOT LESS: Hermes "requires at least 64,000 tokens of context for
 # agent use with tools" (docs/guides/local-ollama-setup). An earlier pass

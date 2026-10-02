@@ -157,7 +157,7 @@ hermes_agents: []
 #
 # ⚠️ ONE BUCKET, SHARED BY THE WHOLE TEAM. The limit is per ChatGPT
 # ACCOUNT, not per agent. On the $20 Plus plan gpt-5.6-luna allows roughly
-# 250-2,000 local messages per five hours across Brizza, Samuel and Malachi
+# 250-2,000 local messages per five hours across every agent on the team
 # TOGETHER, with weekly caps on top. Luna is chosen for exactly that: the
 # same plan gives gpt-5.6-terra 25-200 and gpt-6-astra 5-45, and five
 # messages per five hours does not finish one task.
@@ -178,8 +178,8 @@ hermes_model_default: gpt-5.6-luna
 # And because the agents share one Codex bucket they exhaust it together,
 # so per-agent fallbacks would all engage at once and evict each other — a
 # 16 GiB reload per alternation at the moment things are already degraded.
-# Malachi loses his coder model in fallback; a warm general model beats a
-# cold specialist.
+# An agent whose primary is a specialist model loses it in fallback; a warm
+# general model beats a cold specialist.
 #
 # The `-64k` suffix is load-bearing and names a Modelfile variant built by
 # roles/ollama on forge-ai. Naming the base gets Ollama's 4096 default,
@@ -242,8 +242,8 @@ hermes_background_review_max_input_tokens: 49152
 # errors instead of costing money. ANTHROPIC_API_KEY is here for RSK-03 as
 # well — no Anthropic credential in a third-party harness.
 #
-# Codex for Malachi is unaffected: an OAuth login lands in the profile's
-# auth.json, not in .env, so it is not an API key and is not refused.
+# Codex is unaffected: an OAuth login lands in auth.json, not in .env, so
+# it is not an API key and is not refused.
 hermes_forbidden_env_keys:
   - OPENROUTER_API_KEY
   - ANTHROPIC_API_KEY
@@ -316,7 +316,8 @@ hermes_discord_history_backfill_limit: 50
 # CLI command that writes it. So the role does, on every agent's profile.
 #
 # Measured on forge-agents 2026-09-21 (#1218): with the block in place,
-# Brizza's Bot Chat messaged Samuel and his answer came back to her. It
+# Brizza's Bot Chat messaged the Researcher and the answer came back to
+# her. It
 # changes nothing in Discord: the tool is never offered in a Discord session.
 hermes_bot_mode_marker: true
 

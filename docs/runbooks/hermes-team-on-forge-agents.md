@@ -86,15 +86,15 @@ Both end in the same place, because falling through to `@everyone` is already
 a denial; an explicit deny only states it. Agents do not read each other's
 channels — they coordinate through the board (ADR 0020) and Bot Mode rooms.
 
-Malachi hit this on 2026-09-20: his channel carried an allow for *Brizza's*
-role, left from when she was the only agent, and nothing for his own. He
-would have come online unable to see the one channel he was for.
+The Reviewer hit this on 2026-09-20: its channel carried an allow for
+*Brizza's* role, left from when she was the only agent, and nothing for its
+own. It would have come online unable to see the one channel it was for.
 
 **The invite's permission integer barely matters here.** `@everyone` in the
 Forge Agents server grants a superset of everything the bot roles carry, so
 every agent's effective permissions come out the same whatever you tick —
-Brizza and Samuel were in fact invited with different sets and behave
-identically. Discord's consent screen also hides permissions `@everyone`
+Brizza and the Researcher were in fact invited with different sets and
+behave identically. Discord's consent screen also hides permissions `@everyone`
 already grants, so it will list fewer than you expect. That is cosmetic. The
 channel overwrite is the part that decides what an agent can actually reach.
 
@@ -225,21 +225,33 @@ ssh joseph@forge-agents '~/.local/bin/brizza mcp list; ~/.local/bin/brizza mcp t
 
 ## Giving the team work
 
-Tell Brizza, in `#brizza`, in plain words:
+Tell Brizza, in `#brizza`, in plain words. What she does with it depends on
+what you ask (her role card, since brizza#29):
 
-> Have Samuel find out what our ChatGPT Plus plan allows on Codex, and have
-> Malachi check it.
+- **A quick question** — "what's the newest Python release?" — she answers
+  herself, cites what she found, and says the answer is unreviewed. A
+  handful of calls, a minute or two. Nothing goes on the board.
+- **Research you ask for**, or a question whose answer feeds a decision about
+  money, the ventures or the infrastructure, goes on the board for the
+  Researcher, with the Reviewer checking it:
 
-She puts it on the board as a card assigned to Samuel, whose work goes to
-Malachi for review. Because she created the card from your chat, she is woken
-when it finishes and brings you the result and Malachi's verdict there. No
-CLI is involved.
+  > Have the Researcher find out what our ChatGPT Plus plan allows on Codex,
+  > and have the Reviewer check it.
+
+  Review is **one round**: the Reviewer checks once, the Researcher fixes
+  once, and the work comes to you with any objection still standing. Because
+  Brizza created the card from your chat, she is woken when it finishes and
+  brings you the result and the verdict there. No CLI is involved.
+
+A board task costs far more than a quick answer: the first one under the
+shared gateway, before the one-round cap, took 200 Codex calls and half an
+hour (#1334). Ask for the board when the answer needs checking.
 
 That rests on two things the role sets up. Brizza has the `kanban` toolset on
 Discord, and she is the only one who does: the roster's `orchestrates` key.
-Her role card also says to route another agent's work to the board rather
-than do it herself. Talking to Samuel or Malachi directly still works, and it
-gets you a quick answer in chat that is off the board and unreviewed.
+Her role card says when to use it. Talking to the Researcher or the Reviewer
+in their own channels still works, and gets you an answer in chat that is
+off the board and unreviewed.
 
 **After a change to an agent's toolsets, send `/reset` in its channel.** The
 gateway restart reloads the configuration, but a conversation already under
@@ -249,7 +261,7 @@ create tasks, the first time after this was deployed, is that.
 To watch the board from the host:
 
 ```bash
-ssh joseph@forge-agents 'hermes kanban list'
+ssh joseph@forge-agents '~/.local/bin/hermes kanban list'
 ```
 
 ## The tests this step owes
@@ -260,8 +272,10 @@ than a suggestion.
 
 **Done when:**
 
-- [ ] You ask Brizza for something in Discord and get it.
-- [ ] A research task goes Samuel → Malachi → you on the studio board.
+- [x] You ask Brizza for something in Discord and get it.
+- [x] A research task goes Researcher → Reviewer → you on the studio board.
+      Proven 2026-09-20 (the Codex plan brief) and again 2026-09-30 under the
+      shared gateway (#1345).
 
 **Owed from the design (ADR 0015):**
 
