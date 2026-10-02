@@ -223,6 +223,30 @@ mcp_servers:
 ssh joseph@forge-agents '~/.local/bin/brizza mcp list; ~/.local/bin/brizza mcp test never4ga'
 ```
 
+## What the agents remember
+
+Since Brizza ADR-0026 (2026-10-01) each agent writes its own Hermes memory
+freely, with no approval gate: `MEMORY.md` for what it learns about its
+work, and `USER.md` for what it learns about you, both under
+`~/.hermes/profiles/<agent>/memories/`. The vault stays the authority where
+the two disagree.
+
+- **Once a week each agent sends you a summary** in its own channel of what
+  it added or changed, what it learned about you first. Correct anything
+  wrong in reply. The role installs the trigger as a Hermes scheduled job,
+  `weekly-memory-summary`, at `hermes_memory_summary_schedule` (cron, host
+  time); what goes in the summary is the soul's to say.
+- **`USER.md` is personal data.** It never goes in a repository, and a backup
+  of forge-agents has to treat it as personal.
+- **Nothing was lost when the gate came off.** Hermes staged held writes under
+  `<profile>/pending/memory/`, and no profile ever had one: under the old gate
+  the agents simply remembered nothing.
+
+```bash
+ssh joseph@forge-agents '~/.local/bin/hermes -p <agent> cron list'
+ssh joseph@forge-agents 'ls -la ~/.hermes/profiles/*/memories/'
+```
+
 ## Giving the team work
 
 Tell Brizza, in `#brizza`, in plain words. What she does with it depends on

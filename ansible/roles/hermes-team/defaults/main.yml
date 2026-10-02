@@ -269,10 +269,31 @@ hermes_forbidden_env_keys:
 # which is the whole job.
 hermes_agent_max_turns: 500
 
-# --- Memory (ADR 0016) ---
-# Held for approval on every profile. Brizza sends Joseph one list of
-# pending memory writes a day; that digest is a Brizza job, not this role's.
-hermes_memory_write_approval: true
+# --- Memory (Brizza ADR-0026, amending ADR 0016) ---
+# Written freely. Each agent keeps its own MEMORY.md and USER.md — what it
+# learns about Joseph included — and sends him a weekly summary of what it
+# added or changed, which he corrects. Until 2026-10-01 every write was held
+# for approval behind a daily digest nobody had built, so in practice the
+# agents remembered nothing: every profile's memories/ was still empty from
+# the day it was created, and nothing had ever been staged under pending/.
+#
+# ⚠️ PERSONAL DATA NOW LIVES ON FORGE-AGENTS. USER.md holds what the agents
+# learn about Joseph, under ~/.hermes/profiles/<agent>/memories/. It never
+# goes into a repository, and a backup of this host has to treat it as
+# personal data.
+hermes_memory_write_approval: false
+
+# The weekly summary, one scheduled Hermes job per agent (ADR-0026). The job
+# only triggers it; what goes in the summary is each agent's soul's to say.
+# Delivered to the agent's own Discord home channel. The schedule is cron
+# syntax in the host's time zone (America/Detroit); the time is Joseph's to
+# choose.
+hermes_memory_summary_job_name: weekly-memory-summary
+hermes_memory_summary_schedule: "0 18 * * 0"
+hermes_memory_summary_prompt: >-
+  Send Joseph this week's memory summary, as your soul's Memory section
+  says.
+hermes_memory_summary_deliver: discord
 
 # --- Discord (ADR 0015) ---
 # One application and bot per agent, created by Joseph in the Discord
