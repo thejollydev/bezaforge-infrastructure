@@ -501,6 +501,86 @@
   when: hermes_token_probe.rc != 0
 
 # ------------------------------------------------------------
+# The weekly memory summary (Brizza ADR-0026)
+# ------------------------------------------------------------
+#
+# One Hermes scheduled job per agent, installed here so a rebuilt host has
+# it. Hermes keeps a profile's jobs in <profile>/cron/jobs.json as
+# {"jobs": [...]}, and the CLI has no machine-readable list, so the file is
+# read directly and the job found by name. Created when missing, edited
+# when its schedule, prompt or delivery differs, left alone otherwise.
+#
+# Installed for every roster entry, approved or not: a parked profile is not
+# served, and the host ticks cron only for served profiles, so an unapproved
+# agent's job does not run until Joseph approves the agent.
+
+- name: "Read the scheduled jobs of {{ agent.name }}"
+  ansible.builtin.slurp:
+    src: "{{ hermes_profiles_dir }}/{{ agent.name }}/cron/jobs.json"
+  register: hermes_jobs_file
+  failed_when: false
+
+- name: "Find the memory summary job of {{ agent.name }}"
+  ansible.builtin.set_fact:
+    hermes_summary_job: >-
+      {{ ((hermes_jobs_file.content | default('') | b64decode | from_json).jobs
+          if hermes_jobs_file.content is defined else [])
+         | selectattr('name', 'equalto', hermes_memory_summary_job_name)
+         | first | default({}) }}
+
+- name: "Create the memory summary job for {{ agent.name }}"
+  ansible.builtin.command:
+    argv:
+      - "{{ hermes_bin }}"
+      - -p
+      - "{{ agent.name }}"
+      - cron
+      - create
+      - --name
+      - "{{ hermes_memory_summary_job_name }}"
+      - --deliver
+      - "{{ hermes_memory_summary_deliver }}"
+      - "{{ hermes_memory_summary_schedule }}"
+      - "{{ hermes_memory_summary_prompt }}"
+    stdin: ""
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  when: hermes_summary_job | length == 0
+  changed_when: true
+
+# `schedule_display` is what Hermes stores for the expression it was given,
+# so comparing it to the wanted string is exact for a cron expression.
+- name: "Correct the memory summary job of {{ agent.name }}"
+  ansible.builtin.command:
+    argv:
+      - "{{ hermes_bin }}"
+      - -p
+      - "{{ agent.name }}"
+      - cron
+      - edit
+      - "{{ hermes_summary_job.id }}"
+      - --schedule
+      - "{{ hermes_memory_summary_schedule }}"
+      - --prompt
+      - "{{ hermes_memory_summary_prompt }}"
+      - --deliver
+      - "{{ hermes_memory_summary_deliver }}"
+    stdin: ""
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  when:
+    - hermes_summary_job | length > 0
+    - >-
+      hermes_summary_job.schedule_display | default('') != hermes_memory_summary_schedule
+      or hermes_summary_job.prompt | default('') != hermes_memory_summary_prompt
+      or hermes_summary_job.deliver | default('') != hermes_memory_summary_deliver
+  changed_when: true
+
+# ------------------------------------------------------------
 # Approval
 # ------------------------------------------------------------
 #
