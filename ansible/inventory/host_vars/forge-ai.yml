@@ -164,16 +164,32 @@ ollama_extra_env:
 # q4_0 would halve it, and upstream function-calling guidance is explicit
 # that q4 KV degrades tool-calling accuracy specifically. The cheaper cache
 # is not available to us.
+#
+# ⚠️ draft_num_predict 0: NO MULTI-TOKEN PREDICTION ON THIS VARIANT (#1352).
+# gemma4:26b ships a DRAFT (gemma4-assistant MTP head) that Ollama loads
+# beside it to speculate a few tokens ahead. Measured 2026-10-01: weights
+# 15.8 GiB, 64K KV 0.8, compute 0.4, and the draft with its own KV and
+# buffers about 1.1-1.4 GiB, which left ~0.5 GiB of the 19.3 free. The
+# first 50K-token request ran out (ROCm OOM) and Ollama reloaded the model
+# 35% on CPU. Its scheduler underestimates draft memory (ollama#17951,
+# #17251), so it planned a fit that was not one. 0 turns speculation off;
+# it costs decode speed only, not prompt processing, which is where a
+# long agent turn spends its time.
 ollama_modelfiles:
   - name: gemma4:26b-64k
     from: gemma4:26b
     parameters:
       num_ctx: 65536
+      draft_num_predict: 0
 
-# Long keep-alive so interactive back-and-forth doesn't pay the
-# cold-load cost every prompt. Override here if a different
-# pattern emerges.
-ollama_keep_alive: "24h"
+# 30 minutes, not 24 hours (Joseph, 2026-10-01, #1352). The model above
+# fills ~17 GiB of the 20 GiB card, and ComfyUI on the same GPU needs the
+# rest when it runs. Since #321 the agents' self-improvement review loads
+# it regularly, so 24h meant the card was effectively never free. 30m keeps
+# a burst of agent work warm and frees the card after a quiet half hour;
+# the price is a cold load of about a minute on the first request after
+# that. Server-wide: it applies to every model on this host.
+ollama_keep_alive: "30m"
 
 # --- health-check expectations (health.yml) ---
 health_expected_mounts:
