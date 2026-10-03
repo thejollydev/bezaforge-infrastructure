@@ -45,6 +45,13 @@ restic_backup_sources:
   # (that would double-store the same data in the repo). The nested
   # GoogleDrive/ rclone FUSE mount is excluded below.
   - /sharepool/files
+  # The vault copy's Syncthing identity (ADR 0012): the device key and
+  # certificate every other vault device trusts, and config.xml with its
+  # devices and folder. Without them a rebuilt hypervisor comes back as a new
+  # device that every peer has to pair with again. The index database below
+  # is excluded: Syncthing rebuilds it by rescanning. key.pem leaves the house
+  # only as restic ciphertext.
+  - /home/vaultsync/.local/state/syncthing
 
 # Paths restic must NOT descend into. Restic walks the real filesystem,
 # so without this the nested rclone FUSE mount at
@@ -54,6 +61,8 @@ restic_backup_sources:
 # roles/gdrive-replica mirror already cover that data.
 restic_backup_excludes:
   - /sharepool/files/GoogleDrive
+  - /home/vaultsync/.local/state/syncthing/index-v2
+  - /home/vaultsync/.local/state/syncthing/syncthing.lock
 
 # Daily fire at 04:00 — sanoid's 03:00 daily snapshot will already
 # include the latest rsync/dumps from 02:30+02:45, so restic backs
