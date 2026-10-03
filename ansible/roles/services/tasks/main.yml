@@ -68,6 +68,19 @@
     mode: "0644"
   loop: "{{ compose_services | intersect(['langfuse', 'homepage', 'open-webui']) }}"
 
+# LangFuse's ClickHouse reads this from config.d (bind-mounted by the compose
+# file). It turns off the system log tables that grow without a TTL (#1334).
+# ClickHouse runs as uid 101 in the container, so the file must be
+# world-readable.
+- name: Deploy LangFuse ClickHouse system-log config
+  ansible.builtin.copy:
+    src: langfuse-clickhouse-system-logs.xml
+    dest: "{{ bezaforge_root }}/langfuse/clickhouse-system-logs.xml"
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
+    mode: "0644"
+  when: "'langfuse' in compose_services"
+
 # NetBox's compose is the same kind of file, templated only for the
 # superuser's email address, which is personal and comes from the encrypted
 # vars (#1335). Same owner and mode as the loop above.

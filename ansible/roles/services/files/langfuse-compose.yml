@@ -1,6 +1,12 @@
-# LangFuse v3 — forge-ops (FORGE-8, clean v3 deploy 2026-06-16)
+# LangFuse v4 — forge-ops (FORGE-8, clean v3 deploy 2026-06-16; v4 2026-10-03, #1334)
 #
-# Replaces the old v2 single-app+Postgres stack. v3 splits into 6 containers:
+# v4 runs on the same six containers as v3; it needs ClickHouse >= 25.12
+# (https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+# The write mode is left at v4's default, events_only: nothing here uses the
+# legacy ingestion endpoints or an old SDK, and there was no v3 history worth
+# backfilling.
+#
+# The six containers:
 #   langfuse-web      → UI + API (Traefik: langfuse.bezaforge.dev)
 #   langfuse-worker   → async event processing
 #   langfuse-db       → Postgres 17  (transactional: orgs/projects/users/API keys)
@@ -34,6 +40,9 @@ networks:
     external: true
 
 x-langfuse-common-env: &langfuse-common-env
+  # The public URL. Upstream gives it to the worker too, which builds links
+  # from it.
+  NEXTAUTH_URL: https://langfuse.bezaforge.dev
   # --- Postgres ---
   DATABASE_URL: postgresql://langfuse:${LANGFUSE_DB_PASSWORD}@langfuse-db:5432/langfuse
   # --- Core secrets ---
@@ -82,7 +91,7 @@ x-langfuse-common-env: &langfuse-common-env
 
 services:
   langfuse-web:
-    image: langfuse/langfuse:3.187.0
+    image: langfuse/langfuse:4.50.0@sha256:3d2ae888a0e6edb41fdba6e7d5baca5e4baede3a870dac7970dadd9d925b018e
     container_name: langfuse-web
     restart: unless-stopped
     depends_on: &langfuse-backends
@@ -96,8 +105,10 @@ services:
         condition: service_healthy
     environment:
       <<: *langfuse-common-env
-      NEXTAUTH_URL: https://langfuse.bezaforge.dev
       NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET}
+      # The web tier's own reads and writes of media go to MinIO directly;
+      # only the presigned URLs a browser fetches use the public endpoint.
+      LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: http://langfuse-minio:9000
       # Owner account exists → signups locked. To add users, the owner INVITES
       # them (Settings → Members). LangFuse blocks ALL signups when true, incl.
       # the first — so a fresh clean deploy needs a one-time flip to "false" to
@@ -113,7 +124,7 @@ services:
       - "traefik.http.services.langfuse.loadbalancer.server.port=3000"
 
   langfuse-worker:
-    image: langfuse/langfuse-worker:3.187.0
+    image: langfuse/langfuse-worker:4.50.0@sha256:52f7fd41ded2f1a6acab13ff7cb1832d36dfe2cbf44adea402b7a09cfa4ce800
     container_name: langfuse-worker
     restart: unless-stopped
     depends_on: *langfuse-backends
@@ -147,7 +158,9 @@ services:
       retries: 5
 
   langfuse-clickhouse:
-    image: clickhouse/clickhouse-server:25.8@sha256:0fa332a9a05ce4138b16d883f9c9d124c8d9d81cf4e52046878d537558626e49
+    # 26.8 is ClickHouse's current long-term-support release. Langfuse v4
+    # needs >= 25.12 and suggests 26.4, which ClickHouse no longer supports.
+    image: clickhouse/clickhouse-server:26.8@sha256:9716a352d25f538bd19d868b001141e7a60e4d035bc9b823658c6a071660aa61
     container_name: langfuse-clickhouse
     restart: unless-stopped
     user: "101:101"
@@ -158,6 +171,11 @@ services:
     volumes:
       - langfuse_clickhouse_data:/var/lib/clickhouse
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
+      # Turns off the system log tables that ship with no TTL. Under v3 they
+      # had grown to 13 GB on an instance with no traces (#1334). ClickHouse
+      # reads config.d at start, so a change to this file alone needs a
+      # container restart.
+      - ./clickhouse-system-logs.xml:/etc/clickhouse-server/config.d/system-logs.xml:ro
     networks:
       - bezaforge-net
     healthcheck:

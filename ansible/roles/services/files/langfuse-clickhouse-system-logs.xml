@@ -1,0 +1,15 @@
+<!--
+  Langfuse's own recommendation for ClickHouse's system log tables
+  (https://langfuse.com/self-hosting/configuration/scaling). These ship with
+  no TTL and grow without bound. query_log, part_log and error_log stay on:
+  they are small, and Langfuse v4 reads query_log to track its own
+  background migrations.
+-->
+<clickhouse>
+    <trace_log remove="1"/>
+    <text_log remove="1"/>
+    <opentelemetry_span_log remove="1"/>
+    <asynchronous_metric_log remove="1"/>
+    <metric_log remove="1"/>
+    <latency_log remove="1"/>
+</clickhouse>
