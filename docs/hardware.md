@@ -35,7 +35,7 @@
 | CPU | Intel i5-8500T |
 | RAM | 16GB DDR4 |
 | Storage | 256GB NVMe |
-| OS | Ubuntu Server 26.04 LTS (to be installed; see `runbooks/install-forge-agents.md`) |
+| OS | Ubuntu Server 26.04 LTS, installed 2026-09-14 (see `runbooks/install-forge-agents.md`) |
 | Role | The Brizza agent team's host, bare metal, VLAN 50 at 10.10.50.20 (decided 2026-09-14, Brizza ADR 0018 / BezaForge ADR 0011). Reassigned from the Phase 3 K3s plan on 2026-09-13. Powered on 2026-09-14 it carried a never-used Proxmox 9.2 install at 10.10.20.10, unreachable from every VLAN; it is wiped, not inspected |
 
 > When powered off its NIC holds link at 10 Mbps for Wake-on-LAN — a lit router port does **not** mean this node is running.

@@ -303,11 +303,17 @@ than a suggestion.
 
 **Owed from the design (ADR 0015):**
 
-- [ ] Whether `DISCORD_HISTORY_BACKFILL` includes **other bots'** replies.
-      Default on, 50 messages. ADR 0015 relies on this for several agent bots
-      in one server, and says to test it before relying on it.
+- [x] Whether `DISCORD_HISTORY_BACKFILL` includes **other bots'** replies.
+      Tested 2026-09-21 (#1218): **it does not.** While
+      `DISCORD_ALLOW_BOTS=none`, the Discord adapter drops other bots from the
+      backfilled history. There is no history-only switch: `mentions` or `all`
+      would include them, but would also let bots trigger each other, the
+      loop ADR 0015 warns about.
 - [ ] A Bot Mode room with three agents.
-- [ ] An agent-to-agent message across profiles.
+- [x] An agent-to-agent message across profiles. Tested 2026-09-21 (#1218):
+      `message_agent` works, but only from a session titled "Bot Chat"; it is
+      never offered in a Discord session. The role writes the Bot Mode marker
+      and the "Messages from teammates" section for every agent.
 
 ## Renaming an agent
 
@@ -353,12 +359,16 @@ ssh joseph@forge-agents 'systemctl --user status hermes-gateway.service'
 ssh joseph@forge-agents 'journalctl --user -u hermes-gateway.service -n 50'
 ```
 
+The journal shows the unit starting and stopping. Once it is up, the gateway
+logs to `~/.hermes/logs/gateway.log`, not the journal.
+
 **One approved agent does not answer.** Look for a park marker, then for the
-gateway saying it skipped the profile:
+gateway connecting that profile. Every running agent has a
+`discord connected (profile: <name>)` line after the gateway's last start:
 
 ```bash
 ssh joseph@forge-agents 'ls ~/.hermes/profiles/*/gateway.parked'
-ssh joseph@forge-agents 'journalctl --user -u hermes-gateway.service -n 200 | grep -i parked'
+ssh joseph@forge-agents 'grep "discord connected" ~/.hermes/logs/gateway.log | tail -6'
 ```
 
 A marker on an approved agent means the roster the role last read did not
@@ -423,8 +433,8 @@ per-profile Discord tokens suggest.
 
 **The self-improvement review runs on forge-ai, not Codex.** After every
 turn Hermes forks the agent to ask whether a memory or skill should be saved
-(`auxiliary.background_review`). It is what proposes the memory writes held
-for your approval, so it stays on, but the role routes it to the local
+(`auxiliary.background_review`). It is what writes the agents' memories, so
+it stays on, but the role routes it to the local
 fallback model so it spends nothing from the Codex allowance (Joseph,
 2026-09-30, #1334). A 💾 line in Discord after a reply is this review. To see
 it run, and on which model:
@@ -450,7 +460,7 @@ config, where the role writes it as `true`. Check that the gateway is up and
 that it took the lock:
 
 ```bash
-ssh joseph@forge-agents 'journalctl --user -u hermes-gateway.service -n 500 | grep "kanban dispatcher" | tail -5'
+ssh joseph@forge-agents 'grep "dispatcher lock" ~/.hermes/logs/gateway.log | tail -5'
 ```
 
 `holding singleton dispatcher lock` is the line you want. `another gateway
