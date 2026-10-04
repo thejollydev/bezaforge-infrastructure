@@ -3,11 +3,11 @@
 # health.yml — verify fleet state (read-only)
 # ============================================================
 #
-#   cd ~/Projects/bezaforge-infrastructure/ansible
-#   ansible-playbook health.yml --ask-become-pass --ask-vault-pass
+#   ansible-playbook ansible/health.yml --ask-become-pass --ask-vault-pass
 #
-# Run this after every reboot, after update.yml, and any time you want to
-# know the fleet is actually healthy rather than merely reachable.
+# update.yml ends with this playbook. Run it by itself after every reboot,
+# and any time you want to know the fleet is actually healthy rather than
+# merely reachable.
 #
 # Checks per host: expected ZFS pools imported, expected mountpoints present
 # AND of the right filesystem type, expected containers running, and no

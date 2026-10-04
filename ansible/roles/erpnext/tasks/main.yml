@@ -10,6 +10,15 @@
 # one-time container recreate that happens when the compose moves under
 # {{ erpnext_deploy_dir }} (the config_files label changes). Data is kept.
 #
+# UPGRADES (#1378). When the image in erpnext-one.yaml is not the one the
+# running backend was created from, this role upgrades rather than merely
+# recreating: it records the ledger totals, takes a backup, brings the stack
+# up on the new image, runs `bench migrate`, and stops if the ledger totals
+# moved. A recreate without the migrate is the version-skew trap (FORGE-77):
+# new code against an unmigrated database. It refuses an OLDER image outright
+# — that is a stale checkout, and migrations do not run backwards.
+# See docs/runbooks/erpnext-upgrade.md.
+#
 # NOT codified (deliberate scope):
 #   - The one-time site bootstrap (`bench new-site erp.bezaforge.dev
 #     --install-app erpnext`). The site lives in erpnext-one_sites; for a
@@ -121,6 +130,92 @@
     group: "{{ erpnext_docker_user }}"
     mode: "0600"
 
+# --- Is this run an upgrade? ---
+- name: Read the ERPNext image the compose file asks for
+  ansible.builtin.set_fact:
+    erpnext_wanted_image: >-
+      {{ (lookup('ansible.builtin.file', 'erpnext-one.yaml') | from_yaml).services.backend.image }}
+
+# failed_when: false — no such container is the from-zero rebuild, where
+# there is nothing to upgrade and the bring-up below creates it.
+- name: Read the image the running backend was created from
+  ansible.builtin.command:
+    argv:
+      - docker
+      - inspect
+      - --format
+      - "{{ '{{' }}.Config.Image{{ '}}' }}"
+      - "{{ erpnext_backend_container }}"
+  register: erpnext_running
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Decide whether this run upgrades ERPNext
+  ansible.builtin.set_fact:
+    erpnext_running_image: "{{ erpnext_running.stdout | trim }}"
+    erpnext_upgrading: >-
+      {{ erpnext_running.rc == 0
+         and (erpnext_running.stdout | trim) != erpnext_wanted_image }}
+
+- name: Record the ledger totals, back up, and check the direction
+  when: erpnext_upgrading | bool
+  block:
+
+    # Both refs must carry a version, or the direction cannot be known. A
+    # ref that does not parse stops the run here, before anything changes.
+    - name: Refuse to move ERPNext to an older or unreadable version
+      ansible.builtin.assert:
+        that:
+          - erpnext_running_tag | length > 0
+          - erpnext_wanted_tag | length > 0
+          - erpnext_wanted_tag is version(erpnext_running_tag, '>=')
+        fail_msg: >-
+          forge-erp runs {{ erpnext_running_image }} and this checkout asks
+          for {{ erpnext_wanted_image }}. That is not a move forward (or one
+          of the two carries no vX.Y.Z tag), so nothing was touched. An older
+          image against a migrated database is the version-skew trap — pull
+          main and run again.
+      vars:
+        erpnext_running_tag: "{{ erpnext_running_image | regex_search(':v(\\d+\\.\\d+\\.\\d+)', '\\1') | default([''], true) | first }}"
+        erpnext_wanted_tag: "{{ erpnext_wanted_image | regex_search(':v(\\d+\\.\\d+\\.\\d+)', '\\1') | default([''], true) | first }}"
+
+    - name: Record the ledger totals before the upgrade
+      ansible.builtin.command:
+        argv: "{{ erpnext_ledger_totals_argv }}"
+      register: erpnext_ledger_before
+      changed_when: false
+
+    - name: Check for the forge-erp backup script
+      ansible.builtin.stat:
+        path: "{{ erpnext_backup_script }}"
+      register: erpnext_backup_script_stat
+
+    # The script is roles/forge-erp's nightly job: `bench backup --with-files`
+    # and then the copy to bezapool, so the dump is off this VM before the
+    # database is migrated.
+    - name: Back up ERPNext and push the backup off the VM
+      ansible.builtin.command:
+        cmd: "{{ erpnext_backup_script }}"
+      changed_when: true
+      when: erpnext_backup_script_stat.stat.exists
+
+    # A host that has never run roles/forge-erp has no script. The dump is
+    # still taken; it stays on this VM until that role is deployed.
+    - name: Back up ERPNext on the VM (no off-VM push configured)
+      ansible.builtin.command:
+        argv:
+          - docker
+          - exec
+          - "{{ erpnext_backend_container }}"
+          - bench
+          - --site
+          - "{{ erpnext_site }}"
+          - backup
+          - --with-files
+      changed_when: true
+      when: not erpnext_backup_script_stat.stat.exists
+
 # Shared MariaDB FIRST — creates the external mariadb-network + the
 # mariadb_db-data volume the app project attaches to.
 - name: Bring up the shared MariaDB project
@@ -151,3 +246,67 @@
     files:
       - erpnext-one.yaml
     state: present
+
+# --- The rest of an upgrade: migrate, then prove the books did not move ---
+# Not under --check: the commands above are skipped there, so there would be
+# no "before" to compare against.
+- name: Migrate ERPNext and compare the ledger totals
+  when:
+    - erpnext_upgrading | bool
+    - not ansible_check_mode
+  block:
+
+    # The backend container is up before gunicorn and the database connection
+    # are, hence the retries. Migrate is safe to repeat.
+    - name: Run bench migrate on the new image
+      ansible.builtin.command:
+        argv:
+          - docker
+          - exec
+          - "{{ erpnext_backend_container }}"
+          - bench
+          - --site
+          - "{{ erpnext_site }}"
+          - migrate
+      register: erpnext_migrate
+      changed_when: true
+      retries: 5
+      delay: 15
+      until: erpnext_migrate.rc == 0
+
+    - name: Record the ledger totals after the upgrade
+      ansible.builtin.command:
+        argv: "{{ erpnext_ledger_totals_argv }}"
+      register: erpnext_ledger_after
+      changed_when: false
+
+    - name: Read the versions now running
+      ansible.builtin.command:
+        argv:
+          - docker
+          - exec
+          - "{{ erpnext_backend_container }}"
+          - bench
+          - version
+      register: erpnext_bench_version
+      changed_when: false
+
+    - name: Report the upgrade
+      ansible.builtin.debug:
+        msg:
+          - "was            : {{ erpnext_running_image }}"
+          - "now            : {{ erpnext_wanted_image }}"
+          - "bench version  : {{ erpnext_bench_version.stdout_lines | join(' / ') }}"
+          - "ledger before  : {{ erpnext_ledger_before.stdout_lines | last | default('') }}"
+          - "ledger after   : {{ erpnext_ledger_after.stdout_lines | last | default('') }}"
+
+    - name: FAIL if the ledger totals moved across the upgrade
+      ansible.builtin.assert:
+        that:
+          - (erpnext_ledger_before.stdout_lines | last | default('before'))
+            == (erpnext_ledger_after.stdout_lines | last | default('after'))
+        fail_msg: >-
+          The count and the debit and credit sums of the posted ledger entries
+          are not what they were before the upgrade. The backup taken at the
+          start of this run is the way back: docs/runbooks/erpnext-upgrade.md.
+        success_msg: "Ledger totals are unchanged across the upgrade."

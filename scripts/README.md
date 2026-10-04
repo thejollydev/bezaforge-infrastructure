@@ -12,6 +12,7 @@ Ad-hoc automation scripts for BezaForge infrastructure management.
 | `deploy-drift-check.py` | Reports roles merged to `main` but never deployed (#671) | `roles/monitoring` copies it verbatim to forge-ops |
 | `check-alert-rules.py` | Validates the Grafana alert provisioning file — it is excluded from both linters, so this is its only check (#671) | not deployed — runs in CI and by hand |
 | `grafana-export-dashboards.sh` | Captures every live Grafana dashboard into the repo; remaps the reserved `General` folder that broke provisioning for 3 months (#659) | not deployed — run by hand before touching dashboards |
+| `fleet-update.sh` | The one weekly command: pulls `main`, then runs `ansible/update.yml` — OS packages, `site.yml`, resolvers, health (#1378). A script because the pull has to happen before Ansible reads the playbook it is about to run | not deployed — run by hand from the workstation |
 | `openproject/` | One-off OpenProject provisioning + structuring batches (2026-07 migration) | not deployed — run by hand from the workstation |
 | `token-usage/` | Prices local Claude Code and Codex session logs at API list rates and writes a report (#1334) | not deployed — run by hand on the workstation |
 

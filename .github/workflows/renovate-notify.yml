@@ -52,7 +52,7 @@ jobs:
                 title: $title,
                 url: $url,
                 color: 3447003,
-                description: "New dependency-update PR — review, merge, then deploy (ansible-playbook; a merged bump is not live until deployed).",
+                description: "New dependency-update PR. Patch, minor and digest updates merge themselves once CI is green; one still open after that is waiting to be read. Nothing merged is live until the fleet update pass runs.",
                 footer: { text: "bezaforge-infrastructure · Renovate" }
               }]
             }')"

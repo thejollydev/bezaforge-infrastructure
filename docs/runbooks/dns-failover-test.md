@@ -296,7 +296,7 @@ Failover times are the deliverable. Fill this in and paste it into #638:
 
 **The two numbers that matter.** A *stopped container* refuses immediately → failover in **under 100 ms**, which is the case you actually hit on every `--tags adguard` deploy. A *dead or unreachable host* has to time out → **~10.2 s** on the first query, then normal. Both are recoveries, not outages.
 
-⚠️ **Phase B leaves every host on the secondary; resolved does not fail back on its own.** The same is true after *any* AdGuard bounce — a `--tags adguard` deploy, a forge-ops reboot, an `update.yml` pass.
+⚠️ **Phase B leaves every host on the secondary; resolved does not fail back on its own.** The same is true after *any* AdGuard bounce — a `--tags adguard` deploy, a forge-ops reboot, an `update.yml` pass (which runs the failback itself before it finishes, and fails if a host is still on the secondary).
 
 **Since #663 the hosts fail themselves back.** The primary-DNS check that runs every 2 minutes (`roles/dns-client` on the fleet, `roles/networking` in `ansible-arch` on the workstation) restarts `systemd-resolved` when the host is off the primary *and* the primary answers a direct `dig`. So within about two minutes of AdGuard coming back, every host is on `10.10.20.20` again with nothing to run. Each failback is counted in `bezaforge_dns_failback_total`, so a bounce that healed itself still leaves a trace. The workstation is scraped by Prometheus (the `node-exporter-workstation` job) whenever it is on home WiFi, so "DNS Not Using Primary" covers it too.
 

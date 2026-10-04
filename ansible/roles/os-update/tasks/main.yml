@@ -4,7 +4,8 @@
 # ============================================================
 # Invoked ONLY by update.yml, never by site.yml — site.yml converges
 # configuration and must stay safe to run at any time; upgrading packages is
-# a decision, not a convergence.
+# a decision, not a convergence. (update.yml runs this role and THEN
+# site.yml; the reverse never happens.)
 #
 # Reports what needs a reboot; never reboots. See update.yml for the safe
 # host ordering and why it matters.

@@ -264,7 +264,7 @@ bezaforge-infrastructure/
 │   ├── ansible.cfg              # Defaults (inventory path)
 │   ├── requirements.yml         # Galaxy collections (community.docker, etc.)
 │   ├── site.yml                 # Main playbook — 5 plays (hypervisor, docker, gpu, assistant, erp hosts)
-│   ├── update.yml               # Deliberate fleet package upgrade, in a safe order
+│   ├── update.yml               # The whole fleet update pass: OS packages, site.yml, resolvers, health
 │   ├── health.yml               # Read-only fleet health verification
 │   ├── inventory/
 │   │   ├── hosts.yml            # Host groups (hypervisor_hosts, docker_hosts, gpu_hosts, assistant_hosts)
