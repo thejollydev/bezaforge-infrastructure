@@ -39,20 +39,35 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
+          # A major's branch carries the major- prefix (.github/renovate.json).
+          # It is the only kind of update that waits for a decision, so it
+          # gets its own wording and colour; everything else merges itself.
+          if [[ "${HEAD_REF}" == renovate/major-* ]]; then
+            lead="MAJOR — needs your decision"
+            color=15158332
+            desc="A major version. It will not merge itself: read it, then merge or close it. Nothing is live until the fleet update pass runs."
+          else
+            lead="Update"
+            color=3447003
+            desc="Merges itself once CI is green; if it is still open later, a check failed. Nothing merged is live until the fleet update pass runs."
+          fi
           # Build the payload with jq --arg so the (untrusted) PR title can never
           # break the JSON or inject shell — it is passed as data, never
           # interpolated into the command.
           payload="$(jq -n \
-            --arg title "#${PR_NUMBER}: ${PR_TITLE}" \
+            --arg title "${lead}: #${PR_NUMBER} ${PR_TITLE}" \
             --arg url "${PR_URL}" \
+            --arg desc "${desc}" \
+            --argjson color "${color}" \
             '{
               username: "Renovate",
               embeds: [{
                 title: $title,
                 url: $url,
-                color: 3447003,
-                description: "New dependency-update PR. It merges itself once CI is green; one still open after that has a failing check. Nothing merged is live until the fleet update pass runs.",
+                color: $color,
+                description: $desc,
                 footer: { text: "bezaforge-infrastructure · Renovate" }
               }]
             }')"

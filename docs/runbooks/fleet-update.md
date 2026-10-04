@@ -53,8 +53,9 @@ Renovate runs on Mondays and on demand (`gh workflow run renovate.yml`).
 
 | Update | What happens |
 |---|---|
-| Digest, patch, minor and major, of everything | Merges itself once CI is green |
-| Major of a database or cache engine (Postgres, MariaDB, Redis, Valkey, ClickHouse) | Not proposed at all; it needs a data migration |
+| Digest, patch and minor, of everything | Merges itself once CI is green |
+| Major | A PR that waits for a decision, announced in Discord as "MAJOR — needs your decision" |
+| Major of a database or cache engine (Postgres, MariaDB, Redis, Valkey, ClickHouse) | The same, with a warning on the PR: merging it without migrating the data first stops the engine on the next pass |
 
 ERPNext and LangFuse each arrive as one grouped PR
 ([erpnext-upgrade.md](erpnext-upgrade.md),

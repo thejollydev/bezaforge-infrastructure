@@ -134,7 +134,7 @@
       "enabled": false
     },
     {
-      "description": "Database & cache engines need a manual data-dir migration on a major bump (see the postgres-18 data-dir gotcha) — allow minor/patch/digest only.",
+      "description": "A database or cache engine's major is proposed, never merged by Renovate (no major is; see the rules at the end), and never routine: the new major cannot read the old one's data directory (see the postgres-18 data-dir gotcha). Until 2026-10-04 these were switched off, so a new major was simply never heard of. The note is the warning that merging one is a decision to do the migration.",
       "matchDatasources": ["docker"],
       "matchPackageNames": [
         "postgres",
@@ -144,7 +144,7 @@
         "clickhouse/clickhouse-server"
       ],
       "matchUpdateTypes": ["major"],
-      "enabled": false
+      "prBodyNotes": ["A database or cache engine major. Merging this and running the fleet update pass will stop the engine unless its data has been migrated first. Decide, migrate, then merge -- or close it."]
     },
     {
       "description": "Ollama ships -rc prereleases (e.g. v0.34.0-rc1) between stables. forge-ai runs the GPU inference the agents depend on -- take stables only.",
@@ -152,9 +152,16 @@
       "ignoreUnstable": true
     },
     {
-      "description": "Every update merges itself once CI is green (#1378): digest, patch, minor and major, for everything Renovate manages. A merge changes git and nothing else: it reaches a host on the next fleet update pass (ansible/update.yml), which is run by hand. The one thing that never arrives is a database or cache engine's major, which the rule further up switches off because it needs a data migration by hand.",
-      "matchPackageNames": ["*"],
+      "description": "Patch, minor and digest updates merge themselves once CI is green (#1378), for everything Renovate manages -- the database engines, ERPNext, LangFuse, ComfyUI and PyTorch included. A merge changes git and nothing else: it reaches a host on the next fleet update pass (ansible/update.yml), which is run by hand.",
+      "matchUpdateTypes": ["patch", "minor", "digest"],
       "automerge": true
+    },
+    {
+      "description": "A major never merges itself: it waits as a PR for a decision. The branch prefix is how .github/workflows/renovate-notify.yml tells a major from the rest at the moment the PR opens -- labels are added in a later API call and are not in that event -- so the Discord message for a major says it needs deciding.",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "additionalBranchPrefix": "major-",
+      "addLabels": ["major"]
     },
     {
       "description": "ERPNext's image refs in files/erpnext-one.yaml and erpnext_version move as one PR. Deploying it is an upgrade, not a recreate: the erpnext role backs up, migrates and compares the ledger totals, so a merged update is safe to leave to the fleet update pass. Until 2026-10-04 everything under roles/erpnext was switched off here with nothing behind the exclusion but a sentence, which is how LangFuse fell a major version behind (#1334).",

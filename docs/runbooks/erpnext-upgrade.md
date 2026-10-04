@@ -7,16 +7,15 @@ Available" button is never used on a container deploy.
 
 Renovate proposes each release as one PR that moves the nine image refs in
 the compose file and `erpnext_version` in the role's defaults together.
-Every release, majors included, merges itself once CI is green, and the next
-fleet update pass upgrades the instance with no further step.
+Patch and minor releases merge themselves once CI is green, and the next
+fleet update pass upgrades the instance with no further step. A major waits
+as an open PR.
 
-## A major version
+## Before merging a major
 
-Nothing holds a major back, so the moment to look is before the weekly pass
-runs, not before a merge. When `git log` shows a new major of ERPNext on
-`main`, read the Frappe and ERPNext upgrade guide for anything that changes
-how entries post, how reports total, or what a form prints, and take a VM
-backup from Proxmox before running the pass.
+1. Read the Frappe and ERPNext upgrade guide and release notes, for anything
+   that changes how entries post, how reports total, or what a form prints.
+2. Take a VM backup from Proxmox first.
 
 ## Deploy
 
