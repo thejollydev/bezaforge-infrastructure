@@ -25,7 +25,7 @@
 # everywhere except forge-erp, whose floor is 1 (the erpnext role's
 # "Bring up the ERPNext app project" always reports changed; see the role).
 #
-# Renovate merges patch, minor and digest updates into main by itself once CI
+# Renovate merges every update into main by itself once CI
 # is green (.github/renovate.json), so "what main says" moves during the week
 # without anybody merging. Nothing it merges is live until this pass runs —
 # deploys stay human-run (ADR 0005).

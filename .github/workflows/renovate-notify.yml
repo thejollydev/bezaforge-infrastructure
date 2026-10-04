@@ -52,7 +52,7 @@ jobs:
                 title: $title,
                 url: $url,
                 color: 3447003,
-                description: "New dependency-update PR. Patch, minor and digest updates merge themselves once CI is green; one still open after that is waiting to be read. Nothing merged is live until the fleet update pass runs.",
+                description: "New dependency-update PR. It merges itself once CI is green; one still open after that has a failing check. Nothing merged is live until the fleet update pass runs.",
                 footer: { text: "bezaforge-infrastructure · Renovate" }
               }]
             }')"

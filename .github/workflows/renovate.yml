@@ -3,9 +3,8 @@
 #
 # Runs Renovate in our own GitHub Actions runner (no third-party Mend app has
 # repo access). Renovate reads .github/renovate.json and opens PRs for
-# container-image, GitHub Actions, and Terraform-provider updates. Patch,
-# minor and digest updates merge themselves once CI is green; majors wait to
-# be read (#1378). Deployment stays manual — a merged bump is git-visible but NOT
+# container-image, GitHub Actions, and Terraform-provider updates. Every
+# update merges itself once CI is green, majors included (#1378). Deployment stays manual — a merged bump is git-visible but NOT
 # live until the fleet update pass deploys it (docs/runbooks/fleet-update.md).
 # See guide phases/2-automation/03-cicd-pipeline.md.
 #

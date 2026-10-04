@@ -152,21 +152,19 @@
       "ignoreUnstable": true
     },
     {
-      "description": "Patch, minor and digest updates merge themselves once CI is green (#1378), for everything Renovate manages -- the database engines, ERPNext, LangFuse, ComfyUI and PyTorch included. A merge changes git and nothing else: it reaches a host on the next fleet update pass (ansible/update.yml), which is run by hand. Majors arrive as PRs to read, except the database engines' majors, which the rule further up switches off entirely.",
-      "matchUpdateTypes": ["patch", "minor", "digest"],
+      "description": "Every update merges itself once CI is green (#1378): digest, patch, minor and major, for everything Renovate manages. A merge changes git and nothing else: it reaches a host on the next fleet update pass (ansible/update.yml), which is run by hand. The one thing that never arrives is a database or cache engine's major, which the rule further up switches off because it needs a data migration by hand.",
+      "matchPackageNames": ["*"],
       "automerge": true
     },
     {
-      "description": "ERPNext's image refs in files/erpnext-one.yaml and erpnext_version move as one PR. Deploying it is an upgrade, not a recreate: the erpnext role backs up, migrates and compares the ledger totals, so a merged update is safe to leave to the fleet update pass. Until 2026-10-04 everything under roles/erpnext was switched off here with nothing behind the exclusion but a sentence, which is how LangFuse fell a major version behind (#1334). The note matters for a major, which waits to be read.",
+      "description": "ERPNext's image refs in files/erpnext-one.yaml and erpnext_version move as one PR. Deploying it is an upgrade, not a recreate: the erpnext role backs up, migrates and compares the ledger totals, so a merged update is safe to leave to the fleet update pass. Until 2026-10-04 everything under roles/erpnext was switched off here with nothing behind the exclusion but a sentence, which is how LangFuse fell a major version behind (#1334).",
       "matchPackageNames": ["frappe/erpnext"],
-      "groupName": "erpnext",
-      "prBodyNotes": ["A major: read the release notes for accounting impact before merging. docs/runbooks/erpnext-upgrade.md."]
+      "groupName": "erpnext"
     },
     {
-      "description": "LangFuse's web and worker images are one release and must move together, so they arrive as one PR. A major can raise the minimum ClickHouse, Postgres or Redis version; the note is for that case.",
+      "description": "LangFuse's web and worker images are one release and must move together, so they arrive as one PR.",
       "matchPackageNames": ["langfuse/langfuse", "langfuse/langfuse-worker"],
-      "groupName": "langfuse",
-      "prBodyNotes": ["A major: read the release notes and check the infrastructure minimums before merging. docs/runbooks/langfuse-upgrade.md."]
+      "groupName": "langfuse"
     }
   ]
 }
