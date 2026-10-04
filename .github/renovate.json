@@ -152,40 +152,21 @@
       "ignoreUnstable": true
     },
     {
-      "description": "Patch, minor and digest updates merge themselves once CI is green (#1378). A merge changes git and nothing else: it reaches a host on the next fleet update pass (ansible/update.yml), which is run by hand. Majors arrive as PRs to read. Every rule that holds something back from this one comes AFTER it; later rules win.",
+      "description": "Patch, minor and digest updates merge themselves once CI is green (#1378), for everything Renovate manages -- the database engines, ERPNext, LangFuse, ComfyUI and PyTorch included. A merge changes git and nothing else: it reaches a host on the next fleet update pass (ansible/update.yml), which is run by hand. Majors arrive as PRs to read, except the database engines' majors, which the rule further up switches off entirely.",
       "matchUpdateTypes": ["patch", "minor", "digest"],
       "automerge": true
     },
     {
-      "description": "Database and cache engines never merge themselves, at any update type. A digest refresh of a floating tag like postgres:16-alpine can carry a new engine release, and these hold the data. Their majors stay switched off entirely by the rule further up.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": [
-        "postgres",
-        "mariadb",
-        "redis",
-        "valkey/valkey",
-        "clickhouse/clickhouse-server"
-      ],
-      "automerge": false
-    },
-    {
-      "description": "ERPNext holds the books, so it never merges itself. The image refs in files/erpnext-one.yaml and erpnext_version move as one PR. Deploying it is an upgrade, not a recreate: the erpnext role backs up, migrates and compares the ledger totals. Until 2026-10-04 everything under roles/erpnext was switched off here with nothing behind the exclusion but a sentence, which is how LangFuse fell a major version behind (#1334).",
+      "description": "ERPNext's image refs in files/erpnext-one.yaml and erpnext_version move as one PR. Deploying it is an upgrade, not a recreate: the erpnext role backs up, migrates and compares the ledger totals, so a merged update is safe to leave to the fleet update pass. Until 2026-10-04 everything under roles/erpnext was switched off here with nothing behind the exclusion but a sentence, which is how LangFuse fell a major version behind (#1334). The note matters for a major, which waits to be read.",
       "matchPackageNames": ["frappe/erpnext"],
       "groupName": "erpnext",
-      "automerge": false,
-      "prBodyNotes": ["Read the release notes for accounting impact before merging, then deploy: docs/runbooks/erpnext-upgrade.md."]
+      "prBodyNotes": ["A major: read the release notes for accounting impact before merging. docs/runbooks/erpnext-upgrade.md."]
     },
     {
-      "description": "LangFuse's web and worker images are one release and must move together, so they arrive as one PR. A release can raise the minimum ClickHouse, Postgres or Redis version, and the note on the PR says to check that before merging -- which is why it does not merge itself.",
+      "description": "LangFuse's web and worker images are one release and must move together, so they arrive as one PR. A major can raise the minimum ClickHouse, Postgres or Redis version; the note is for that case.",
       "matchPackageNames": ["langfuse/langfuse", "langfuse/langfuse-worker"],
       "groupName": "langfuse",
-      "automerge": false,
-      "prBodyNotes": ["Read the release notes and check the infrastructure minimums before merging: docs/runbooks/langfuse-upgrade.md."]
-    },
-    {
-      "description": "ComfyUI and the PyTorch wheels do not merge themselves. The managers above say why each is an update to read first: a ComfyUI release can move the node API the pinned custom nodes call, and a PyTorch bump rebuilds the venv the GPU work runs in.",
-      "matchPackageNames": ["comfyanonymous/ComfyUI", "torch", "torchvision", "torchaudio"],
-      "automerge": false
+      "prBodyNotes": ["A major: read the release notes and check the infrastructure minimums before merging. docs/runbooks/langfuse-upgrade.md."]
     }
   ]
 }

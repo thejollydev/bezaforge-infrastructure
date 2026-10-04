@@ -53,12 +53,13 @@ Renovate runs on Mondays and on demand (`gh workflow run renovate.yml`).
 
 | Update | What happens |
 |---|---|
-| Patch, minor and digest | Merges itself once CI is green |
-| Major | A PR to read |
-| Database and cache engines (Postgres, MariaDB, Redis, Valkey, ClickHouse) | A PR at every level; majors are not proposed at all |
-| ERPNext | One PR; see [erpnext-upgrade.md](erpnext-upgrade.md) |
-| LangFuse | One PR; see [langfuse-upgrade.md](langfuse-upgrade.md) |
-| ComfyUI and the PyTorch wheels | A PR to read |
+| Patch, minor and digest, of everything | Merges itself once CI is green |
+| Major | A PR to read; nothing deploys it until it is merged |
+| Major of a database or cache engine (Postgres, MariaDB, Redis, Valkey, ClickHouse) | Not proposed at all; it needs a data migration |
+
+ERPNext and LangFuse each arrive as one grouped PR
+([erpnext-upgrade.md](erpnext-upgrade.md),
+[langfuse-upgrade.md](langfuse-upgrade.md)).
 
 The rules are in `.github/renovate.json`. A merge changes git and no machine.
 The "Deploy Drift" alert reports roles that have sat merged and undeployed

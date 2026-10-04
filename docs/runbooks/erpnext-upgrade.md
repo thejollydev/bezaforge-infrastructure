@@ -6,17 +6,17 @@ moving in that file, followed by `bench migrate`. The in-app "Update
 Available" button is never used on a container deploy.
 
 Renovate proposes each release as one PR that moves the nine image refs in
-the compose file and `erpnext_version` in the role's defaults together. It
-never merges that PR itself.
+the compose file and `erpnext_version` in the role's defaults together.
+Patch and minor releases merge themselves once CI is green, and the next
+fleet update pass upgrades the instance with no further step. A major waits
+as an open PR.
 
-## Before merging
+## Before merging a major
 
-1. Read the ERPNext and Frappe release notes from the running version to the
-   target, for anything that changes how entries post, how reports total, or
-   what a form prints.
-2. For a major version, read the upgrade guide as well and take a VM backup
-   from Proxmox first. Renovate proposes majors; nothing else about them is
-   routine.
+1. Read the ERPNext and Frappe release notes and the upgrade guide, for
+   anything that changes how entries post, how reports total, or what a form
+   prints.
+2. Take a VM backup from Proxmox first.
 
 ## Deploy
 
