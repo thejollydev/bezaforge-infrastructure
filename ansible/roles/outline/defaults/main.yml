@@ -33,5 +33,5 @@ outline_file_storage_max_size: "26214400"  # 25 MiB per upload
 
 # Postgres pin matches the rest of forge-ops (gitea/langfuse/
 # netbox all run postgres:15-alpine).
-outline_postgres_image: postgres:15-alpine@sha256:f7d23353e1b15400d22ebe31189f4d314b87a4c129cc400c8c2d8d4ca127bf81
+outline_postgres_image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
 outline_redis_image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499

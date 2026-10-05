@@ -137,7 +137,7 @@ services:
     # Postgres 17 = Langfuse v3's tested default. Isolated DB — intentionally
     # not pinned to the fleet's PG15 (no cross-DB dependency). Container name
     # kept as 'langfuse-db' so the db-dumps role needs no change.
-    image: postgres:17-alpine@sha256:4649d4ce53680767b3ba9a57f814d7ffa5cd694a03bba551576fb3dd6cb90b01
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     container_name: langfuse-db
     restart: unless-stopped
     environment:
