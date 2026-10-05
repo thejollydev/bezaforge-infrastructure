@@ -157,11 +157,55 @@
       "automerge": true
     },
     {
-      "description": "A major never merges itself: it waits as a PR for a decision. The branch prefix is how .github/workflows/renovate-notify.yml tells a major from the rest at the moment the PR opens -- labels are added in a later API call and are not in that event -- so the Discord message for a major says it needs deciding.",
+      "description": "A major never merges itself: it waits as a PR for a decision. The branch prefix is how .github/workflows/renovate-notify.yml tells a major from the rest at the moment the PR opens -- labels are added in a later API call and are not in that event -- so the Discord message for a major says it needs deciding. One Postgres or Redis image name is shared by several services, and by default Renovate would put them all in one PR that can only be accepted or refused whole (the first run did: four databases on three versions in one diff). The per-service rules below split those; a service added later needs a rule of its own or its database majors fall back into the shared PR.",
       "matchUpdateTypes": ["major"],
       "automerge": false,
       "additionalBranchPrefix": "major-",
       "addLabels": ["major"]
+    },
+    {
+      "description": "The ERPNext stack's MariaDB follows what the Frappe project ships and tests against (11.8 for Frappe 16), so nothing from 12 up is proposed. It moves when the vendored frappe_docker compose files are regenerated from a release that moves it, and this ceiling is raised in the same change. Digest and patch updates inside 11.x still arrive and merge like the rest.",
+      "matchFileNames": ["ansible/roles/erpnext/**"],
+      "matchPackageNames": ["mariadb"],
+      "allowedVersions": "<12"
+    },
+    {
+      "description": "The same for the ERPNext stack's Redis: frappe_docker ships 6.2, so nothing from 7 up is proposed.",
+      "matchFileNames": ["ansible/roles/erpnext/**"],
+      "matchPackageNames": ["redis"],
+      "allowedVersions": "<7"
+    },
+    {
+      "description": "A database or cache major for Gitea arrives as its own PR, so it can be decided and migrated by itself.",
+      "matchFileNames": ["ansible/roles/services/templates/gitea-compose.yml.j2"],
+      "matchPackageNames": ["postgres", "mariadb", "redis", "valkey/valkey", "clickhouse/clickhouse-server"],
+      "matchUpdateTypes": ["major"],
+      "additionalBranchPrefix": "major-gitea-",
+      "commitMessageSuffix": "for Gitea"
+    },
+    {
+      "description": "A database or cache major for NetBox arrives as its own PR, so it can be decided and migrated by itself.",
+      "matchFileNames": ["ansible/roles/services/templates/netbox-compose.yml.j2"],
+      "matchPackageNames": ["postgres", "mariadb", "redis", "valkey/valkey", "clickhouse/clickhouse-server"],
+      "matchUpdateTypes": ["major"],
+      "additionalBranchPrefix": "major-netbox-",
+      "commitMessageSuffix": "for NetBox"
+    },
+    {
+      "description": "A database or cache major for LangFuse arrives as its own PR, so it can be decided and migrated by itself.",
+      "matchFileNames": ["ansible/roles/services/files/langfuse-compose.yml"],
+      "matchPackageNames": ["postgres", "mariadb", "redis", "valkey/valkey", "clickhouse/clickhouse-server"],
+      "matchUpdateTypes": ["major"],
+      "additionalBranchPrefix": "major-langfuse-",
+      "commitMessageSuffix": "for LangFuse"
+    },
+    {
+      "description": "A database or cache major for Outline arrives as its own PR, so it can be decided and migrated by itself.",
+      "matchFileNames": ["ansible/roles/outline/defaults/main.yml"],
+      "matchPackageNames": ["postgres", "mariadb", "redis", "valkey/valkey", "clickhouse/clickhouse-server"],
+      "matchUpdateTypes": ["major"],
+      "additionalBranchPrefix": "major-outline-",
+      "commitMessageSuffix": "for Outline"
     },
     {
       "description": "ERPNext's image refs in files/erpnext-one.yaml and erpnext_version move as one PR. Deploying it is an upgrade, not a recreate: the erpnext role backs up, migrates and compares the ledger totals, so a merged update is safe to leave to the fleet update pass. Until 2026-10-04 everything under roles/erpnext was switched off here with nothing behind the exclusion but a sentence, which is how LangFuse fell a major version behind (#1334).",
