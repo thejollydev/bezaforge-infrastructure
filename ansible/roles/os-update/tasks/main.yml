@@ -4,15 +4,21 @@
 # ============================================================
 # Invoked ONLY by update.yml, never by site.yml — site.yml converges
 # configuration and must stay safe to run at any time; upgrading packages is
-# a decision, not a convergence.
+# a decision, not a convergence. (update.yml runs this role and THEN
+# site.yml; the reverse never happens.)
 #
 # Reports what needs a reboot; never reboots. See update.yml for the safe
 # host ordering and why it matters.
 
+# changed_when: false — a refreshed cache is not a change to the host. The
+# apt module reports one anyway on the Ubuntu hosts, on every run, which put
+# a standing changed=1 on forge-ai, forge-erp and forge-agents and made "a
+# second run changes nothing" unmeetable (#1378, seen 2026-10-05).
 - name: Refresh package lists
   ansible.builtin.apt:
     update_cache: true
   register: osu_cache
+  changed_when: false
   retries: 3
   delay: 10
   until: osu_cache is succeeded

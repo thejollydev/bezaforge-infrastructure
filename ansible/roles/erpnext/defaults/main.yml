@@ -11,7 +11,9 @@
 # frappe_docker `docker compose ... config` and re-vendor the output.
 # ============================================================
 
-erpnext_version: v16.36.0            # frappe/erpnext tag (baked into the vendored compose; doc only)
+# frappe/erpnext tag (baked into the vendored compose; doc only). Renovate
+# moves it together with the nine image refs in files/erpnext-one.yaml.
+erpnext_version: v16.36.0
 erpnext_site: erp.bezaforge.dev
 erpnext_deploy_dir: /opt/bezaforge/erpnext
 
@@ -24,3 +26,23 @@ erpnext_app_project: erpnext-one
 # host is rebuildable from scratch). docker-ce apt repo, Ubuntu.
 erpnext_install_docker: true
 erpnext_docker_user: "{{ bezaforge_admin_user }}"
+
+# --- Upgrades (#1378) ---
+# The same container and script roles/forge-erp names; that role runs after
+# this one and takes its own copies of these values.
+erpnext_backend_container: "{{ erpnext_app_project }}-backend-1"
+erpnext_backup_script: /usr/local/bin/forge-erp-backup.sh
+
+# One line that must read the same before and after a migrate: how many
+# posted ledger entries there are, and their debit and credit sums.
+erpnext_ledger_totals_argv:
+  - docker
+  - exec
+  - "{{ erpnext_backend_container }}"
+  - bench
+  - --site
+  - "{{ erpnext_site }}"
+  - execute
+  - frappe.db.sql
+  - --args
+  - '["select count(*), sum(debit), sum(credit) from `tabGL Entry` where is_cancelled = 0"]'

@@ -1,15 +1,52 @@
 ---
 # ============================================================
-# update.yml — deliberate fleet package upgrade, in a safe order
+# update.yml — the whole fleet brought up to what main says (#1378)
 # ============================================================
 #
-#   cd ~/Projects/bezaforge-infrastructure/ansible
-#   ansible-playbook update.yml --ask-become-pass --ask-vault-pass
+#   scripts/fleet-update.sh
 #
-# Reports which hosts need a reboot. NEVER reboots anything — you reboot
-# manually, in the same order the plays run, then verify with health.yml.
+# That wrapper pulls main and runs this playbook with both password prompts.
+# Run by hand it is:
 #
-# WHY THIS ORDER (it is not arbitrary):
+#   ansible-playbook ansible/update.yml --ask-become-pass --ask-vault-pass
+#
+# One pass, in this order:
+#
+#   0. refuse a checkout that is not main as GitHub has it
+#   1. OS packages, host by host, in the safe order below
+#   2. site.yml — everything merged gets deployed: container images, Ollama,
+#      LangFuse, ERPNext (which dumps its database and migrates when its
+#      image moved; see roles/erpnext)
+#   3. every host put back on the primary resolver
+#   4. health.yml
+#   5. which hosts need a reboot
+#
+# A second run straight after should report nothing left to do: changed=0
+# everywhere except forge-erp, whose floor is 1 (the erpnext role's
+# "Bring up the ERPNext app project" always reports changed; see the role).
+#
+# Renovate merges patch, minor and digest updates into main by itself once CI
+# is green (.github/renovate.json), so "what main says" moves during the week
+# without anybody merging. Nothing it merges is live until this pass runs —
+# deploys stay human-run (ADR 0005).
+#
+# NEVER reboots anything — you reboot by hand, in the same order the OS plays
+# run, then put the resolvers back and verify:
+#
+#   ansible-playbook ansible/update.yml --tags resolver,health --ask-become-pass --ask-vault-pass
+#
+# OS packages alone, as this playbook was before #1378: --tags update.
+# Everything merged, without the package upgrade: site.yml itself.
+#
+# WHY STEP 0. site.yml deploys whatever the checkout says. From a stale
+# checkout that is a downgrade: every image Renovate has moved since goes back
+# to its old pin, and nothing would say so. So the pass refuses to start from
+# anything but main, clean, at the commit GitHub has. To run it from a branch
+# on purpose (testing a change to the pass itself):
+#
+#   scripts/fleet-update.sh --this-checkout
+#
+# WHY THIS ORDER FOR THE OS PLAYS (it is not arbitrary):
 #
 #   1. forge-hypervisor — rebooting it bounces every VM, so it goes first,
 #      while nothing else is mid-dpkg. AdGuard, the PRIMARY resolver, is a
@@ -32,31 +69,90 @@
 #      forge-ops is down nothing else can resolve deb.debian.org, so no other
 #      host may be mid-apt. It also carries Traefik and every service.
 #
-# AFTER REBOOTING FORGE-OPS, PUT THE FLEET BACK ON THE PRIMARY RESOLVER.
-# Bouncing forge-ops bounces AdGuard, and systemd-resolved does NOT fail back
-# (#638): every host silently stays on the secondary, 10.10.10.10, until
-# something restarts the resolver. DNS keeps working, so nothing looks wrong
-# — but AdGuard's query log goes blind for that host and its filtering stops.
+# site.yml then runs in its own order, with forge-ops second. That is safe
+# where a reboot is not: a redeployed AdGuard container is back in seconds,
+# the hosts after it resolve through the secondary meanwhile, and by the time
+# forge-agents clones from Gitea the forge-ops play has finished.
 #
-#   ansible forge-ops,forge-ai,forge-erp,forge-agents -i inventory/hosts.yml \
-#     -m systemd -a "name=systemd-resolved state=restarted" \
-#     --become --ask-become-pass --ask-vault-pass
+# THE RESOLVER STEP. Bouncing AdGuard — a redeploy in step 2, or a forge-ops
+# reboot — leaves every host on the secondary, 10.10.10.10, because
+# systemd-resolved does NOT fail back (#638). Since #663 each host's
+# primary-DNS check moves it back within two minutes; step 3 runs that same
+# check now and fails the pass if a host is still off the primary, so the
+# pass does not end on an assumption. The workstation carries the same check
+# (ansible-arch roles/networking) and heals itself the same way.
 #
-# ⚠️ That command covers the FLEET ONLY. The workstation carries the same
-# two-resolver pair (ansible-arch roles/networking) and gets parked exactly
-# the same way, but it is not in this inventory — and because it does not run
-# roles/dns-client, it emits no textfile metric, so the "DNS Not Using
-# Primary" alert cannot see it either. Nothing anywhere will report it.
-# Restart it by hand, on the workstation:
-#
-#   sudo systemctl restart systemd-resolved
-#
-# Measured on the 2026-08-09 update pass: the four fleet hosts came back on
-# 10.10.20.20 and the workstation was still sitting on 10.10.10.10.
-#
-# AFTER REBOOTING, RUN health.yml. On 2026-07-25 a hypervisor reboot left the
-# sharepool ZFS pool unimported and it went unnoticed for ~24 h. Ordering does
-# not catch that; verification does.
+# AFTER REBOOTING, RUN THE RESOLVER AND HEALTH STEPS AGAIN (the command
+# above). On 2026-07-25 a hypervisor reboot left the sharepool ZFS pool
+# unimported and it went unnoticed for ~24 h. Ordering does not catch that;
+# verification does.
+
+- name: Refuse a checkout that is not main as GitHub has it
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: false
+  vars:
+    update_require_main: true
+  tasks:
+    # noqa on all four: ansible.builtin.git clones and checks out. It cannot
+    # run rev-parse/status/fetch against the operator's existing checkout,
+    # which is all these do (the same case as roles/deploy-stamp).
+    - name: Read the branch this checkout is on  # noqa: command-instead-of-module
+      ansible.builtin.command:
+        cmd: git -C {{ playbook_dir }}/.. rev-parse --abbrev-ref HEAD
+      register: update_branch
+      changed_when: false
+      check_mode: false
+
+    - name: Check whether tracked files are modified  # noqa: command-instead-of-module
+      ansible.builtin.command:
+        cmd: git -C {{ playbook_dir }}/.. status --porcelain --untracked-files=no
+      register: update_dirty
+      changed_when: false
+      check_mode: false
+
+    - name: Fetch main from GitHub  # noqa: command-instead-of-module
+      ansible.builtin.command:
+        cmd: git -C {{ playbook_dir }}/.. fetch --quiet origin main
+      changed_when: false
+      check_mode: false
+      when: update_require_main | bool
+
+    - name: Read this checkout's commit and GitHub's main  # noqa: command-instead-of-module
+      ansible.builtin.command:
+        cmd: git -C {{ playbook_dir }}/.. rev-parse HEAD origin/main
+      register: update_heads
+      changed_when: false
+      check_mode: false
+
+    - name: Stop unless this checkout is main, clean and current
+      ansible.builtin.assert:
+        that:
+          - update_branch.stdout | trim == 'main'
+          - update_dirty.stdout | trim | length == 0
+          - update_heads.stdout_lines[0] == update_heads.stdout_lines[1]
+        fail_msg: >-
+          This checkout is not main as GitHub has it (branch
+          {{ update_branch.stdout | trim }},
+          {{ 'modified tracked files' if update_dirty.stdout | trim | length > 0 else 'clean' }},
+          at {{ update_heads.stdout_lines[0][:7] }} against origin/main
+          {{ update_heads.stdout_lines[1][:7] }}). Converging from it would put
+          every image Renovate has moved since back on its old pin. Run
+          scripts/fleet-update.sh, which pulls first — or pass
+          --this-checkout to it to deploy this checkout on purpose.
+        success_msg: "Deploying main at {{ update_heads.stdout_lines[0][:7] }}."
+      when: update_require_main | bool
+
+    - name: Say plainly when the check was skipped
+      ansible.builtin.debug:
+        msg: >-
+          NOT main as GitHub has it, and told to carry on: deploying branch
+          {{ update_branch.stdout | trim }} at
+          {{ update_heads.stdout_lines[0][:7] }}
+          ({{ 'modified tracked files' if update_dirty.stdout | trim | length > 0 else 'clean' }}).
+      when: not (update_require_main | bool)
+  tags: [always]
 
 - name: Update forge-hypervisor (first — its reboot bounces all VMs)
   hosts: forge-hypervisor
@@ -91,10 +187,35 @@
     - os-update
   tags: [update, ops]
 
+# Deliberately untagged. roles/deploy-stamp stamps a role only on an unscoped
+# run or when the role's own tag was asked for, so a tag on this import would
+# invite `--tags <it>` — a full converge that stamps nothing and leaves the
+# Deploy Drift alert standing. Scoped runs belong to site.yml itself.
+- name: Deploy everything merged
+  ansible.builtin.import_playbook: site.yml
+
+# forge-hypervisor is left out: it runs no dns-client — it IS the secondary.
+- name: Put every host back on the primary resolver
+  hosts: all:!hypervisor_hosts
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Fail back to the primary resolver and confirm it
+      ansible.builtin.include_role:
+        name: dns-client
+        tasks_from: failback
+  tags: [resolver]
+
+- name: Verify the fleet
+  ansible.builtin.import_playbook: health.yml
+
 # Runs on localhost rather than `hosts: all` + run_once. Same single summary,
 # but without run_once — which ansible-lint flags at the production profile
 # because its behaviour changes under `strategy: free`. hostvars is global, so
 # localhost can read every updated host's facts directly.
+#
+# Last, so it is what is left on the screen. A host that failed a step above
+# is out of the run, but localhost is not, so this still prints.
 - name: Summarise which hosts need a reboot
   hosts: localhost
   connection: local
@@ -107,7 +228,7 @@
           - "hosts needing reboot : {{ osu_reboot_hosts | join(', ') if osu_reboot_hosts else 'none' }}"
           - "reboot order         : forge-hypervisor -> forge-ai/forge-erp -> forge-agents -> forge-ops"
           - "why forge-ops last   : it runs AdGuard, DNS for every VLAN"
-          - "then verify with     : ansible-playbook health.yml"
+          - "after rebooting      : ansible-playbook ansible/update.yml --tags resolver,health"
       vars:
         osu_reboot_hosts: >-
           {{ groups['all'] | default([])

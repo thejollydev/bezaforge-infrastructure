@@ -45,6 +45,15 @@ Build it first:
 cd ~/Projects/never4ga && python -m build --wheel
 ```
 
+**Rebuild it whenever the laptop's Never4gA has moved on.** Nothing does this
+for you, and an old build on forge-agents fails late and confusingly: on
+2026-10-04 a wheel from 2026-09-30 tried to rewrite the block Never4gA keeps
+in a repository's `.gitignore` back to wording the repository had since
+dropped, and the role's "Refuse anything beyond writing pointers" check
+stopped the run there. If `never4ga_wheel` in
+`inventory/host_vars/forge-agents.yml` names a version the build no longer
+produces, change it to match the file in `dist/`.
+
 `--force-reinstall` is used on the host deliberately. Every build carries the
 same `0.1.0.dev0`, so pip would find that version already installed and do
 nothing; the wheel's bytes changing is the signal, not its version string.

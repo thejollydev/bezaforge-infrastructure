@@ -10,7 +10,7 @@
 
   roles:
     # Security-pocket auto-patching (never auto-reboots). Full upgrades are
-    # a deliberate pass via update.yml.
+    # a deliberate pass via update.yml, which also runs this playbook.
     - role: unattended-upgrades
       tags: unattended-upgrades
     # Masks units that can never succeed on the host (opt-in per host_vars),

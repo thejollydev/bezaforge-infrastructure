@@ -1,0 +1,39 @@
+---
+# ============================================================
+# dns-client failback — put this host back on the primary now (#1378)
+# ============================================================
+# Not part of main.yml. update.yml includes it after site.yml has redeployed
+# AdGuard, and again after a reboot (`--tags resolver`), so the pass ends
+# knowing every host is on the primary rather than waiting on the timer.
+#
+# It runs the check the timer runs — the script decides whether a restart of
+# systemd-resolved is called for (off the primary AND the primary answers a
+# direct query) and keeps its own backoff. See dns-primary-check.sh.j2.
+
+- name: Fail back and confirm the primary resolver is in use
+  when: dns_client_monitor | bool
+  block:
+
+    - name: Run the primary-DNS check now
+      ansible.builtin.command: /usr/local/bin/bezaforge-dns-primary-check.sh
+      register: dns_client_failback_run
+      changed_when: "'restarting systemd-resolved' in dns_client_failback_run.stdout"
+
+    - name: Read what the check recorded
+      ansible.builtin.slurp:
+        src: "{{ dns_client_monitor_metric_file }}"
+      register: dns_client_failback_metric
+
+    - name: FAIL if this host is not on the primary resolver
+      ansible.builtin.assert:
+        that:
+          - "'bezaforge_dns_primary_in_use 1' in (dns_client_failback_metric.content | b64decode)"
+        fail_msg: >-
+          {{ inventory_hostname }} is not resolving through the primary,
+          {{ dns_client_servers[0] }}. Either AdGuard is not answering, or a
+          failback was already tried inside the last
+          {{ dns_client_failback_backoff }}s and did not take. Check AdGuard
+          first (`dig +short @{{ dns_client_servers[0] }}
+          {{ dns_client_monitor_probe_name }}`), then
+          `sudo systemctl restart systemd-resolved` on this host.
+        success_msg: "{{ inventory_hostname }} is on the primary resolver."

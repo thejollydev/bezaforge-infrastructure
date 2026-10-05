@@ -97,6 +97,18 @@
       "datasourceTemplate": "github-releases",
       "versioningTemplate": "semver",
       "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "The erpnext_version line in the erpnext role's defaults. It is documentation -- the version that runs is the image in files/erpnext-one.yaml, which the container manager above already sees -- but it has to move in the same PR or it becomes a line that says the wrong version. Same depName as the image, so the two land in one branch.",
+      "managerFilePatterns": ["/^ansible/roles/erpnext/defaults/main\\.ya?ml$/"],
+      "matchStrings": [
+        "erpnext_version:\\s+(?<currentValue>v\\d+\\.\\d+\\.\\d+)"
+      ],
+      "autoReplaceStringTemplate": "erpnext_version: {{{newValue}}}",
+      "depNameTemplate": "frappe/erpnext",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
     }
   ],
   "packageRules": [
@@ -117,25 +129,12 @@
       "pinDigests": false
     },
     {
-      "description": "ERPNext is version-locked as a unit and updated through frappe_docker and bench migrate, so Renovate must not bump it piecemeal. LangFuse was here too until 2026-10-03; with no runbook behind the exclusion it sat three months and a major version behind (#1334), so it now has the grouping rule below instead.",
-      "matchFileNames": [
-        "ansible/roles/erpnext/**"
-      ],
-      "enabled": false
-    },
-    {
-      "description": "LangFuse's web and worker images are one release and must move together, so they arrive as one PR. A release can raise the minimum ClickHouse, Postgres or Redis version, and the note on the PR says to check that before merging.",
-      "matchPackageNames": ["langfuse/langfuse", "langfuse/langfuse-worker"],
-      "groupName": "langfuse",
-      "prBodyNotes": ["Read the release notes and check the infrastructure minimums before merging: docs/runbooks/langfuse-upgrade.md."]
-    },
-    {
       "description": "Chainguard free-tier images garbage-collect old digests — must stay on :latest, never digest-pinned.",
       "matchPackageNames": ["cgr.dev/chainguard/**"],
       "enabled": false
     },
     {
-      "description": "Database & cache engines need a manual data-dir migration on a major bump (see the postgres-18 data-dir gotcha) — allow minor/patch/digest only.",
+      "description": "A database or cache engine's major is proposed, never merged by Renovate (no major is; see the rules at the end), and never routine: the new major cannot read the old one's data directory (see the postgres-18 data-dir gotcha). Until 2026-10-04 these were switched off, so a new major was simply never heard of. The note is the warning that merging one is a decision to do the migration.",
       "matchDatasources": ["docker"],
       "matchPackageNames": [
         "postgres",
@@ -145,7 +144,7 @@
         "clickhouse/clickhouse-server"
       ],
       "matchUpdateTypes": ["major"],
-      "enabled": false
+      "prBodyNotes": ["A database or cache engine major. Merging this and running the fleet update pass will stop the engine unless its data has been migrated first. Decide, migrate, then merge -- or close it."]
     },
     {
       "description": "Ollama ships -rc prereleases (e.g. v0.34.0-rc1) between stables. forge-ai runs the GPU inference the agents depend on -- take stables only.",
@@ -153,9 +152,26 @@
       "ignoreUnstable": true
     },
     {
-      "description": "Digest-only refreshes (same tag, re-pushed image) auto-merge — low-risk, still git-visible and not live until an Ansible deploy picks them up.",
-      "matchUpdateTypes": ["digest"],
+      "description": "Patch, minor and digest updates merge themselves once CI is green (#1378), for everything Renovate manages -- the database engines, ERPNext, LangFuse, ComfyUI and PyTorch included. A merge changes git and nothing else: it reaches a host on the next fleet update pass (ansible/update.yml), which is run by hand.",
+      "matchUpdateTypes": ["patch", "minor", "digest"],
       "automerge": true
+    },
+    {
+      "description": "A major never merges itself: it waits as a PR for a decision. The branch prefix is how .github/workflows/renovate-notify.yml tells a major from the rest at the moment the PR opens -- labels are added in a later API call and are not in that event -- so the Discord message for a major says it needs deciding.",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "additionalBranchPrefix": "major-",
+      "addLabels": ["major"]
+    },
+    {
+      "description": "ERPNext's image refs in files/erpnext-one.yaml and erpnext_version move as one PR. Deploying it is an upgrade, not a recreate: the erpnext role backs up, migrates and compares the ledger totals, so a merged update is safe to leave to the fleet update pass. Until 2026-10-04 everything under roles/erpnext was switched off here with nothing behind the exclusion but a sentence, which is how LangFuse fell a major version behind (#1334).",
+      "matchPackageNames": ["frappe/erpnext"],
+      "groupName": "erpnext"
+    },
+    {
+      "description": "LangFuse's web and worker images are one release and must move together, so they arrive as one PR.",
+      "matchPackageNames": ["langfuse/langfuse", "langfuse/langfuse-worker"],
+      "groupName": "langfuse"
     }
   ]
 }

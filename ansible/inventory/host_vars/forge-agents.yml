@@ -94,7 +94,7 @@ agent_repos:
 # docs/runbooks/never4ga-on-forge-agents.md.
 never4ga_user: "{{ bezaforge_admin_user }}"
 never4ga_vault_path: "/home/{{ bezaforge_admin_user }}/Vaults/{{ knowledge_vault_name }}"
-never4ga_wheel: "{{ lookup('env', 'HOME') }}/Projects/never4ga/dist/never4ga-0.1.0.dev0-py3-none-any.whl"
+never4ga_wheel: "{{ lookup('env', 'HOME') }}/Projects/never4ga/dist/never4ga-0.1.0-py3-none-any.whl"
 
 # Repositories the agents work on, mapped so `context startup --cwd`
 # resolves from inside them. The checkouts are roles/agent-repos' (above),
