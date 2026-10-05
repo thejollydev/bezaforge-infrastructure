@@ -160,7 +160,7 @@ services:
   langfuse-clickhouse:
     # 26.8 is ClickHouse's current long-term-support release. Langfuse v4
     # needs >= 25.12 and suggests 26.4, which ClickHouse no longer supports.
-    image: clickhouse/clickhouse-server:26.8@sha256:9716a352d25f538bd19d868b001141e7a60e4d035bc9b823658c6a071660aa61
+    image: clickhouse/clickhouse-server:26.8@sha256:d97c9867f770fab06113bfe82f2cd17dcc9535f0773972469a2464b4fefc6a48
     container_name: langfuse-clickhouse
     restart: unless-stopped
     user: "101:101"
