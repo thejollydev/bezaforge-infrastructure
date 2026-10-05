@@ -163,14 +163,14 @@ services:
   redis-cache:
     dns_search:
       - "."
-    image: redis:6.2-alpine@sha256:c9ab371a96b057d3642be9bd71cb1b3fe97920d345dc949860578bffb3d54460
+    image: redis:8.10-alpine@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
     networks:
       default: null
     restart: unless-stopped
   redis-queue:
     dns_search:
       - "."
-    image: redis:6.2-alpine@sha256:c9ab371a96b057d3642be9bd71cb1b3fe97920d345dc949860578bffb3d54460
+    image: redis:8.10-alpine@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
     networks:
       default: null
     restart: unless-stopped
