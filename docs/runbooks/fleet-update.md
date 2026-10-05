@@ -89,9 +89,13 @@ the branch, and they change once more when the same commit is deployed from
 
 ## When it stops
 
-A host that fails a step drops out of the rest of the run; the other hosts
-carry on. Fix the cause and run the command again. Every step is safe to
-repeat.
+A failure usually ends the whole run, not just that host's part. Most plays
+here have one host, and when every host in a play has failed Ansible stops
+the playbook: the plays after it, the resolver step and the health checks do
+not run. On 2026-10-04 a failure on forge-agents meant forge-erp was never
+deployed and nothing was verified. Fix the cause and run the command again;
+every step is safe to repeat, and a run that did not reach the health checks
+has not told you the fleet is healthy.
 
 - **"This checkout is not main as GitHub has it"**: use the wrapper, which
   pulls first.
@@ -101,4 +105,7 @@ repeat.
   [dns-failover-test.md](dns-failover-test.md).
 - **ERPNext refused an older version, or the ledger totals moved**:
   [erpnext-upgrade.md](erpnext-upgrade.md).
+- **forge-agents: "`never4ga adapters sync` wants to do more than write
+  pointers"**: its Never4gA build is older than the laptop's. Rebuild the
+  wheel ([never4ga-on-forge-agents.md](never4ga-on-forge-agents.md)).
 - **A health check failed**: the message names the pool, mount or container.
