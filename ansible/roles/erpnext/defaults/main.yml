@@ -13,7 +13,7 @@
 
 # frappe/erpnext tag (baked into the vendored compose; doc only). Renovate
 # moves it together with the nine image refs in files/erpnext-one.yaml.
-erpnext_version: v16.36.0
+erpnext_version: v16.37.0
 erpnext_site: erp.bezaforge.dev
 erpnext_deploy_dir: /opt/bezaforge/erpnext
 
