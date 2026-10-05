@@ -30,6 +30,13 @@ password, so it needs a real terminal.
    pending reboots.
 6. **Reboot summary.** Which hosts need one. The pass never reboots anything.
 
+## What it leaves behind
+
+The run ends by listing every task that reported a change and the hosts it
+changed on, and keeps the full output under `~/.local/state/fleet-update/`,
+one file per run. The recap's `changed=` count says how many; this says
+which.
+
 ## Then run it again
 
 A second run straight after should find nothing to do: `changed=0` on every

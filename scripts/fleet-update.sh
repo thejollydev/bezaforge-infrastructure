@@ -56,4 +56,32 @@ else
     fi
 fi
 
-exec ansible-playbook ansible/update.yml --ask-become-pass --ask-vault-pass "${args[@]}"
+# Every run is kept, and what it changed is printed last. The recap gives a
+# count per host and nothing else; on a second run, or on a phone, the count
+# is useless without the names of the tasks behind it.
+log_dir="${XDG_STATE_HOME:-${HOME}/.local/state}/fleet-update"
+mkdir -p "${log_dir}"
+chmod 700 "${log_dir}"
+log="${log_dir}/$(date +%Y-%m-%d_%H%M%S).log"
+( umask 077 && : > "${log}" )
+
+rc=0
+ANSIBLE_LOG_PATH="${log}" ansible-playbook ansible/update.yml \
+    --ask-become-pass --ask-vault-pass "${args[@]}" || rc=$?
+
+echo
+echo "What changed (the task, then the hosts):"
+awk '
+    / TASK \[/ { sub(/^.* TASK \[/, ""); sub(/\] \**$/, ""); task = $0 }
+    / changed: \[/ {
+        host = $0; sub(/^.* changed: \[/, "", host); sub(/\].*$/, "", host)
+        if (!((task, host) in seen)) { seen[task, host] = 1; hosts[task] = hosts[task] " " host }
+        if (!(task in order)) { order[task] = ++n; name[n] = task }
+    }
+    END {
+        if (n == 0) print "  nothing"
+        for (i = 1; i <= n; i++) printf "  %s:%s\n", name[i], hosts[name[i]]
+    }
+' "${log}"
+echo "Full log: ${log}"
+exit "${rc}"
