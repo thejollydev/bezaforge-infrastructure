@@ -1,7 +1,7 @@
 services:
   database:
     container_name: mariadb-database
-    image: mariadb:11.8@sha256:8164f184d16c30e2f159e30518113667b796306dff0fe558876ab1ff521a682f
+    image: mariadb:13.0@sha256:f1bba652ba57bea3099ca2fe1af692af537c27d96e0bcde39dce29e2ba1ec4f3
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
