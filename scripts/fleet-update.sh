@@ -72,7 +72,7 @@ ANSIBLE_LOG_PATH="${log}" ansible-playbook ansible/update.yml \
 echo
 echo "What changed (the task, then the hosts):"
 awk '
-    / TASK \[/ { sub(/^.* TASK \[/, ""); sub(/\] \**$/, ""); task = $0 }
+    / (TASK|RUNNING HANDLER) \[/ { sub(/^.* (TASK|RUNNING HANDLER) \[/, ""); sub(/\] \**$/, ""); task = $0 }
     / changed: \[/ {
         host = $0; sub(/^.* changed: \[/, "", host); sub(/\].*$/, "", host)
         if (!((task, host) in seen)) { seen[task, host] = 1; hosts[task] = hosts[task] " " host }
