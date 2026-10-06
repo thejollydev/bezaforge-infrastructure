@@ -1,0 +1,347 @@
+---
+# See defaults/main.yml for what this is and when it runs.
+
+- name: Check the role's inputs
+  ansible.builtin.assert:
+    that:
+      - postgres_major_container | length > 0
+      - postgres_major_compose_service | length > 0
+      - postgres_major_project_src | length > 0
+      - postgres_major_db | length > 0
+      - postgres_major_user | length > 0
+      - postgres_major_wanted | length > 0
+    fail_msg: >-
+      postgres-major needs the container, compose service, project
+      directory, database, user and a postgres:<major> image; got image
+      "{{ postgres_major_image }}".
+    quiet: true
+  vars:
+    postgres_major_wanted: "{{ postgres_major_image | regex_search('postgres:(\\d+)', '\\1') | default([''], true) | first }}"
+
+- name: Keep the major the compose file asks for
+  ansible.builtin.set_fact:
+    postgres_major_wanted: "{{ postgres_major_image | regex_search('postgres:(\\d+)', '\\1') | first | int }}"
+    postgres_major_marker: "{{ postgres_major_work_dir }}/{{ postgres_major_container }}.in-progress"
+
+# An earlier run that stopped half way leaves this behind. Carrying on would
+# skip the move (the new server answers and is the right major) and start the
+# application on a database that is empty or half restored.
+- name: Look for a move that did not finish
+  ansible.builtin.stat:
+    path: "{{ postgres_major_marker }}"
+  register: postgres_major_marker_stat
+
+- name: Refuse to carry on past a move that did not finish
+  ansible.builtin.assert:
+    that: not postgres_major_marker_stat.stat.exists
+    fail_msg: >-
+      {{ postgres_major_marker }} exists: an earlier move of
+      {{ postgres_major_container }} stopped before it finished, and the new
+      database cannot be trusted. Nothing was touched this time. The old data
+      is where it always was. Follow "When it stops" in
+      docs/runbooks/postgres-major-upgrade.md.
+    quiet: true
+
+# failed_when: false — no such container is a host being built from nothing,
+# where there is no old database to move.
+- name: See whether the database container exists
+  ansible.builtin.command:
+    argv: [docker, inspect, --format, "{{ '{{' }}.State.Running{{ '}}' }}", "{{ postgres_major_container }}"]
+  register: postgres_major_inspect
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Ask the running server its version
+  ansible.builtin.command:
+    argv:
+      - docker
+      - exec
+      - "{{ postgres_major_container }}"
+      - psql
+      - -U
+      - "{{ postgres_major_user }}"
+      - -d
+      - "{{ postgres_major_db }}"
+      - -Atc
+      - show server_version_num
+  register: postgres_major_version
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: postgres_major_inspect.rc == 0
+
+# A container that exists and does not answer is not "nothing to move". The
+# stack start that follows would bring the new major up on an empty directory
+# and the application would initialise a blank database beside the real one.
+- name: Refuse a database that exists and does not answer
+  ansible.builtin.assert:
+    that: postgres_major_version.rc == 0
+    fail_msg: >-
+      {{ postgres_major_container }} exists but did not answer psql
+      ({{ postgres_major_version.stderr | default('') | trim }}). Start it on
+      its current image and run again; its major has to be known before
+      anything is changed.
+    quiet: true
+  when: postgres_major_inspect.rc == 0
+
+- name: Decide whether this run moves the database
+  ansible.builtin.set_fact:
+    postgres_major_current: "{{ (postgres_major_version.stdout | default('0') | trim | int) // 10000 }}"
+    postgres_major_moving: >-
+      {{ postgres_major_inspect.rc == 0
+         and ((postgres_major_version.stdout | default('0') | trim | int) // 10000) | int
+             != postgres_major_wanted | int }}
+
+- name: Move the database to the new major
+  when:
+    - postgres_major_moving | bool
+    - not ansible_check_mode
+  block:
+
+    - name: Refuse to go to an older major
+      ansible.builtin.assert:
+        that: postgres_major_wanted | int > postgres_major_current | int
+        fail_msg: >-
+          {{ postgres_major_container }} runs Postgres
+          {{ postgres_major_current }} and this checkout asks for
+          {{ postgres_major_wanted }}. That is backwards: a stale checkout.
+          Nothing was touched.
+        quiet: true
+
+    # A single-database dump carries one database and no roles. Anything
+    # else on this server would be left behind without a word.
+    - name: List the databases and roles on the old server
+      ansible.builtin.command:
+        argv:
+          - docker
+          - exec
+          - "{{ postgres_major_container }}"
+          - psql
+          - -U
+          - "{{ postgres_major_user }}"
+          - -d
+          - "{{ postgres_major_db }}"
+          - -Atc
+          - >-
+            select 'db:' || datname from pg_database
+            where not datistemplate and datname not in ('postgres', '{{ postgres_major_db }}')
+            union all
+            select 'role:' || rolname from pg_roles
+            where rolname !~ '^pg_' and rolname not in ('postgres', '{{ postgres_major_user }}')
+      register: postgres_major_extras
+      changed_when: false
+
+    - name: Refuse a server holding more than the one database and role
+      ansible.builtin.assert:
+        that: postgres_major_extras.stdout | trim | length == 0
+        fail_msg: >-
+          {{ postgres_major_container }} holds more than database
+          {{ postgres_major_db }} and role {{ postgres_major_user }}:
+          {{ postgres_major_extras.stdout_lines | join(', ') }}. This role
+          dumps one database and would leave those behind. Nothing was touched.
+        quiet: true
+
+    - name: Create the work directory
+      ansible.builtin.file:
+        path: "{{ postgres_major_work_dir }}"
+        state: directory
+        owner: "{{ postgres_major_owner }}"
+        group: "{{ postgres_major_owner }}"
+        mode: "0700"
+
+    - name: Stop the applications that write to the database
+      ansible.builtin.command:
+        argv: [docker, stop, "{{ item }}"]
+      loop: "{{ postgres_major_stop_containers }}"
+      register: postgres_major_stopped
+      changed_when: postgres_major_stopped.rc == 0
+      failed_when:
+        - postgres_major_stopped.rc != 0
+        - "'No such container' not in postgres_major_stopped.stderr"
+
+    - name: Count the tables and rows on the old server
+      ansible.builtin.command:
+        argv:
+          - docker
+          - exec
+          - "{{ postgres_major_container }}"
+          - psql
+          - -U
+          - "{{ postgres_major_user }}"
+          - -d
+          - "{{ postgres_major_db }}"
+          - -Atc
+          - "{{ postgres_major_count_sql }}"
+      register: postgres_major_before
+      changed_when: false
+
+    - name: Name the dump
+      ansible.builtin.set_fact:
+        postgres_major_dump: >-
+          {{ postgres_major_work_dir }}/{{ postgres_major_container }}_pg{{
+             postgres_major_current }}_{{ lookup('ansible.builtin.pipe', 'date +%Y%m%dT%H%M%S') }}.pgc
+
+    # The dump is written by the shell on the host, so the file is the
+    # host's and outlives the container. umask keeps it root-only.
+    - name: Dump the database from the old server
+      ansible.builtin.shell:
+        cmd: >-
+          umask 077 &&
+          docker exec {{ postgres_major_container | quote }}
+          pg_dump -U {{ postgres_major_user | quote }} -d {{ postgres_major_db | quote }} -Fc
+          > {{ postgres_major_dump | quote }}
+        executable: /bin/bash
+      changed_when: true
+
+    - name: Check the dump is there and not empty
+      ansible.builtin.stat:
+        path: "{{ postgres_major_dump }}"
+      register: postgres_major_dump_stat
+      failed_when: not postgres_major_dump_stat.stat.exists or postgres_major_dump_stat.stat.size == 0
+
+    # From here the new database is not to be trusted until the marker goes.
+    - name: Mark the move as in progress
+      ansible.builtin.copy:
+        dest: "{{ postgres_major_marker }}"
+        owner: "{{ postgres_major_owner }}"
+        group: "{{ postgres_major_owner }}"
+        mode: "0600"
+        content: |
+          {{ postgres_major_container }}: Postgres {{ postgres_major_current }} to {{ postgres_major_wanted }}
+          dump: {{ postgres_major_dump }}
+          before: {{ postgres_major_before.stdout | trim }}
+
+    # Only the database service. The whole stack would start the application
+    # against an empty database, and it would build a blank schema there.
+    - name: Bring up the database alone on the new major
+      community.docker.docker_compose_v2:
+        project_src: "{{ postgres_major_project_src }}"
+        services:
+          - "{{ postgres_major_compose_service }}"
+        state: present
+
+    # -h 127.0.0.1 on purpose. While the image initialises a new data
+    # directory it runs a temporary server that listens on the socket only,
+    # then stops it. A socket check passes during that, and a restore
+    # started then is cut off half way.
+    - name: Wait for the new server to accept connections
+      ansible.builtin.command:
+        argv:
+          - docker
+          - exec
+          - "{{ postgres_major_container }}"
+          - pg_isready
+          - -h
+          - 127.0.0.1
+          - -U
+          - "{{ postgres_major_user }}"
+          - -d
+          - "{{ postgres_major_db }}"
+      register: postgres_major_ready
+      changed_when: false
+      retries: "{{ postgres_major_ready_retries }}"
+      delay: "{{ postgres_major_ready_delay }}"
+      until: postgres_major_ready.rc == 0
+
+    - name: Ask the new server its version and whether it is empty
+      ansible.builtin.command:
+        argv:
+          - docker
+          - exec
+          - "{{ postgres_major_container }}"
+          - psql
+          - -U
+          - "{{ postgres_major_user }}"
+          - -d
+          - "{{ postgres_major_db }}"
+          - -Atc
+          - >-
+            select current_setting('server_version_num')::int / 10000 || ' ' ||
+            (select count(*) from information_schema.tables
+             where table_type = 'BASE TABLE' and table_schema not in ('pg_catalog', 'information_schema'))
+      register: postgres_major_new
+      changed_when: false
+
+    # Not the new major means the compose file still mounts the old data.
+    # Not empty means something is already in the new location. Either way
+    # restoring on top would be wrong.
+    - name: Refuse to restore into anything but an empty database on the new major
+      ansible.builtin.assert:
+        that:
+          - postgres_major_new.stdout.split()[0] | int == postgres_major_wanted | int
+          - postgres_major_new.stdout.split()[1] | int == 0
+        fail_msg: >-
+          After bringing {{ postgres_major_container }} up it reports
+          "{{ postgres_major_new.stdout | trim }}" (major, then tables);
+          expected "{{ postgres_major_wanted }} 0". The dump is at
+          {{ postgres_major_dump }} and was not restored.
+        quiet: true
+
+    - name: Restore the dump into the new server
+      ansible.builtin.shell:
+        cmd: >-
+          docker exec -i {{ postgres_major_container | quote }}
+          pg_restore -U {{ postgres_major_user | quote }} -d {{ postgres_major_db | quote }}
+          --no-owner --exit-on-error
+          < {{ postgres_major_dump | quote }}
+        executable: /bin/bash
+      changed_when: true
+
+    - name: Count the tables and rows on the new server
+      ansible.builtin.command:
+        argv:
+          - docker
+          - exec
+          - "{{ postgres_major_container }}"
+          - psql
+          - -U
+          - "{{ postgres_major_user }}"
+          - -d
+          - "{{ postgres_major_db }}"
+          - -Atc
+          - "{{ postgres_major_count_sql }}"
+      register: postgres_major_after
+      changed_when: false
+
+    - name: FAIL if the tables or rows are not what they were
+      ansible.builtin.assert:
+        that: postgres_major_before.stdout | trim == postgres_major_after.stdout | trim
+        fail_msg: >-
+          {{ postgres_major_container }} held
+          "{{ postgres_major_before.stdout | trim }}" on Postgres
+          {{ postgres_major_current }} and holds
+          "{{ postgres_major_after.stdout | trim }}" on
+          {{ postgres_major_wanted }}. The applications are still stopped and
+          the old data is untouched. docs/runbooks/postgres-major-upgrade.md.
+        quiet: true
+
+    # The planner has no statistics for restored tables until this runs.
+    - name: Rebuild the planner statistics
+      ansible.builtin.command:
+        argv:
+          - docker
+          - exec
+          - "{{ postgres_major_container }}"
+          - psql
+          - -U
+          - "{{ postgres_major_user }}"
+          - -d
+          - "{{ postgres_major_db }}"
+          - -qc
+          - analyze
+      changed_when: true
+
+    - name: Clear the in-progress marker
+      ansible.builtin.file:
+        path: "{{ postgres_major_marker }}"
+        state: absent
+
+    - name: Report the move
+      ansible.builtin.debug:
+        msg:
+          - "database : {{ postgres_major_container }} ({{ postgres_major_db }})"
+          - "was      : Postgres {{ postgres_major_current }}, {{ postgres_major_before.stdout | trim }}"
+          - "now      : Postgres {{ postgres_major_wanted }}, {{ postgres_major_after.stdout | trim }}"
+          - "dump     : {{ postgres_major_dump }}"
+          - "old data : left where it was; remove it by hand once the application has been checked"

@@ -186,6 +186,30 @@
     mode: "0644"
   loop: "{{ compose_services | intersect(['uptime-kuma', 'calibre-web']) }}"
 
+# --- Postgres majors ---
+# A service whose compose file now asks for a newer Postgres major than its
+# database runs is moved here: dumped from the old server, brought up alone
+# on the new one, restored and counted. It has to sit between the compose
+# files landing and the stacks starting. With nothing to move it reads the
+# running version and does nothing. See roles/postgres-major.
+#
+# A service joins this list in the same change that moves its image AND
+# points its database at a new, empty data location.
+- name: Move a service's database when its Postgres major has changed
+  ansible.builtin.include_role:
+    name: postgres-major
+  vars:
+    postgres_major_container: "{{ item.container }}"
+    postgres_major_compose_service: "{{ item.container }}"
+    postgres_major_project_src: "{{ bezaforge_root }}/{{ item.service }}"
+    postgres_major_image: "{{ item.image }}"
+    postgres_major_db: "{{ item.db }}"
+    postgres_major_user: "{{ item.user }}"
+    postgres_major_stop_containers: "{{ item.stop }}"
+  loop: "{{ services_postgres_majors | selectattr('service', 'in', compose_services) | list }}"
+  loop_control:
+    label: "{{ item.container }}"
+
 # --- Start all services ---
 # docker_compose_v2 with state: present runs "docker compose up -d".
 # If compose files or .env changed, Docker recreates affected containers.

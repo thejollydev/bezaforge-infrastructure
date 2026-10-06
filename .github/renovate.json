@@ -144,7 +144,7 @@
         "clickhouse/clickhouse-server"
       ],
       "matchUpdateTypes": ["major"],
-      "prBodyNotes": ["A database or cache engine major. Merging this and running the fleet update pass will stop the engine unless its data has been migrated first. Decide, migrate, then merge -- or close it."]
+      "prBodyNotes": ["A database or cache engine major. For Postgres this bump is not enough by itself: the same change has to move the data location and name the database for roles/postgres-major, or the data is lost sight of. docs/runbooks/postgres-major-upgrade.md. Redis 8 starts on Redis 7's data as it is. Decide, then merge -- or close it."]
     },
     {
       "description": "Ollama ships -rc prereleases (e.g. v0.34.0-rc1) between stables. forge-ai runs the GPU inference the agents depend on -- take stables only.",
