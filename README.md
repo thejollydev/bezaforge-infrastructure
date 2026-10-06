@@ -107,6 +107,7 @@ Ansible automates all post-provisioning configuration for forge-ops. A single co
 | `gdrive-replica` | One-way nightly rclone mirror of Google Drive → `bezapool/gdrive` on the hypervisor (drive.readonly scope; replaces retired Insync — FORGE-35) |
 | `sanoid` | ZFS auto-snapshots on forge-hypervisor — per-dataset retention on `bezapool` **and `sharepool`** (vault 24h/14d/8w/12m, gdrive 24h/14d/8w/12m, forge-ops-backup 7d/4w/6m, forge-erp-backup, forge-agents-backup 7d/4w/6m, sharepool/files; backup datasets deliberately not snapshotted). Also owns the nightly `syncoid` replica `sharepool/files` → `bezapool/sharepool-backup`. |
 | `db-dumps` | Nightly 02:30 EDT `pg_dumpall` per Postgres container on forge-ops → NFS-mounted `bezapool/forge-ops-backup` |
+| `postgres-major` | Moves one service's database to a new Postgres major during a deploy: dump from the old server, bring the new one up alone on an empty data location, restore, and compare exact table and row counts. Included by a service's role between the compose file landing and the stack starting; does nothing when the versions match. Runbook: `docs/runbooks/postgres-major-upgrade.md` |
 | `forge-ops-backup-rsync` | Nightly 02:45 EDT rsync of `/opt/bezaforge/<svc>/` → NFS-mounted `bezapool/forge-ops-backup` |
 | `restic-gcs` | Daily 04:00 EDT restic snapshot of `bezapool/{forge-ops-backup,vault,forge-erp-backup,forge-agents-backup}` + `/sharepool/files` (nested Drive mount excluded) → GCS Nearline (`bezaforge-backups-95d56ebe`) |
 

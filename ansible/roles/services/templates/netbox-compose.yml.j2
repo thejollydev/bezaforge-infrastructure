@@ -73,7 +73,7 @@ services:
       - bezaforge-net
 
   netbox-postgres:
-    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     container_name: netbox-postgres
     restart: unless-stopped
     environment:
@@ -81,7 +81,14 @@ services:
       POSTGRES_USER: netbox
       POSTGRES_PASSWORD: ${NETBOX_DB_PASSWORD}
     volumes:
-      - /opt/bezaforge/netbox/postgres:/var/lib/postgresql/data
+      # Postgres 18 keeps its data under /var/lib/postgresql/<major>/docker and
+      # declares /var/lib/postgresql as its volume, so the mount is the parent
+      # directory. Mounted at .../data as before, 18 would write to an
+      # anonymous volume and lose the database at the next recreate. The
+      # directory is new on purpose: the Postgres 16 data stays untouched in
+      # /opt/bezaforge/netbox/postgres until it is removed by hand
+      # (roles/postgres-major, docs/runbooks/postgres-major-upgrade.md).
+      - /opt/bezaforge/netbox/postgres18:/var/lib/postgresql
     networks:
       - bezaforge-net
     healthcheck:
@@ -91,7 +98,7 @@ services:
       retries: 5
 
   netbox-redis:
-    image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+    image: redis:8-alpine@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
     container_name: netbox-redis
     restart: unless-stopped
     command: redis-server --appendonly yes
@@ -106,7 +113,7 @@ services:
       retries: 5
 
   netbox-redis-cache:
-    image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+    image: redis:8-alpine@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
     container_name: netbox-redis-cache
     restart: unless-stopped
     networks:

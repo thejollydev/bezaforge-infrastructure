@@ -1,0 +1,12 @@
+---
+# Databases roles/postgres-major looks after for this role's services. The
+# image is read from the compose file itself, so there is one place that
+# names the version. `stop` is every container that writes to the database.
+services_postgres_majors:
+  - service: netbox
+    container: netbox-postgres
+    db: netbox
+    user: netbox
+    stop: [netbox, netbox-worker]
+    image: >-
+      {{ (lookup('ansible.builtin.template', 'netbox-compose.yml.j2') | from_yaml).services['netbox-postgres'].image }}

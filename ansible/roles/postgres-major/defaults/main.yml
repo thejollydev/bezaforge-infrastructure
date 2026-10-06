@@ -1,0 +1,50 @@
+---
+# ============================================================
+# postgres-major — move one service's database to a new Postgres major
+# ============================================================
+# A new Postgres major cannot read the old one's data directory, so an image
+# bump alone leaves the database refusing to start. This role is included by
+# a service's own role, AFTER its compose file is on the host and BEFORE its
+# stack is started, and does the move when the running server is older than
+# the image the compose file now asks for. When the two match it does nothing.
+#
+# The old data directory is never touched. The compose change that asks for
+# the new major must also point the database at a NEW, empty location, so the
+# old data stays where it was and the way back is to revert that change and
+# deploy. See docs/runbooks/postgres-major-upgrade.md.
+#
+# All required; the role asserts them.
+
+# The database container's name, and its service name in the compose file.
+postgres_major_container: ""
+postgres_major_compose_service: ""
+# Where the service's docker-compose.yml lives on the host.
+postgres_major_project_src: ""
+# The image the compose file now asks for, e.g. postgres:18-alpine@sha256:…
+postgres_major_image: ""
+# The one database and the one role in it (the image's POSTGRES_DB and
+# POSTGRES_USER). The role refuses a server holding any other of either,
+# because a single-database dump would leave them behind.
+postgres_major_db: ""
+postgres_major_user: ""
+# The application containers that write to the database. Stopped before the
+# dump, and started again by the service's own "start the stack" task.
+postgres_major_stop_containers: []
+
+# Where dumps and the in-progress marker are kept, and who owns them. The
+# owner is a variable only so the role can be exercised without root.
+postgres_major_work_dir: /opt/bezaforge/pg-upgrade
+postgres_major_owner: root
+
+# How long to wait for the new server to accept connections.
+postgres_major_ready_retries: 30
+postgres_major_ready_delay: 4
+
+# One line that must read the same before and after: how many tables there
+# are and how many rows they hold between them, counted exactly.
+postgres_major_count_sql: >-
+  select count(*)::text || ' tables, ' ||
+  coalesce(sum((xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I',
+  table_schema, table_name), false, true, '')))[1]::text::bigint), 0)::text || ' rows'
+  from information_schema.tables
+  where table_type = 'BASE TABLE' and table_schema not in ('pg_catalog', 'information_schema')
