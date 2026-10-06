@@ -213,9 +213,10 @@
       "groupName": "erpnext"
     },
     {
-      "description": "LangFuse's web and worker images are one release and must move together, so they arrive as one PR.",
+      "description": "LangFuse's web and worker images are one release and must move together, so they arrive as one PR. Grouping alone does not make that true: on 2026-10-05 worker 4.51.0 was on Docker Hub and web 4.51.0 was not, so the group PR moved the worker alone and merged itself, and the two ran a release apart. The three-day wait gives both images time to be published before either is proposed.",
       "matchPackageNames": ["langfuse/langfuse", "langfuse/langfuse-worker"],
-      "groupName": "langfuse"
+      "groupName": "langfuse",
+      "minimumReleaseAge": "3 days"
     }
   ]
 }
