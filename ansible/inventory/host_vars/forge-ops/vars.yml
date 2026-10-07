@@ -219,3 +219,14 @@ health_expected_containers:
   - gitea
   - uptime-kuma
   - homepage
+
+# --- kernel-pin (#1398) ---
+# Held on 6.12.107 since 2026-10-06. On its first day on 6.12.111 the kernel
+# took a general protection fault in the NFSv4.2 extended-attribute cache's
+# shrinker (entry_lru_isolate, under kswapd0), locked up two CPUs and left
+# the network for 65 minutes, taking the house's primary resolver with it.
+# 6.12.107 had run from 2026-09-25 without it.
+#
+# Clear this once a kernel newer than 6.12.111 has been run and trusted. The
+# pin does not stop newer kernels installing; it only decides which one boots.
+kernel_pin_version: "6.12.107+deb13-amd64"

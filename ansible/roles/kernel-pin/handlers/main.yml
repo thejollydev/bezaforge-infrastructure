@@ -1,0 +1,4 @@
+---
+- name: kernel-pin regenerate grub.cfg
+  ansible.builtin.command: update-grub
+  changed_when: true

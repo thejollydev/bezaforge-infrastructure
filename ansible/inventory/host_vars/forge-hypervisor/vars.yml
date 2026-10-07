@@ -116,3 +116,13 @@ gdrive_replica_heartbeat_url: "{{ vault_gdrive_replica_heartbeat_url | default('
 # The same Discord channel as the Grafana alerts. Read from forge-ops'
 # vaulted value rather than copied, so one rotation covers both.
 pve_notifications_discord_webhook_url: "{{ hostvars['forge-ops'].grafana_discord_webhook_url }}"
+
+# --- host-watch (#1398) ---
+# This host watches forge-ops, because nothing on forge-ops can report that
+# forge-ops is gone. Ping, and a DNS question to AdGuard, once a minute; a
+# message in the same Discord channel after three failures in a row.
+host_watch_targets:
+  - name: forge-ops
+    address: 10.10.20.20
+    dns_name: bezaforge.dev
+host_watch_discord_webhook_url: "{{ hostvars['forge-ops'].grafana_discord_webhook_url }}"

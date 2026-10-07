@@ -33,8 +33,13 @@
 #
 # Two guards keep this from doing harm:
 #   * The primary must answer a DIRECT query (dig @primary), not a query
-#     through resolved. If AdGuard is still down, nothing is restarted and
-#     the host stays on the secondary, which is exactly where it should be.
+#     through resolved, and answer it with an address. If AdGuard is still
+#     down, nothing is restarted and the host stays on the secondary, which
+#     is exactly where it should be. (Until 2026-10-06 the test was "dig
+#     printed something". A stopped AdGuard makes dig +short print
+#     ";; communications error ... connection refused" on stdout, so a
+#     refused query counted as an answer and resolved was restarted for
+#     nothing.)
 #   * At most one failback per {{ dns_client_failback_backoff }}s. If a restart does not bring
 #     resolved back to the primary, the next runs leave it alone, the
 #     metric stays 0 and "DNS Not Using Primary" fires after its window —
@@ -83,7 +88,8 @@ cur="$(current_server)"
 if [ "${FAILBACK}" = "true" ] && [ -n "${cur}" ] && [ "${cur}" != "${PRIMARY}" ]; then
     now="$(date +%s)"
     if [ $(( now - last )) -ge "${BACKOFF}" ] \
-       && [ -n "$(dig +short +time=2 +tries=1 @"${PRIMARY}" "${PROBE}" 2>/dev/null)" ]; then
+       && dig +short +time=2 +tries=1 @"${PRIMARY}" "${PROBE}" 2>/dev/null \
+            | grep -Eq '^[0-9a-fA-F:.]+$'; then
         echo "on ${cur}, primary ${PRIMARY} answers: restarting systemd-resolved to fail back"
         systemctl restart systemd-resolved
         count=$(( count + 1 ))

@@ -1,0 +1,10 @@
+# {{ ansible_managed }} — roles/host-watch (#1398)
+[Unit]
+Description=BezaForge — check that the watched hosts still answer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile={{ host_watch_env_file }}
+ExecStart={{ host_watch_script }}
