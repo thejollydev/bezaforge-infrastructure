@@ -70,3 +70,43 @@
   loop: "{{ systemd_hygiene_failed.results }}"
   loop_control:
     label: "{{ item.item }}"
+
+# ------------------------------------------------------------
+# /etc/fstab entries that appear twice
+# ------------------------------------------------------------
+# systemd turns each fstab line into a mount unit at boot. Two identical
+# lines name the same unit twice, the generator stops with "Failed to create
+# unit file ... as it already exists. Duplicate entry in /etc/fstab?" and
+# exits 1 — on every boot, as an error in the journal that reads like a real
+# problem and is not acted on. forge-ops carried two byte-identical
+# /var/lib/docker lines, written by hand when the disk was laid out; nothing
+# in this repository writes them (seen in its boot log 2026-10-06, #1398).
+#
+# Only a line that is a byte-for-byte repeat of an earlier one is removed,
+# and the first is kept, so the set of mounts cannot change. Comments and
+# blank lines are left alone. The original is kept beside it.
+- name: List fstab entries that appear more than once
+  ansible.builtin.command:
+    cmd: awk '!/^[[:space:]]*(#|$)/ && seen[$0]++' /etc/fstab
+  register: systemd_hygiene_fstab_repeats
+  changed_when: false
+  check_mode: false
+
+- name: Remove repeated fstab entries, keeping the first of each
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      new=$(mktemp) &&
+      awk '/^[[:space:]]*(#|$)/ || !seen[$0]++' /etc/fstab > "$new" &&
+      test "$(wc -l < "$new")" -eq "$(( $(wc -l < /etc/fstab) - {{ systemd_hygiene_fstab_repeats.stdout_lines | length }} ))" &&
+      cp -p /etc/fstab /etc/fstab.before-dedupe &&
+      cat "$new" > /etc/fstab;
+      rc=$?; rm -f "$new"; exit $rc
+    executable: /bin/bash
+  changed_when: true
+  when: systemd_hygiene_fstab_repeats.stdout_lines | length > 0
+
+- name: Have systemd read fstab again
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: systemd_hygiene_fstab_repeats.stdout_lines | length > 0
