@@ -63,19 +63,27 @@
     - name: Flush handlers so grub.cfg is current before it is checked
       ansible.builtin.meta: flush_handlers
 
+    # grub.cfg sets `default` twice: to ${next_entry} when a one-time boot
+    # entry was asked for (grub-reboot), and otherwise to GRUB_DEFAULT. The
+    # second is the one this role wrote. The first version of this check read
+    # the first line, saw ${next_entry}, and failed a pin that had worked
+    # (2026-10-06).
     - name: Read the default grub.cfg now boots
-      ansible.builtin.command:
-        cmd: grep -m1 -E '^\s*set default=' {{ kernel_pin_grub_cfg }}
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail;
+          grep -E '^\s*set default=' {{ kernel_pin_grub_cfg | quote }} | grep -v 'next_entry' | head -1
+        executable: /bin/bash
       register: kernel_pin_default
       changed_when: false
       check_mode: false
 
     - name: FAIL if grub.cfg does not boot the pinned kernel by default
       ansible.builtin.assert:
-        that: kernel_pin_version in kernel_pin_default.stdout
+        that: kernel_pin_entry.stdout in kernel_pin_default.stdout
         fail_msg: >-
           grub.cfg's default is {{ kernel_pin_default.stdout | trim }}, which
-          does not name {{ kernel_pin_version }}.
+          is not the pinned kernel's entry, {{ kernel_pin_entry.stdout }}.
         quiet: true
       when: not ansible_check_mode
 
