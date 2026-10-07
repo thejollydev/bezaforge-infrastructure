@@ -1,0 +1,98 @@
+---
+# See defaults/main.yml.
+
+- name: Pin the default kernel
+  when: kernel_pin_version | length > 0
+  block:
+
+    - name: Check the pinned kernel is installed
+      ansible.builtin.stat:
+        path: "/boot/vmlinuz-{{ kernel_pin_version }}"
+      register: kernel_pin_image
+
+    - name: Refuse to pin a kernel that is not installed
+      ansible.builtin.assert:
+        that: kernel_pin_image.stat.exists
+        fail_msg: >-
+          /boot/vmlinuz-{{ kernel_pin_version }} is not on
+          {{ inventory_hostname }}. GRUB would be pointed at an entry that
+          does not exist. Install linux-image-{{ kernel_pin_version }} first,
+          or clear kernel_pin_version.
+        quiet: true
+
+    # Held, so `apt autoremove` in roles/os-update cannot take it away once
+    # two newer kernels are installed. The pin would then name nothing.
+    - name: Hold the pinned kernel's package
+      ansible.builtin.dpkg_selections:
+        name: "linux-image-{{ kernel_pin_version }}"
+        selection: hold
+
+    # GRUB names an entry inside the "Advanced options" submenu as
+    # <submenu id>><entry id>. Both ids carry the root filesystem's UUID, so
+    # they are read from the host's own grub.cfg, never written down here.
+    # `grep -m1` on the entry: the recovery-mode entry for the same kernel
+    # comes after the normal one and has its own id.
+    - name: Read the pinned kernel's entry from grub.cfg
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail;
+          sub=$(grep -m1 -oP {{ kernel_pin_submenu_re | quote }} {{ kernel_pin_grub_cfg | quote }});
+          ent=$(grep -m1 -oP {{ kernel_pin_entry_re | quote }} {{ kernel_pin_grub_cfg | quote }});
+          test -n "$sub" && test -n "$ent" && printf '%s>%s' "$sub" "$ent"
+        executable: /bin/bash
+      register: kernel_pin_entry
+      changed_when: false
+      check_mode: false
+      vars:
+        kernel_pin_submenu_re: "^submenu .*menuentry_id_option '\\K[^']+"
+        kernel_pin_entry_re: >-
+          ^\s+menuentry .*menuentry_id_option '\Kgnulinux-{{ kernel_pin_version | regex_escape }}-advanced-[^']+
+
+    - name: Point GRUB's default at the pinned kernel
+      ansible.builtin.copy:
+        dest: "{{ kernel_pin_grub_dropin }}"
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          # Written by roles/kernel-pin. Do not edit by hand; set or clear
+          # kernel_pin_version in this host's host_vars instead.
+          GRUB_DEFAULT="{{ kernel_pin_entry.stdout }}"
+      notify: kernel-pin regenerate grub.cfg
+
+    - name: Flush handlers so grub.cfg is current before it is checked
+      ansible.builtin.meta: flush_handlers
+
+    - name: Read the default grub.cfg now boots
+      ansible.builtin.command:
+        cmd: grep -m1 -E '^\s*set default=' {{ kernel_pin_grub_cfg }}
+      register: kernel_pin_default
+      changed_when: false
+      check_mode: false
+
+    - name: FAIL if grub.cfg does not boot the pinned kernel by default
+      ansible.builtin.assert:
+        that: kernel_pin_version in kernel_pin_default.stdout
+        fail_msg: >-
+          grub.cfg's default is {{ kernel_pin_default.stdout | trim }}, which
+          does not name {{ kernel_pin_version }}.
+        quiet: true
+      when: not ansible_check_mode
+
+    - name: Say when the host is not yet running the pinned kernel
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }} runs {{ ansible_facts['kernel'] }} and will
+          boot {{ kernel_pin_version }} from its next reboot. Nothing reboots
+          it; that is done by hand.
+      when: ansible_facts['kernel'] != kernel_pin_version
+
+- name: Remove the pin when none is asked for
+  when: kernel_pin_version | length == 0
+  block:
+
+    - name: Remove the GRUB default this role wrote
+      ansible.builtin.file:
+        path: "{{ kernel_pin_grub_dropin }}"
+        state: absent
+      notify: kernel-pin regenerate grub.cfg

@@ -1,0 +1,19 @@
+---
+# ============================================================
+# kernel-pin — boot a named, already-installed kernel by default
+# ============================================================
+# For holding a host on a kernel known to be good while a newer one is
+# suspect. Opt-in per host: empty means "boot whatever is newest", and the
+# role then removes anything it wrote earlier.
+#
+# It changes which entry GRUB boots and stops apt removing the pinned kernel.
+# It does NOT stop newer kernels being installed, and it never reboots: the
+# host moves to the pinned kernel at its next reboot, which is done by hand.
+#
+# The value is what `uname -r` prints, e.g. 6.12.107+deb13-amd64. Say why in
+# host_vars, with the work item, so the pin is not still there in two years
+# because nobody remembers what it was for.
+kernel_pin_version: ""
+
+kernel_pin_grub_dropin: /etc/default/grub.d/90-bezaforge-kernel-pin.cfg
+kernel_pin_grub_cfg: /boot/grub/grub.cfg

@@ -1,0 +1,37 @@
+---
+# ============================================================
+# host-watch — say so when another host stops answering
+# ============================================================
+# Prometheus, the blackbox probes and Uptime Kuma all run on forge-ops, so
+# when forge-ops itself dies nothing is left to report it. On 2026-10-06 its
+# kernel locked up and it was off the network for 65 minutes; the first sign
+# was two phones saying "no internet" (#1398).
+#
+# This runs somewhere else, once a minute, and posts to Discord when a
+# watched host has failed a few checks in a row, again every so often while
+# it stays down, and once more when it is back. Deliberately small: bash,
+# ping, dig and curl, with no dependency on anything the watched host serves.
+#
+# Opt-in: with no targets the role installs nothing.
+
+# Hosts to watch. `dns_name`, when given, is also asked of the host as a DNS
+# server, which catches "up but not resolving" on a resolver.
+#   - name: forge-ops
+#     address: 10.10.20.20
+#     dns_name: bezaforge.dev
+host_watch_targets: []
+
+# Full Discord webhook URL. Kept in a root-only file on the host.
+host_watch_discord_webhook_url: ""
+
+# Checks in a row that must fail before the first message. At one check a
+# minute, 3 means about three minutes: longer than a reboot's blip on the
+# switch, shorter than anybody noticing by themselves.
+host_watch_fail_threshold: 3
+# Minutes between reminders while a host stays down.
+host_watch_remind_minutes: 60
+host_watch_interval: 1min
+
+host_watch_script: /usr/local/bin/bezaforge-host-watch.sh
+host_watch_env_file: /etc/bezaforge/host-watch.env
+host_watch_state_dir: /var/lib/bezaforge-host-watch

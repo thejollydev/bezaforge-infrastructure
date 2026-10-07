@@ -1,0 +1,72 @@
+---
+# See defaults/main.yml.
+
+- name: Watch other hosts from this one
+  when: host_watch_targets | length > 0
+  block:
+
+    - name: Check the Discord webhook URL is set
+      ansible.builtin.assert:
+        that:
+          - host_watch_discord_webhook_url is match('^https://(discord|discordapp)\.com/api/webhooks/')
+        fail_msg: >-
+          host_watch_discord_webhook_url is empty or is not a Discord webhook
+          URL. Set it in host_vars.
+        quiet: true
+      no_log: true
+
+    - name: Install what the checks use
+      ansible.builtin.apt:
+        name:
+          - iputils-ping
+          - bind9-dnsutils
+          - curl
+        state: present
+
+    - name: Create the configuration directory
+      ansible.builtin.file:
+        path: "{{ host_watch_env_file | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Write the webhook to a root-only file
+      ansible.builtin.copy:
+        dest: "{{ host_watch_env_file }}"
+        owner: root
+        group: root
+        mode: "0600"
+        content: |
+          HOST_WATCH_WEBHOOK={{ host_watch_discord_webhook_url }}
+      no_log: true
+
+    - name: Deploy the check script
+      ansible.builtin.template:
+        src: host-watch.sh.j2
+        dest: "{{ host_watch_script }}"
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Deploy the check service and timer
+      ansible.builtin.template:
+        src: "host-watch.{{ item }}.j2"
+        dest: "/etc/systemd/system/bezaforge-host-watch.{{ item }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop:
+        - service
+        - timer
+      notify: host-watch reload systemd
+
+    - name: Flush handlers so the unit exists before the timer is enabled
+      ansible.builtin.meta: flush_handlers
+
+    - name: Enable and start the check timer
+      ansible.builtin.systemd:
+        name: bezaforge-host-watch.timer
+        enabled: true
+        state: started
+        daemon_reload: true

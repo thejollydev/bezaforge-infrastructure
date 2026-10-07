@@ -1,0 +1,11 @@
+# {{ ansible_managed }} — roles/host-watch (#1398)
+[Unit]
+Description=BezaForge — periodic check of the watched hosts
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec={{ host_watch_interval }}
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

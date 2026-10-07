@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }} — roles/host-watch/templates/host-watch.sh.j2 (#1398)
+#
+# One pass over the watched hosts. Run once a minute by a systemd timer.
+# See the role's defaults for why this exists.
+#
+# State is one small file per host: how many checks in a row have failed,
+# when the host was reported down, and when the last message went out. A
+# message that cannot be posted is not recorded as sent, so it is tried again
+# on the next pass.
+
+set -uo pipefail
+
+WEBHOOK="${HOST_WATCH_WEBHOOK:?HOST_WATCH_WEBHOOK is not set}"
+STATE_DIR="${HOST_WATCH_STATE_DIR:-{{ host_watch_state_dir }}}"
+THRESHOLD="${HOST_WATCH_FAIL_THRESHOLD:-{{ host_watch_fail_threshold }}}"
+REMIND_SECONDS="$(( ${HOST_WATCH_REMIND_MINUTES:-{{ host_watch_remind_minutes }}} * 60 ))"
+ME="$(uname -n)"; ME="${ME%%.*}"
+
+# name|address|dns_name   (dns_name may be empty)
+TARGETS="${HOST_WATCH_TARGETS:-{% for t in host_watch_targets %}{{ t.name }}|{{ t.address }}|{{ t.dns_name | default('') }}{{ ' ' if not loop.last }}{% endfor %}}"
+
+mkdir -p "${STATE_DIR}"
+
+# Names, addresses and reasons come from this role's own configuration and
+# from the fixed strings below, so they carry no quotes or backslashes to
+# escape.
+post() {
+    curl -fsS -m 10 -H 'Content-Type: application/json' \
+        --data "{\"username\": \"host-watch (${ME})\", \"content\": \"$1\"}" \
+        "${WEBHOOK}" >/dev/null
+}
+
+# Prints why the host is considered down, or nothing when it is fine.
+check() {
+    local address="$1" dns_name="$2"
+    if ! ping -c1 -W2 "${address}" >/dev/null 2>&1 \
+       && ! ping -c1 -W2 "${address}" >/dev/null 2>&1; then
+        echo "does not answer ping"
+        return
+    fi
+    # An address in the answer, not merely some output: when the server
+    # refuses or times out, dig +short prints its error on stdout
+    # (";; communications error ..."), which a not-empty test takes for an
+    # answer.
+    if [ -n "${dns_name}" ] \
+       && ! dig +short +time=2 +tries=2 @"${address}" "${dns_name}" 2>/dev/null \
+            | grep -Eq '^[0-9a-fA-F:.]+$'; then
+        echo "answers ping but not DNS"
+    fi
+}
+
+for target in ${TARGETS}; do
+    IFS='|' read -r name address dns_name <<< "${target}"
+    state="${STATE_DIR}/${name}"
+    fails=0; down_since=0; last_post=0
+    if [ -r "${state}" ]; then
+        read -r fails down_since last_post < "${state}" || true
+    fi
+    fails="${fails:-0}"; down_since="${down_since:-0}"; last_post="${last_post:-0}"
+    now="$(date +%s)"
+    reason="$(check "${address}" "${dns_name}")"
+
+    if [ -n "${reason}" ]; then
+        fails=$(( fails + 1 ))
+        if [ "${down_since}" -eq 0 ] && [ "${fails}" -ge "${THRESHOLD}" ]; then
+            if post "**${name} is DOWN** (${address}): ${reason}, ${fails} checks in a row. Seen from ${ME}."; then
+                down_since="${now}"; last_post="${now}"
+            fi
+        elif [ "${down_since}" -ne 0 ] && [ $(( now - last_post )) -ge "${REMIND_SECONDS}" ]; then
+            if post "**${name} is still down** (${address}): ${reason}, for $(( (now - down_since) / 60 )) minutes."; then
+                last_post="${now}"
+            fi
+        fi
+    else
+        if [ "${down_since}" -ne 0 ]; then
+            if post "**${name} is back** (${address}) after $(( (now - down_since) / 60 )) minutes."; then
+                down_since=0; last_post=0
+            fi
+        fi
+        fails=0
+    fi
+
+    printf '%s %s %s\n' "${fails}" "${down_since}" "${last_post}" > "${state}.$$" \
+        && mv -f "${state}.$$" "${state}"
+done

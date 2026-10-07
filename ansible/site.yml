@@ -33,6 +33,12 @@
     # container on forge-ops) is down.
     - role: dnsmasq
       tags: dnsmasq
+    # Posts to Discord when forge-ops stops answering (#1398). Here, not on
+    # forge-ops, because everything that watches the fleet runs on forge-ops
+    # and dies with it. After dnsmasq, which is what lets this host resolve
+    # discord.com while AdGuard is the thing that is down.
+    - role: host-watch
+      tags: host-watch
     - role: sanoid
       tags: sanoid
     - role: restic-gcs
@@ -96,6 +102,10 @@
     # the admin account — forge-hypervisor is root-only.
     - role: admin-access
       tags: admin-access
+    # Which installed kernel GRUB boots by default (#1398). Opt-in per
+    # host_vars and empty everywhere else; it never reboots.
+    - role: kernel-pin
+      tags: kernel-pin
     - role: common
       tags: common
     - role: fail2ban
