@@ -36,6 +36,8 @@ Two clocks, compared per role:
 
 `scripts/deploy-drift-check.py` on forge-ops compares them every 30 min and publishes `bezaforge_deploy_drift_exit_code`. The Grafana rule alerts on `> 0` after **6h**, which is long enough that merging and deploying in one session never nags.
 
+The alert's message names what is waiting ("services on forge-ops, ollama on forge-ai") and the command that deploys everything, `scripts/fleet-update.sh`. The names ride on the metric as a `waiting` label, taken from the checker's own table. Renovate merges updates by itself during the week, so between its Monday run and the weekly pass this alert firing is the normal state, not a fault: it is the list of what the next pass will deploy.
+
 **Why per-role and not one SHA per host:** almost every real deploy here is tag-scoped. A whole-host SHA would advance on `--tags adguard` and claim credit for the thirty roles that did not run — a false green, worse than no check. It would also read "behind" after any commit at all, including a README fix, and a permanently-red alert is one nobody reads.
 
 ---

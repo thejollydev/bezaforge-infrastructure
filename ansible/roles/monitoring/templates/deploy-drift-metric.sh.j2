@@ -57,6 +57,13 @@ unknown="$(printf '%s' "${summary}"    | sed -n 's/.*unknown=\([0-9]*\).*/\1/p')
 : "${unstamped:=0}"
 : "${unknown:=0}"
 
+# Which roles on which hosts, for the alert's message. Taken from the same
+# table a human reads: every row marked BEHIND, as "<role> on <host>". A
+# Discord message that says only "something is behind" sends its reader to a
+# terminal to find out what; this lets it name the work (2026-10-07). Capped,
+# because it becomes a label value and a week's updates can touch many roles.
+waiting="$(printf '%s\n' "${out}" | awk '/\*\*\* BEHIND/ { n++; if (n <= 12) printf "%s%s on %s", (n > 1 ? ", " : ""), $2, $1 } END { if (n > 12) printf ", and %d more", n - 12 }')"
+
 # A missing summary line means the script itself failed to run (not found,
 # not executable, interpreter missing, killed). Report INVALID rather than
 # agreement — an exporter that cannot measure must never emit a healthy
@@ -72,7 +79,7 @@ fi
 cat > "${TMP}" <<EOF
 # HELP bezaforge_deploy_drift_exit_code 0 = every stamped host matches main, 1 = at least one host is behind, 2 = the check is invalid (unreachable source, dirty tree, or nothing stamped).
 # TYPE bezaforge_deploy_drift_exit_code gauge
-bezaforge_deploy_drift_exit_code ${rc}
+bezaforge_deploy_drift_exit_code{waiting="${waiting}"} ${rc}
 # HELP bezaforge_deploy_drift_roles Host/role pairs running an older commit than main.
 # TYPE bezaforge_deploy_drift_roles gauge
 bezaforge_deploy_drift_roles ${behind}
