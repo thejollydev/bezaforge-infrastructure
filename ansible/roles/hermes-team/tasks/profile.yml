@@ -492,8 +492,8 @@
 - name: "Say what is missing for {{ agent.name }}"
   ansible.builtin.debug:
     msg: >-
-      {{ agent.name }} has no DISCORD_BOT_TOKEN in its .env, so its gateway
-      cannot run. Create the application in Discord's developer portal with
+      {{ agent.name }} has no DISCORD_BOT_TOKEN in its .env, so it has no
+      bot to answer with. Create the application in Discord's developer portal with
       the Message Content and Server Members intents enabled, then put the
       token in {{ hermes_profiles_dir }}/{{ agent.name }}/.env. Without
       those intents the bot receives events with empty text and cannot see

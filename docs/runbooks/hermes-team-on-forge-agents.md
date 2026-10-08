@@ -428,7 +428,7 @@ and `auth add` is interactive, so it needs `ssh -t`. Over SSH it prints an
 authorization URL and waits for the code pasted back.
 
 **One credential for the whole team.** Revoking it in the OpenAI account
-stops all three agents at once — they are less independent than their
+stops every agent at once — they are less independent than their
 per-profile Discord tokens suggest.
 
 **The self-improvement review runs on forge-ai, not Codex.** After every
@@ -447,7 +447,7 @@ If it cannot reach forge-ai, Hermes logs a warning naming
 `auxiliary.background_review.provider` and runs the review on the agent's own
 Codex model instead, so an outage on forge-ai quietly moves this cost back.
 
-**Everything is suddenly slower and dumber at once.** All three agents share
+**Everything is suddenly slower and dumber at once.** Every agent shares
 ONE ChatGPT account, so they exhaust the Codex allowance together and fall
 back to forge-ai together. That is the design — a shared local fallback
 rather than one model each, because only one ~16 GiB model fits the card and
