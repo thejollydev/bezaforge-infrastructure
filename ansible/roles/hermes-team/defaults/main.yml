@@ -152,7 +152,7 @@ hermes_agents: []
 # on read. A per-profile add APPEARS to work, prints "Added ... credential
 # #1", writes active_provider, and is discarded on the next read.
 #
-# The corollary: revoking it in the OpenAI account stops all three agents
+# The corollary: revoking it in the OpenAI account stops every agent
 # at once. They are less independent than their Discord tokens suggest.
 #
 # ⚠️ ONE BUCKET, SHARED BY THE WHOLE TEAM. The limit is per ChatGPT
@@ -363,7 +363,7 @@ hermes_enable_linger: true
 # `kanban_home()` resolves through the platform default rather than the
 # active profile's HERMES_HOME, "because resolving through the active
 # profile's HERMES_HOME would fork the board per profile and break the
-# dispatcher/worker handoff". So the three agents share one board, and one
+# dispatcher/worker handoff". So every agent shares one board, and one
 # process dispatches from it. That much is upstream's design and this role
 # does not fight it.
 #
