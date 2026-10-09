@@ -39,6 +39,16 @@ API="{{ hermes_latest_release_api }}"
 
 log() { printf '%s %s\n' "$(date -Is)" "$*"; }
 
+# One update at a time. The timer and a deploy both run this script, and
+# they can start within a second of each other: enabling the timer makes
+# systemd run a missed night at once (Persistent=true), just as the deploy
+# reaches its own update step. On 2026-10-09 the second copy met the
+# first's git lock, failed, and failed again rolling back. It had changed
+# nothing, but it failed the deploy. A copy that finds the lock held now
+# waits for the other to finish, then finds Hermes current and exits 0.
+exec 9>"$HERMES_DATA/.hermes-update-release.lock"
+flock --wait 3600 9 || { log "another update has held the lock for an hour — giving up"; exit 2; }
+
 latest="$(curl -fsS --max-time 60 "$API" | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')" || {
     log "could not read the newest release from $API"; exit 2; }
 [ -n "$latest" ] || { log "the release API returned no tag"; exit 2; }
