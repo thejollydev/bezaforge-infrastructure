@@ -41,7 +41,6 @@ backup_services:
   - name: open-webui
     # Open WebUI sqlite DB (users/chats/settings/connections) + uploads +
     # RAG vector store live under data/. FORGE-53.
-  - name: outline
   - name: openproject
     # pgdata + assets bind-mounted under /opt/bezaforge/openproject (#471).
     # The db-dumps logical pg_dump is the authoritative DB restore path;
@@ -60,3 +59,4 @@ backup_services:
 # wiki removed 2026-05-17 (Wiki.js retired — see ROADMAP carryover #21)
 # taiga removed 2026-05-22 (Taiga retired — see guide 12)
 # plane removed 2026-07-14 (Plane retired — migrated to OpenProject, FORGE #455)
+# outline removed 2026-10-08 (Outline retired, #1395; its last copy stays on bezapool)

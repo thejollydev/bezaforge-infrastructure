@@ -121,7 +121,6 @@ bezaforge_dns_rewrites:
   # --- names the wildcard already covers (explicit in AdGuard anyway) ---
   - {domain: "forge-ops.bezaforge.dev", answer: "10.10.20.20"}
   - {domain: "netbox.bezaforge.dev", answer: "10.10.20.20"}
-  - {domain: "docs.bezaforge.dev", answer: "10.10.20.20"}
   # --- real exceptions: these MUST differ from the wildcard -------------
   - {domain: "forge-hypervisor.bezaforge.dev", answer: "10.10.10.10"}
   - {domain: "forge-ops-mgmt.bezaforge.dev", answer: "10.10.10.20"}

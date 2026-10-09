@@ -7,7 +7,7 @@
 # pm.bezaforge.dev. pgdata + assets are bind-mounted under
 # {{ bezaforge_root }}/openproject (#471) — this role does NOT create
 # or chown those dirs (the image's entrypoint owns pgdata/assets uids;
-# managing them here would revert the uids, the outline-role trap).
+# managing them here would revert the uids on every run).
 # Docker creates them empty on a fresh deploy.
 #
 # Dependencies: docker role (creates bezaforge-net), traefik role

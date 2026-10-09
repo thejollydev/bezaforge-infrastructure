@@ -44,11 +44,11 @@ The following secret variable names appear in templates under `ansible/roles/*/t
 | `taiga_rabbitmq_password` | Internal DB | `host_vars/forge-ops/vault.yml` | Taiga RabbitMQ | Removed 2026-05-22 (Taiga retired) |
 | `taiga_secret_key` | App framework | `host_vars/forge-ops/vault.yml` | Taiga Django `SECRET_KEY` | Removed 2026-05-22 (Taiga retired) |
 | `wiki_db_password` | Internal DB | `host_vars/forge-ops/vault.yml` | Wiki.js Postgres | Removed 2026-05-17 (Wiki.js retired — replaced by Outline per guide 12) |
-| `outline_db_password` | Internal DB | `host_vars/forge-ops/vault.yml` | Outline Postgres (referenced in `roles/outline/templates/env.j2` + interpolated into compose for the postgres service) | — (initial 2026-05-22) |
-| `outline_secret_key` | App framework | `host_vars/forge-ops/vault.yml` | Outline `SECRET_KEY` (session signing) | — (initial 2026-05-22) |
-| `outline_utils_secret` | App framework | `host_vars/forge-ops/vault.yml` | Outline `UTILS_SECRET` (sub-token signing) | — (initial 2026-05-22) |
-| `outline_oidc_client_id` | OIDC config (not sensitive) | `host_vars/forge-ops/vault.yml` | Outline OIDC client ID (Google Workspace OAuth client — IDs are public; stored in vault for templating convenience, not secrecy) | — (initial 2026-05-22) |
-| `outline_oidc_client_secret` | External-scope OIDC | `host_vars/forge-ops/vault.yml` | Outline OIDC client secret (Google Workspace OAuth) | — (initial 2026-05-22) |
+| `outline_db_password` | Internal DB | `host_vars/forge-ops/vault.yml` | Outline Postgres (referenced in `roles/outline/templates/env.j2` + interpolated into compose for the postgres service) | Removed 2026-10-08 (Outline retired, #1395) |
+| `outline_secret_key` | App framework | `host_vars/forge-ops/vault.yml` | Outline `SECRET_KEY` (session signing) | Removed 2026-10-08 (Outline retired, #1395) |
+| `outline_utils_secret` | App framework | `host_vars/forge-ops/vault.yml` | Outline `UTILS_SECRET` (sub-token signing) | Removed 2026-10-08 (Outline retired, #1395) |
+| `outline_oidc_client_id` | OIDC config (not sensitive) | `host_vars/forge-ops/vault.yml` | Outline OIDC client ID (Google Workspace OAuth client — IDs are public; stored in vault for templating convenience, not secrecy) | Removed 2026-10-08 (Outline retired, #1395) |
+| `outline_oidc_client_secret` | External-scope OIDC | `host_vars/forge-ops/vault.yml` | Outline OIDC client secret (Google Workspace OAuth) | Removed 2026-10-08 (Outline retired, #1395) |
 | `plane_db_password` | Internal DB | `host_vars/forge-ops/vault.yml` | Plane Postgres | Removed 2026-07-14 (Plane retired — migrated to OpenProject, FORGE #455) |
 | `plane_rabbitmq_password` | Internal DB | `host_vars/forge-ops/vault.yml` | Plane RabbitMQ | Removed 2026-07-14 (Plane retired — FORGE #455) |
 | `plane_secret_key` | App framework | `host_vars/forge-ops/vault.yml` | Plane Django `SECRET_KEY` | Removed 2026-07-14 (Plane retired — FORGE #455) |
@@ -99,7 +99,6 @@ The credential is **set in the AdGuard web UI** and **mirrored into ansible-vaul
 
 - ERPNext admin password
 - NetBox superuser is `netbox_superuser_password` above *for initial seed only* — subsequent rotation is done in the NetBox UI.
-- **Outline:** sign-in is Google Workspace OIDC only — no local admin accounts to rotate. Outline OIDC client config (`outline_oidc_client_id` + `outline_oidc_client_secret`) IS in ansible-vault (see inventory above) and is rotated via Google Cloud Console + ansible-vault edit.
 - **OpenProject:** sign-in is a local admin account (seeded on first boot) — no external OIDC configured, so no OAuth client secret to rotate. Rotate the admin password in the OpenProject UI (replaced Plane 2026-07, FORGE #455).
 
 ---

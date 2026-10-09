@@ -200,14 +200,6 @@
       "commitMessageSuffix": "for LangFuse"
     },
     {
-      "description": "A database or cache major for Outline arrives as its own PR, so it can be decided and migrated by itself.",
-      "matchFileNames": ["ansible/roles/outline/defaults/main.yml"],
-      "matchPackageNames": ["postgres", "mariadb", "redis", "valkey/valkey", "clickhouse/clickhouse-server"],
-      "matchUpdateTypes": ["major"],
-      "additionalBranchPrefix": "major-outline-",
-      "commitMessageSuffix": "for Outline"
-    },
-    {
       "description": "ERPNext's image refs in files/erpnext-one.yaml and erpnext_version move as one PR. Deploying it is an upgrade, not a recreate: the erpnext role backs up, migrates and compares the ledger totals, so a merged update is safe to leave to the fleet update pass. Until 2026-10-04 everything under roles/erpnext was switched off here with nothing behind the exclusion but a sentence, which is how LangFuse fell a major version behind (#1334).",
       "matchPackageNames": ["frappe/erpnext"],
       "groupName": "erpnext"

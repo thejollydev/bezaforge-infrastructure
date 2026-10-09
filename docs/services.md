@@ -70,13 +70,6 @@ Base path: `/opt/bezaforge/{service}/docker-compose.yml`
 - **Role:** Self-hosted Git server (internal repos, mirrors)
 - **Storage:** Persistent volume for repositories
 
-### Outline
-- **Image:** `outlinewiki/outline:1.7.1` + `postgres:15-alpine` + `redis:7-alpine`
-- **Role:** Self-hosted wiki at `docs.bezaforge.dev` (replaced retired Wiki.js)
-- **Auth:** Google Workspace OIDC, redirect URI `/auth/oidc.callback`
-- **Storage:** Local-FS uploads at `/opt/bezaforge/outline/uploads/` (no MinIO — overkill for solo wiki use)
-- **Ansible role:** `ansible/roles/outline/`
-
 ### OpenProject
 - **Image:** `openproject/openproject` all-in-one (bundles Postgres + memcached + web + Rails workers under one supervisor), pinned to a release tag; Renovate tracks it
 - **Role:** Self-hosted project + work tracking at `pm.bezaforge.dev` — the live work tracker (replaced Plane 2026-07, FORGE #455). Its Community REST API v3 filters server-side (unlike Plane CE), so the Claude Code integration works via the free `op-query` helper

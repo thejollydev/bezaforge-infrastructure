@@ -54,11 +54,6 @@
         description: Network + DCIM source of truth
         icon: netbox.png
         siteMonitor: https://netbox.bezaforge.dev
-    - Outline:
-        href: https://docs.bezaforge.dev
-        description: Self-hosted wiki + docs · replaces Wiki.js
-        icon: outline.png
-        siteMonitor: https://docs.bezaforge.dev
     - OpenProject:
         href: https://pm.bezaforge.dev
         description: Project + work tracking · replaces Plane
