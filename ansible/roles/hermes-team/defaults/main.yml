@@ -48,6 +48,15 @@ hermes_latest_release_api: "https://api.github.com/repos/{{ hermes_repo }}/relea
 # caught up at the next boot.
 hermes_update_on_calendar: "*-*-* 04:00:00"
 
+# ⚠️ A HOLD, NOT A PIN, AND NEVER THE DEFAULT. When true the role neither
+# updates Hermes on deploy nor leaves the nightly timer running, and Hermes
+# stays on whatever release is installed. It exists for the case where a
+# release changes how Hermes installs itself and the updater has not caught
+# up: without it every deploy fails at the update step and nothing else in
+# this role can be applied. Set it per host with the reason and the work
+# item that removes it, and remove it there.
+hermes_update_hold: false
+
 # The installer is used ONLY for a first install; once Hermes exists the
 # updater never touches it. Fetched fresh each time it is needed, with no
 # checksum: a recorded hash of a script upstream edits routinely is a
