@@ -1,0 +1,12 @@
+# Managed by Ansible (roles/hermes-backup).
+[Unit]
+Description=Schedule for the agent host's nightly backup
+
+[Timer]
+OnCalendar={{ hermes_backup_on_calendar }}
+# A night the host was off is caught up at the next boot.
+Persistent=true
+Unit=hermes-backup.service
+
+[Install]
+WantedBy=timers.target

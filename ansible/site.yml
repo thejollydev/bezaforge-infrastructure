@@ -43,6 +43,11 @@
       tags: sanoid
     - role: restic-gcs
       tags: restic-gcs
+    # The agent host's nightly backup, pulled into its dataset (Brizza
+    # build step 8, #1222). Deploy this before `hermes-backup` on
+    # forge-agents, which authorises the key generated here.
+    - role: forge-agents-backup-pull
+      tags: forge-agents-backup-pull
     # vault-sync retired 2026-09-13: Ansible no longer manages a bezapool git
     # clone of the vault or its timer. bezapool/vault stays (sanoid + restic
     # keep it) and holds the vault's Syncthing copy (roles/syncthing, below).
@@ -277,6 +282,11 @@
     # its Discord application and Joseph's approval.
     - role: hermes-team
       tags: hermes-team
+    # The host's own half of its nightly backup (Brizza build step 8,
+    # #1222): it makes the copy, and forge-hypervisor pulls it. After
+    # `hermes-team`, because the backup is made by the hermes command.
+    - role: hermes-backup
+      tags: hermes-backup
     # Deploy stamp — must stay LAST, `tags: always` (#671). See the
     # hypervisor play above for why.
     - role: deploy-stamp

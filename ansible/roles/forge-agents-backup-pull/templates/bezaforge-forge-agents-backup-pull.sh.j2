@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Managed by Ansible (roles/forge-agents-backup-pull). Local edits are
+# overwritten.
+#
+# Fetch the agent host's current backup into its dataset, then refuse to
+# call it a success unless it is complete and fresh.
+#
+# Exit codes: 0 = tonight's backup is in the dataset and verified;
+# non-zero = it is not. A non-zero exit leaves the unit failed, which the
+# fleet's failed-unit alert reports.
+
+set -euo pipefail
+umask 077
+
+DEST="{{ forge_agents_backup_dest }}"
+SOURCE="{{ forge_agents_backup_source_user }}@{{ forge_agents_backup_source_host }}"
+KEY="{{ forge_agents_backup_key_path }}"
+KNOWN_HOSTS="{{ forge_agents_backup_known_hosts_path }}"
+MAX_AGE_HOURS={{ forge_agents_backup_max_age_hours }}
+
+log() { printf '%s %s\n' "$(date -Is)" "$*"; }
+fail() { log "PULL FAILED: $*"; exit 1; }
+
+# The dataset, not a directory that happens to have its name. Without this
+# a missing dataset would be filled as a plain directory on the pool's root
+# and nothing would snapshot it.
+mountpoint -q "$DEST" || fail "$DEST is not a mounted dataset"
+
+# The key is confined on the far side to rrsync, read-only, on the backup
+# directory, so the remote path is relative to that directory: ':' alone.
+#   --delete            one current copy; the dataset's snapshots are the
+#                       history (roles/sanoid).
+#   --exclude '.work.*' the far side's scratch directory while it builds.
+#   --chmod / no owner  everything lands root-owned, 0600 in a 0700 dataset.
+rsync --archive --delete --no-owner --no-group \
+    --chmod=D700,F600 --exclude '.work.*' \
+    --rsh "ssh -i $KEY -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$KNOWN_HOSTS -o ConnectTimeout=30" \
+    "$SOURCE:" "$DEST/" \
+    || fail "rsync from $SOURCE exited non-zero"
+
+# Complete: the manifest and both files it names, with matching checksums.
+[ -f "$DEST/MANIFEST" ] || fail "no MANIFEST arrived"
+(cd "$DEST" && grep -E '^[0-9a-f]{64}  ' MANIFEST | sha256sum --check --quiet --strict) \
+    || fail "a file does not match the checksum in its MANIFEST"
+[ "$(grep -cE '^[0-9a-f]{64}  ' "$DEST/MANIFEST")" -eq 2 ] \
+    || fail "the MANIFEST does not name both files"
+
+# Fresh: the agent host stamps the manifest when it finishes. An old one
+# means it stopped making backups, and copying yesterday's again is not a
+# backup of today.
+made="$(sed -n 's/^made_epoch: //p' "$DEST/MANIFEST")"
+[[ "$made" =~ ^[0-9]+$ ]] || fail "the MANIFEST carries no made_epoch"
+age_hours=$(( ( $(date +%s) - made ) / 3600 ))
+[ "$age_hours" -lt "$MAX_AGE_HOURS" ] \
+    || fail "the backup is ${age_hours}h old (limit ${MAX_AGE_HOURS}h): the agent host is not making one"
+
+log "pulled: $(sed -n 's/^made: //p' "$DEST/MANIFEST"), $(du -sh "$DEST" | cut -f1) in $DEST, ${age_hours}h old"

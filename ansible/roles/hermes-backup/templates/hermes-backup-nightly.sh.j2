@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# Managed by Ansible (roles/hermes-backup). Local edits are overwritten.
+#
+# Make tonight's backup of the agent host: one current copy, replaced only
+# when the new one is complete and has been checked. See the role's
+# defaults for what goes in it and why nothing here copies it anywhere.
+#
+# Exit codes: 0 = a complete, verified copy is in place; 1 = it is not, and
+# the previous copy is still there untouched. A non-zero exit leaves
+# hermes-backup.service failed, which the fleet's failed-unit alert
+# reports.
+
+set -euo pipefail
+umask 077
+
+HERMES="{{ hermes_backup_home }}/.local/bin/hermes"
+HERMES_DATA="{{ hermes_backup_home }}/.hermes"
+HOME_DIR="{{ hermes_backup_home }}"
+DEST="{{ hermes_backup_dir }}"
+
+log() { printf '%s %s\n' "$(date -Is)" "$*"; }
+fail() { log "BACKUP FAILED: $*"; exit 1; }
+
+# Everything is built in a scratch directory beside the destination and
+# renamed into place at the end, so a reader — the hypervisor's pull —
+# never sees a half-written file. The name starts with a dot and the pull
+# excludes it.
+work="$(mktemp -d "$DEST/.work.XXXXXX")"
+trap 'rm -rf "$work"' EXIT
+
+# 1. Hermes' own backup: databases copied through SQLite, so it is safe
+#    while the agents run. `-k 0` because this script, not Hermes, decides
+#    what is kept.
+"$HERMES" backup -o "$work/hermes-backup.zip" -k 0 >"$work/hermes-backup.log" 2>&1 \
+    || { tail -n 20 "$work/hermes-backup.log"; fail "hermes backup exited non-zero"; }
+
+# 2. The check that fails without the thing it is for. The archive has to
+#    open, hold the boards, and hold the config of every profile that
+#    exists on disk tonight — read from disk, not from a list, so an agent
+#    added tomorrow is checked tomorrow.
+unzip -tqq "$work/hermes-backup.zip" || fail "the archive does not pass unzip's test"
+listing="$(unzip -Z1 "$work/hermes-backup.zip")"
+grep -qx 'kanban.db' <<<"$listing" || fail "the archive has no kanban.db (the boards)"
+grep -qx 'config.yaml' <<<"$listing" || fail "the archive has no root config.yaml"
+profiles=0
+for dir in "$HERMES_DATA"/profiles/*/; do
+    [ -f "$dir/config.yaml" ] || continue
+    name="$(basename "$dir")"
+    grep -qx "profiles/$name/config.yaml" <<<"$listing" \
+        || fail "the archive is missing profile '$name'"
+    profiles=$((profiles + 1))
+done
+[ "$profiles" -gt 0 ] || fail "no profile was found on disk to check against"
+
+# 3. What lives outside Hermes. Only the paths that exist.
+settings=()
+{% for path in hermes_backup_host_settings %}
+[ -e "$HOME_DIR/{{ path }}" ] && settings+=("{{ path }}")
+{% endfor %}
+[ "${#settings[@]}" -gt 0 ] || fail "none of the host settings exist"
+tar -czf "$work/host-settings.tar.gz" -C "$HOME_DIR" "${settings[@]}" \
+    || fail "could not archive the host settings"
+
+# 4. The manifest: what a restore, and the pull's freshness check, read.
+{
+    printf 'made: %s\n' "$(date -Is)"
+    printf 'made_epoch: %s\n' "$(date +%s)"
+    printf 'host: %s\n' "$(hostname)"
+    printf 'hermes: %s\n' "$("$HERMES" --version 2>/dev/null | head -1)"
+    printf 'profiles: %s\n' "$profiles"
+    printf 'host_settings: %s\n' "${settings[*]}"
+    (cd "$work" && sha256sum hermes-backup.zip host-settings.tar.gz)
+} > "$work/MANIFEST"
+
+# 5. Into place. The manifest goes last: a reader that sees tonight's
+#    manifest sees tonight's files.
+rm -f "$work/hermes-backup.log"
+mv -f "$work/hermes-backup.zip" "$DEST/hermes-backup.zip"
+mv -f "$work/host-settings.tar.gz" "$DEST/host-settings.tar.gz"
+mv -f "$work/MANIFEST" "$DEST/MANIFEST"
+
+log "backup complete: $profiles profile(s), $(du -sh "$DEST/hermes-backup.zip" | cut -f1) archive, ${#settings[@]} host setting path(s)"

@@ -79,15 +79,14 @@ sanoid_templates:
     daily: 14
     weekly: 8
     monthly: 6
-  # forge-agents backup (#1215; Brizza ADR 0018, BezaForge ADR 0011). Will
-  # hold the nightly `hermes backup` archive and the settings it omits, once
-  # the Brizza build plan's backup step lands; empty until then. A nightly
-  # push gains nothing from hourlies, so this takes the posture v1's
-  # brizza_backup had.
-  # ⚠️ Revisit when that push is built. If it keeps a single current copy
-  # (rsync --delete, as forge-ops-backup does), these snapshots ARE the
-  # history and are right. If it keeps dated archives with their own prune,
-  # snapshotting them pins every pruned archive: the FORGE-44 vzdump trap.
+  # forge-agents backup (#1215, #1222; Brizza ADR 0018, BezaForge ADR 0011).
+  # Holds the nightly `hermes backup` archive and the host settings it
+  # omits, pulled at 03:00 by roles/forge-agents-backup-pull. A nightly
+  # pull gains nothing from hourlies.
+  # The pull keeps ONE current copy (rsync --delete), so these snapshots
+  # ARE the history, and this retention is how far back a restore can
+  # reach. Never give the pull dated archives with their own prune:
+  # snapshotting those pins every pruned archive, the FORGE-44 vzdump trap.
   forge_agents_backup:
     hourly: 0
     daily: 7

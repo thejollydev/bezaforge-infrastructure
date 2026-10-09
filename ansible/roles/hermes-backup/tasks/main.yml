@@ -1,0 +1,135 @@
+---
+# ============================================================
+# hermes-backup — the agent host makes its own nightly backup
+#
+# See defaults/main.yml for what is in it and why this host only MAKES the
+# copy: forge-hypervisor pulls it (roles/forge-agents-backup-pull).
+#
+# Order of deploys: forge-hypervisor first, which generates the pull key;
+# then this host, which authorises that key. Run the other way round, this
+# role still installs the nightly job and says the key is not there yet.
+# ============================================================
+
+- name: Check the role's inputs
+  ansible.builtin.assert:
+    that:
+      - hermes_backup_user | length > 0
+      - hermes_backup_host_settings | length > 0
+    fail_msg: >-
+      hermes_backup_user must name the user Hermes runs as, and
+      hermes_backup_host_settings must list at least one path.
+    quiet: true
+
+- name: Read the backup user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ hermes_backup_user }}"
+
+- name: Keep the user's home and uid for the paths below
+  ansible.builtin.set_fact:
+    hermes_backup_home: "{{ ansible_facts.getent_passwd[hermes_backup_user][4] }}"
+    hermes_backup_uid: "{{ ansible_facts.getent_passwd[hermes_backup_user][1] }}"
+
+- name: Set where the backup is kept
+  ansible.builtin.set_fact:
+    hermes_backup_dir: "{{ hermes_backup_home }}/{{ hermes_backup_dir_name }}"
+
+# unzip tests the archive; rsync provides rrsync, the wrapper that confines
+# the pull key to one directory, read-only.
+- name: Install what the backup and its pull need
+  ansible.builtin.apt:
+    name:
+      - unzip
+      - rsync
+    state: present
+
+# 0700 on the directory AND its parent: the archive holds every agent's
+# credentials, and the files inside are written 0600 by the script.
+- name: Create the backup directory, readable by its owner only
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ hermes_backup_user }}"
+    group: "{{ hermes_backup_user }}"
+    mode: '0700'
+  loop:
+    - "{{ hermes_backup_dir | dirname }}"
+    - "{{ hermes_backup_dir }}"
+
+- name: Install the backup script
+  ansible.builtin.template:
+    src: hermes-backup-nightly.sh.j2
+    dest: "{{ hermes_backup_home }}/.local/bin/hermes-backup-nightly"
+    owner: "{{ hermes_backup_user }}"
+    group: "{{ hermes_backup_user }}"
+    mode: '0755'
+
+- name: Install the backup's service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ hermes_backup_home }}/.config/systemd/user/{{ item }}"
+    owner: "{{ hermes_backup_user }}"
+    group: "{{ hermes_backup_user }}"
+    mode: '0644'
+  loop:
+    - hermes-backup.service
+    - hermes-backup.timer
+
+# A recurring job, which Brizza ADR 0014 principle 2 says runs only once it
+# is approved. Approved with build step 8 (#1222).
+- name: Enable the nightly backup
+  ansible.builtin.systemd_service:
+    name: hermes-backup.timer
+    scope: user
+    daemon_reload: true
+    enabled: true
+    state: started
+  become: true
+  become_user: "{{ hermes_backup_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ hermes_backup_uid }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ hermes_backup_uid }}/bus"
+  when: not ansible_check_mode
+
+# ------------------------------------------------------------
+# The pull key
+# ------------------------------------------------------------
+#
+# Generated on the pulling host, never here. Its public half is read from
+# that host and authorised for exactly one thing.
+#
+# `become: false` on the delegated read: it runs as the pulling host's own
+# connection user, so this play's become password is not offered to a host
+# it does not belong to.
+- name: Read the pull key's public half from {{ hermes_backup_pull_host }}
+  ansible.builtin.slurp:
+    src: "{{ hermes_backup_pull_public_key_path }}"
+  delegate_to: "{{ hermes_backup_pull_host }}"
+  become: false
+  register: hermes_backup_pull_key
+  failed_when: false
+  changed_when: false
+
+- name: Say so if the pull key does not exist yet
+  ansible.builtin.debug:
+    msg: >-
+      {{ hermes_backup_pull_host }} has no
+      {{ hermes_backup_pull_public_key_path }} yet, so nothing can pull this
+      host's backup. Deploy roles/forge-agents-backup-pull there first, then
+      run this role again.
+  when: hermes_backup_pull_key.content is not defined
+
+# What the options do, since this line is the whole of the pull's access:
+#   command=  every connection with this key runs rrsync, confined to the
+#             backup directory and read-only (-ro). Whatever the client
+#             asks for, it gets rsync reading that one directory.
+#   restrict  no terminal, no port, agent or X11 forwarding.
+#   from=     accepted only from the pulling host's address.
+- name: Authorise the pull key to read the backup directory, and nothing else
+  ansible.posix.authorized_key:
+    user: "{{ hermes_backup_user }}"
+    key: "{{ hermes_backup_pull_key.content | b64decode | trim }}"
+    key_options: >-
+      command="/usr/bin/rrsync -ro {{ hermes_backup_dir }}",restrict,from="{{ hermes_backup_pull_from }}"
+    state: present
+  when: hermes_backup_pull_key.content is defined

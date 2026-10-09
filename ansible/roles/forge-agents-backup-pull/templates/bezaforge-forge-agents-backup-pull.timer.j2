@@ -1,0 +1,11 @@
+[Unit]
+Description=Schedule for the nightly pull of the forge-agents backup
+Documentation=https://github.com/thejollydev/bezaforge-infrastructure
+
+[Timer]
+OnCalendar={{ forge_agents_backup_on_calendar }}
+Persistent=true
+Unit=bezaforge-forge-agents-backup-pull.service
+
+[Install]
+WantedBy=timers.target
