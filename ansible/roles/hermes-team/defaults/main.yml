@@ -283,6 +283,15 @@ hermes_agent_max_turns: 500
 # personal data.
 hermes_memory_write_approval: false
 
+# How many user turns pass between memory reviews (memory.nudge_interval;
+# upstream's default is 10). The review is what saves what an agent did not
+# think to save itself, and at 10 it almost never ran: most conversations
+# here are shorter than that, and until 2026-10-08 no profile had a
+# MEMORY.md at all. 3 gives it a chance inside an ordinary exchange. It runs
+# on the local model (see the background review block), so the extra runs
+# cost the subscription nothing.
+hermes_memory_nudge_interval: 3
+
 # The weekly summary, one scheduled Hermes job per agent (ADR-0026). The job
 # only triggers it; what goes in the summary is each agent's soul's to say.
 # Delivered to the agent's own Discord home channel. The schedule is cron

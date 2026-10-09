@@ -154,6 +154,8 @@
         value: "{{ agent.model | default(hermes_model_default) }}"
       - key: memory.write_approval
         value: "{{ hermes_memory_write_approval | string | lower }}"
+      - key: memory.nudge_interval
+        value: "{{ hermes_memory_nudge_interval }}"
       # ⚠️ Unset is UNLIMITED, not a modest default: resolve_turn_limit
       # returns sys.maxsize for a missing agent.max_turns. On every
       # profile, because each turn reads its own profile's config.yaml,
