@@ -71,18 +71,22 @@
 # The Bot Mode marker (see defaults). Merged into profile.yaml rather than
 # templated, because Hermes and the desktop app both write that file
 # (description, display name, the Bot's title) and a template would drop
-# what they wrote. Hermes' own YAML writer does the write, atomically, so a
-# crash cannot truncate the file.
+# what they wrote.
+#
+# With the host's own Python and PyYAML, not Hermes' interpreter: where that
+# lives changes with how a release installs itself (a venv until v0.21.5,
+# pm's environment after), and a task that named it broke with the move.
+# Written to a temporary file beside the target and renamed over it, so a
+# crash cannot truncate the file; the mode is kept.
 - name: "Write the Bot Mode marker for {{ agent.name }}"
   ansible.builtin.command:
     argv:
-      - "{{ hermes_home }}/.hermes/hermes-agent/venv/bin/python"
+      - /usr/bin/python3
       - -c
       - |
-        import sys
+        import os, sys, tempfile
         from pathlib import Path
         import yaml
-        from utils import atomic_yaml_write
         path = Path(sys.argv[1])
         data = (yaml.safe_load(path.read_text()) if path.exists() else None) or {}
         ui_meta = data.get("ui_meta")
@@ -92,10 +96,20 @@
             if not isinstance(ui_meta, dict):
                 ui_meta = data["ui_meta"] = {}
             ui_meta["hermes-bots"] = {}
-            atomic_yaml_write(path, data, sort_keys=False)
+            mode = path.stat().st_mode & 0o777 if path.exists() else 0o644
+            fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".profile.", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w") as handle:
+                    yaml.safe_dump(data, handle, sort_keys=False, allow_unicode=True)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os.chmod(tmp, mode)
+                os.replace(tmp, path)
+            except BaseException:
+                os.unlink(tmp)
+                raise
             print("written")
       - "{{ hermes_profiles_dir }}/{{ agent.name }}/profile.yaml"
-    chdir: "{{ hermes_home }}/.hermes/hermes-agent"
   become: true
   become_user: "{{ hermes_user }}"
   environment:

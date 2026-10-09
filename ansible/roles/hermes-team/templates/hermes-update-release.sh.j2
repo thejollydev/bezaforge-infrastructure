@@ -16,11 +16,24 @@
 # exit leaves hermes-update.service failed, which the fleet's failed-unit
 # alert reports — a night the update did not happen is never silent.
 
+#
+# HOW A RELEASE IS INSTALLED IS THE RELEASE'S OWN BUSINESS. From v0.21.6
+# Hermes installs itself through its own package manager (pm/), on a Python
+# it downloads, and publishes the `hermes` command itself. This script used
+# to reproduce the installer's dependency step by hand, and stopped working
+# the day that step changed. It now runs the stages of the installer that
+# ships IN the release it has just checked out, so the next change to how
+# Hermes installs itself arrives with the release. A release from before
+# the package manager is still installed the old way, which is what a
+# rollback to one needs.
+
 set -euo pipefail
 unset PYTHONPATH PYTHONHOME
 
 CHECKOUT="{{ hermes_checkout }}"
 HERMES="{{ hermes_bin }}"
+HERMES_DATA="{{ hermes_home }}/.hermes"
+LAUNCHERS="{{ hermes_home }}/.local/bin"
 UV="{{ hermes_home }}/.hermes/bin/uv"
 API="{{ hermes_latest_release_api }}"
 
@@ -39,14 +52,33 @@ fi
 previous_sha="$(git -C "$CHECKOUT" rev-parse HEAD)"
 log "updating hermes: $current -> $latest"
 
-# The installer's own dependency step, reproduced exactly
-# (run_locked_uv_sync in scripts/install.sh). Two details matter:
-#   UV_PYTHON pins uv to the venv's Python. Without it uv finds the host's
-#     newer Python and rebuilds the venv on it, and the native build fails
-#     for want of wheels.
-#   --locked verifies every package against the SHA-256 recorded in this
-#     release's lockfile — the integrity check that moves with the release.
-sync_dependencies() {
+# Whether the tree now checked out installs itself through pm.
+tree_uses_pm() {
+    [ -f "$CHECKOUT/pm/cli.py" ] && [ -f "$CHECKOUT/scripts/install.sh" ]
+}
+
+# One stage of the checked-out release's own installer, with no terminal so
+# nothing can wait on a question. `python-deps` builds the environment
+# through pm; `products` publishes the hermes command, builds the apps and
+# syncs bundled skills, and is what upstream calls "the completion an update
+# calls". `prerequisites` is not run: it reaches for sudo, and the role
+# installs those packages as root.
+installer_stage() {
+    setsid --wait env HERMES_HOME="$HERMES_DATA" \
+        bash "$CHECKOUT/scripts/install.sh" \
+            --dir "$CHECKOUT" --hermes-home "$HERMES_DATA" \
+            --non-interactive --stage "$1" </dev/null
+}
+
+# A release from before pm: the old installer's dependency step, reproduced
+# (run_locked_uv_sync in that release's scripts/install.sh).
+#   UV_PYTHON pins uv to the old venv's Python. Without it uv finds the
+#     host's newer Python and rebuilds the venv on it.
+#   --locked verifies every package against the SHA-256 recorded in that
+#     release's lockfile.
+# pm builds its environment elsewhere and leaves this venv alone (measured
+# on forge-agents 2026-10-09), which is what makes a rollback possible.
+sync_dependencies_before_pm() {
     local isolated
     isolated="$(mktemp -d)"
     (
@@ -59,6 +91,52 @@ sync_dependencies() {
     local rc=$?
     rmdir "$isolated" 2>/dev/null || true
     return "$rc"
+}
+
+# Install whatever release is checked out, the way that release installs.
+install_checked_out_release() {
+    if tree_uses_pm; then
+        installer_stage python-deps && installer_stage products
+    else
+        sync_dependencies_before_pm
+    fi
+}
+
+# What an update changes outside the checkout, kept so a rollback can put
+# it back:
+#   the `hermes` commands in ~/.local/bin. pm's `products` stage rewrites
+#     them to point at its own environment, and a release from before pm
+#     needs the old ones.
+#   every config.yaml. A release migrates their format as it installs (v46
+#     to v50 at v0.21.6, measured), and the release being rolled back to
+#     has never seen the new one.
+saved_state="$(mktemp -d)"
+trap 'rm -rf "$saved_state"' EXIT
+save_state() {
+    local f rel
+    mkdir -p "$saved_state/launchers" "$saved_state/config"
+    for f in hermes hermes-acp hermes-agent; do
+        [ -f "$LAUNCHERS/$f" ] && cp -p "$LAUNCHERS/$f" "$saved_state/launchers/$f"
+    done
+    for f in "$HERMES_DATA/config.yaml" "$HERMES_DATA"/profiles/*/config.yaml; do
+        [ -f "$f" ] || continue
+        rel="${f#"$HERMES_DATA"/}"
+        mkdir -p "$saved_state/config/$(dirname "$rel")"
+        cp -p "$f" "$saved_state/config/$rel"
+    done
+    return 0
+}
+restore_state() {
+    local f rel
+    for f in hermes hermes-acp hermes-agent; do
+        [ -f "$saved_state/launchers/$f" ] && cp -p "$saved_state/launchers/$f" "$LAUNCHERS/$f"
+    done
+    [ -d "$saved_state/config" ] || return 0
+    while IFS= read -r f; do
+        rel="${f#"$saved_state/config"/}"
+        cp -p "$f" "$HERMES_DATA/$rel"
+    done < <(find "$saved_state/config" -type f -name config.yaml)
+    return 0
 }
 
 # Settings that a release retires or renames. Run with no terminal so any
@@ -78,18 +156,26 @@ migrate_configs() {
 }
 
 # One gateway serves the whole team (Brizza ADR-0024), and it is restarted
-# only if it is already running: an update is no reason to start it. Named
-# exactly, because the old 'hermes-gateway-*.service' glob does not match
-# it and updates would silently stop reaching the agents. A parked agent
-# stays parked across the restart.
+# only if it is already running: an update is no reason to start it. A
+# parked agent stays parked across the restart.
+#
+# Through `hermes gateway restart`, not systemctl alone: the unit file names
+# the interpreter Hermes runs on, and that path moves when a release moves
+# to pm (or back). Hermes' own restart rewrites the unit when its generated
+# definition has changed, then restarts. systemctl is the fallback, so a
+# failure there still leaves the gateway bounced.
 restart_running_agents() {
-    systemctl --user try-restart '{{ hermes_gateway_unit }}' || true
+    systemctl --user is-active --quiet '{{ hermes_gateway_unit }}' || return 0
+    setsid --wait "$HERMES" -p default gateway restart </dev/null \
+        || systemctl --user try-restart '{{ hermes_gateway_unit }}' \
+        || true
 }
 
 rollback() {
     log "update to $latest FAILED at: $1 — rolling back to ${current} (${previous_sha:0:12})"
     git -C "$CHECKOUT" checkout --quiet --detach "$previous_sha" \
-        && sync_dependencies \
+        && restore_state \
+        && install_checked_out_release \
         && restart_running_agents \
         && log "rolled back; hermes is at $current again" \
         || log "ROLLBACK ALSO FAILED — hermes may be half-updated; run the playbook to repair"
@@ -100,8 +186,9 @@ rollback() {
 # locally, rather than pulling history or the thousands of upstream
 # branches.
 git -C "$CHECKOUT" fetch --quiet --depth 1 origin "refs/tags/$latest:refs/tags/$latest" || rollback "fetching $latest"
+save_state
 git -C "$CHECKOUT" checkout --quiet --detach "$latest"                                   || rollback "checking out $latest"
-sync_dependencies                                                                        || rollback "installing dependencies"
+install_checked_out_release                                                              || rollback "installing $latest"
 migrate_configs                                                                          || rollback "migrating configuration"
 "$HERMES" --version >/dev/null                                                           || rollback "starting the new version"
 restart_running_agents
