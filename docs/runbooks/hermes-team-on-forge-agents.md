@@ -169,14 +169,31 @@ commits a day).
 - **Every deploy** runs the same script, so a deploy is also an update and
   there is one definition of "current".
 - **What it does:** asks GitHub for the newest release; if Hermes is already
-  on it, exits. Otherwise fetches that release, reinstalls dependencies
-  exactly as the installer does (`uv sync --locked`, which checks every
-  package against the SHA-256 in that release's lockfile), runs
-  `hermes config migrate` on every profile, and restarts
-  `hermes-gateway.service` if it is running. Parked agents stay parked.
+  on it, exits. Otherwise fetches that release and installs it with the
+  stages of the installer that ships in that release (`scripts/install.sh
+  --stage python-deps`, then `--stage products`), runs `hermes config
+  migrate` on every profile, and restarts the gateway through `hermes
+  gateway restart` if it is running. Parked agents stay parked.
+- **Why the release's own installer:** from v0.21.6 Hermes installs itself
+  through its own package manager, on a Python it downloads, and publishes
+  the `hermes` command itself. Until 2026-10-09 this script reproduced the
+  older installer's `uv sync` by hand, and every update failed the day
+  that step changed. A release from before the package manager is still
+  installed the old way, which a rollback to one needs.
+- **Why `hermes gateway restart`:** the gateway's unit file names the
+  interpreter Hermes runs on, and that path moves with the install
+  mechanism. Hermes' own restart rewrites the unit when it is out of date.
 - **If any step fails, it rolls back** to the previous version and exits
-  non-zero. The unit is left failed, and the fleet's failed-unit alert
-  reports it — a night the update did not happen is never silent.
+  non-zero: the checkout, the `hermes` commands in `~/.local/bin`, and
+  every `config.yaml` (a release migrates their format as it installs).
+  The unit is left failed, and the fleet's failed-unit alert reports it —
+  a night the update did not happen is never silent.
+- **Tested 2026-10-09** on a copy of the install under a throwaway home on
+  forge-agents: v0.21.5 to v0.21.6 in 83 seconds; a failure before and a
+  failure after the release's own migration each rolled back to a working
+  v0.21.5 with its configs at their old format; a second run did nothing.
+  Not covered by that test: the gateway restart, which needs the real
+  service.
 
 Why not `hermes update`: it follows a branch (fetches `origin/<branch>` and
 resets to it), so it cannot target a release, and upstream keeps no branch

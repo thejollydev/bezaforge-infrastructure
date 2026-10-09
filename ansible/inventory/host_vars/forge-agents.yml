@@ -115,13 +115,6 @@ never4ga_verify_repo: "/home/{{ bezaforge_admin_user }}/Projects/brizza"
 # each agent reads the vault as the user that owns it.
 hermes_user: "{{ bezaforge_admin_user }}"
 
-# ⚠️ HELD at Hermes v0.21.5 since 2026-10-08 (#1411). v0.21.6 installs its
-# dependencies through its own package manager on Python 3.14, and the
-# role's updater still runs the old `uv sync` on Python 3.11, so the update
-# fails and rolls back on every deploy and every night. Remove this line
-# when the updater is reworked; the role's default is to stay current.
-hermes_update_hold: true
-
 # The vault each agent reaches through Never4gA's MCP server: the copy
 # roles/never4ga serves, not a second one.
 hermes_never4ga_vault_path: "{{ never4ga_vault_path }}"

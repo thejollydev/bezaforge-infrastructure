@@ -84,6 +84,7 @@ hermes_installer_url: https://hermes-agent.nousresearch.com/install.sh
 #   build-essential            a C++ compiler, for native Python wheels
 #   python3-dev, libffi-dev    headers for the same
 #   ripgrep, ffmpeg            optional tools it would otherwise skip
+#   python3-yaml               the role's own edit of profile.yaml (profile.yml)
 hermes_install_packages:
   - git
   - curl
@@ -94,6 +95,7 @@ hermes_install_packages:
   - libffi-dev
   - ripgrep
   - ffmpeg
+  - python3-yaml
 
 # The longest the installer may run before it is stopped.
 #
