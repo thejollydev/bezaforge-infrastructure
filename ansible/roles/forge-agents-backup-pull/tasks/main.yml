@@ -1,0 +1,112 @@
+---
+# ============================================================
+# forge-agents-backup-pull — fetch the agent host's nightly backup
+#
+# See defaults/main.yml for why this side pulls. Deploy this role before
+# roles/hermes-backup on the agent host: it generates the key that role
+# authorises. Until the agent host has run, the nightly pull fails with a
+# permission error, and says so.
+# ============================================================
+
+- name: Check the role's inputs
+  ansible.builtin.assert:
+    that:
+      - forge_agents_backup_source_user | length > 0
+      - forge_agents_backup_source_host | length > 0
+    fail_msg: >-
+      forge_agents_backup_source_user must name the user on the agent host
+      whose backup directory is pulled.
+    quiet: true
+
+- name: See whether the destination is a mounted dataset
+  ansible.builtin.command:
+    cmd: "mountpoint -q {{ forge_agents_backup_dest }}"
+  register: forge_agents_backup_dest_probe
+  changed_when: false
+  failed_when: false
+
+- name: Refuse to pull into anything but the dataset
+  ansible.builtin.assert:
+    that: forge_agents_backup_dest_probe.rc == 0
+    fail_msg: >-
+      {{ forge_agents_backup_dest }} is not a mounted ZFS dataset. It is
+      created by hand (docs/runbooks/install-forge-agents.md); a plain
+      directory there would be filled like a backup and never snapshotted.
+    quiet: true
+
+# ------------------------------------------------------------
+# The key, and the far side's host key
+# ------------------------------------------------------------
+
+# Generated on this host and never anywhere else. No passphrase: the timer
+# runs unattended, and what protects the key is what it is allowed to do on
+# the far side — read one directory, from this address.
+- name: Generate the pull key
+  ansible.builtin.command:
+    cmd: >-
+      ssh-keygen -q -t ed25519 -N ""
+      -C "{{ forge_agents_backup_key_comment }}"
+      -f {{ forge_agents_backup_key_path }}
+    creates: "{{ forge_agents_backup_key_path }}"
+
+- name: Keep the pull key readable by root only
+  ansible.builtin.file:
+    path: "{{ forge_agents_backup_key_path }}"
+    owner: root
+    group: root
+    mode: '0600'
+
+# Read from the agent host itself, over the connection Ansible already
+# trusts, and pinned in a file of its own. `become: false`: the file is
+# world-readable, and this play carries no become password for that host.
+- name: Read the agent host's SSH host key
+  ansible.builtin.slurp:
+    src: /etc/ssh/ssh_host_ed25519_key.pub
+  delegate_to: "{{ forge_agents_backup_source_inventory_host }}"
+  become: false
+  register: forge_agents_backup_host_key
+  changed_when: false
+
+- name: Pin the agent host's SSH host key
+  ansible.builtin.copy:
+    content: >-
+      {{ forge_agents_backup_source_host }}
+      {{ (forge_agents_backup_host_key.content | b64decode).split()[:2] | join(' ') }}
+    dest: "{{ forge_agents_backup_known_hosts_path }}"
+    owner: root
+    group: root
+    mode: '0644'
+
+# ------------------------------------------------------------
+# The nightly pull
+# ------------------------------------------------------------
+
+- name: Deploy the pull script
+  ansible.builtin.template:
+    src: bezaforge-forge-agents-backup-pull.sh.j2
+    dest: /usr/local/bin/bezaforge-forge-agents-backup-pull.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Deploy the pull's service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+    - bezaforge-forge-agents-backup-pull.service
+    - bezaforge-forge-agents-backup-pull.timer
+  notify: reload systemd
+
+- name: Flush handlers (reload systemd)
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable the nightly pull
+  ansible.builtin.systemd:
+    name: bezaforge-forge-agents-backup-pull.timer
+    enabled: true
+    state: started
+  when: not ansible_check_mode

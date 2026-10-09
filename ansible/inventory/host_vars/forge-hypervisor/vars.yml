@@ -126,3 +126,10 @@ host_watch_targets:
     address: 10.10.20.20
     dns_name: bezaforge.dev
 host_watch_discord_webhook_url: "{{ hostvars['forge-ops'].grafana_discord_webhook_url }}"
+
+# ------------------------------------------------------------
+# The agent host's backup, pulled (roles/forge-agents-backup-pull, #1222)
+# ------------------------------------------------------------
+# Whose backup directory on forge-agents is read: the user Hermes runs as
+# there.
+forge_agents_backup_source_user: "{{ bezaforge_admin_user }}"

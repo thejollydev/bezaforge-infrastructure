@@ -1,0 +1,10 @@
+# Managed by Ansible (roles/hermes-backup).
+[Unit]
+Description=Make the agent host's nightly backup
+
+[Service]
+Type=oneshot
+ExecStart={{ hermes_backup_home }}/.local/bin/hermes-backup-nightly
+# Twenty seconds when measured. Ten minutes is a run something is wrong
+# with, and a failed unit is how that gets noticed.
+TimeoutStartSec=600

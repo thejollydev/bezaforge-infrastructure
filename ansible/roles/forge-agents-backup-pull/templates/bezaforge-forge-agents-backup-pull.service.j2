@@ -1,0 +1,17 @@
+[Unit]
+Description=BezaForge nightly pull of the forge-agents backup into bezapool
+Documentation=https://github.com/thejollydev/bezaforge-infrastructure
+Wants=network-online.target
+After=network-online.target zfs-mount.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/bezaforge-forge-agents-backup-pull.sh
+StandardOutput=journal
+StandardError=journal
+# About 150 MB over the LAN. Thirty minutes is a run something is wrong
+# with, and a failed unit is how that gets noticed.
+TimeoutStartSec=30min
+
+[Install]
+WantedBy=multi-user.target

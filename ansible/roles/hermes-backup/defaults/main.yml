@@ -1,0 +1,77 @@
+---
+# ============================================================
+# hermes-backup role defaults
+#
+# The agent host's half of its nightly backup (Brizza ADR 0018, build step
+# 8, #1222). Every night it makes one current copy of what a rebuilt host
+# cannot regenerate, in a directory only its own user can read:
+#
+#   hermes-backup.zip      `hermes backup`: every profile (soul, config,
+#                          .env, sessions, memory, scheduled jobs), the
+#                          kanban boards, and the subscription login.
+#                          Hermes copies its databases safely while the
+#                          agents run. Measured 2026-10-09 on v0.21.6:
+#                          147 MB, 20 seconds; the code and the tools
+#                          Hermes downloads are left out.
+#   host-settings.tar.gz   what lives outside Hermes: Syncthing's identity
+#                          and config, Never4gA's config and state, and
+#                          the key the host reads its repositories with.
+#   MANIFEST               when, which Hermes, and a SHA-256 of each file.
+#
+# ⚠️ THE ARCHIVE IS A SECRET. It holds every agent's bot token and the
+# login the whole team runs on. It is never written anywhere but this
+# directory (0700) and never copied by this host: forge-hypervisor PULLS it
+# (roles/forge-agents-backup-pull) with a key that can only read this one
+# directory. The agent host holds no credential for the backups, so
+# nothing running here can read, change or delete an old one.
+#
+# One current copy, overwritten each night. The history is the dataset's
+# snapshots on the hypervisor (roles/sanoid), which is why nothing here
+# keeps dated archives: snapshots would pin every one of them.
+#
+# Not backed up, on purpose: the Hermes code and the tools it downloads
+# (reinstalled by roles/hermes-team), Never4gA's index (rebuilt from the
+# vault), and the vault itself (it has its own copies).
+# ============================================================
+
+# --- Per host (required) ---
+# The user Hermes runs as. The role does not create it.
+hermes_backup_user: ""
+
+# Where the current copy is kept, under that user's home.
+hermes_backup_dir_name: backups/hermes
+
+# Nightly, before the hypervisor's pull (03:00), its offsite copy (04:00)
+# and Hermes' own nightly update (04:00), so a night's backup is of the
+# release that ran that day.
+hermes_backup_on_calendar: "*-*-* 02:30:00"
+
+# Paths under the user's home that go into host-settings.tar.gz. A path
+# that does not exist is skipped, not an error.
+#   Syncthing: the device identity (cert.pem, key.pem) and config.xml. With
+#     them a rebuilt host is the same device and the vault sync resumes;
+#     without them it has to be paired again by hand. Its index is left out
+#     and rebuilds by scanning.
+#   Never4gA: config and session state; a few kilobytes.
+#   The Gitea key: generated on this host by roles/agent-repos and
+#     registered with the machine account. Restoring it saves registering
+#     a new one.
+hermes_backup_host_settings:
+  - .local/state/syncthing/config.xml
+  - .local/state/syncthing/cert.pem
+  - .local/state/syncthing/key.pem
+  - .local/state/syncthing/https-cert.pem
+  - .local/state/syncthing/https-key.pem
+  - .config/never4ga
+  - .local/state/never4ga
+  - .ssh/id_ed25519_gitea
+  - .ssh/id_ed25519_gitea.pub
+
+# --- The pull (roles/forge-agents-backup-pull) ---
+# The inventory host that pulls, the address it pulls from, and where its
+# public key is on that host. The key is generated there; this role reads
+# the public half and authorises it for one thing: reading the backup
+# directory, from that address only.
+hermes_backup_pull_host: forge-hypervisor
+hermes_backup_pull_from: "10.10.10.10"
+hermes_backup_pull_public_key_path: /root/.ssh/id_ed25519_forge_agents_backup.pub
