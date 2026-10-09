@@ -222,6 +222,46 @@
   changed_when: true
   notify: Restart the hermes gateway
 
+# A profile created after the default profile was pointed at the local model
+# inherits that profile's model.context_length (65536). On an agent whose
+# primary is Codex that caps a 272K model at 64K: the session banner reads
+# "Context: 65K tokens (config)" where an older profile reads "272K tokens
+# (detected)". The key belongs to the local endpoint only; the fallback
+# carries its own fallback_model.context_length. So it is removed from any
+# agent whose provider detects its window itself. `config get` exits
+# non-zero when the key is absent, which is the converged state.
+- name: "Read an inherited context length for {{ agent.name }}"
+  ansible.builtin.command:
+    cmd: "{{ hermes_bin }} -p {{ agent.name }} config get model.context_length"
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  register: hermes_context_length_probe
+  changed_when: false
+  failed_when: false
+  when: hermes_model_provider == 'openai-codex'
+
+- name: "Remove the inherited context length from {{ agent.name }}"
+  ansible.builtin.command:
+    argv:
+      - "{{ hermes_bin }}"
+      - -p
+      - "{{ agent.name }}"
+      - config
+      - unset
+      - model.context_length
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  when:
+    - hermes_model_provider == 'openai-codex'
+    - hermes_context_length_probe.rc == 0
+    - (hermes_context_length_probe.stdout | trim) not in ['', 'null', 'None']
+  changed_when: true
+  notify: Restart the hermes gateway
+
 # The board's settings left over from one gateway per agent. Since Brizza
 # ADR-0024 the dispatcher runs in the host gateway and reads kanban.* from
 # the root config only (main.yml writes them there), so these copies decide
