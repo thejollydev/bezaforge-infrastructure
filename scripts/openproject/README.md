@@ -78,5 +78,3 @@ docker cp op_provision_rails.rb openproject:/tmp/ && \
 - The **overview grid** can't be deleted via REST (403); PATCH it.
 - The Claude-in-Chrome automation tab can render the Description/Status widgets
   **blank** when they're fine in a real browser — verify data via the API, not that tab.
-
-Background on the OpenProject migration lives in the Outline runbooks.

@@ -31,8 +31,6 @@ postgres_dumps:
     container: langfuse-db
   - service: netbox
     container: netbox-postgres
-  - service: outline
-    container: outline-db
   - service: openproject
     container: openproject
     # OpenProject all-in-one bundles Postgres internally — no separate
@@ -47,3 +45,4 @@ postgres_dumps:
 # taiga removed 2026-05-22 (Taiga retired — see guide 12)
 # plane removed 2026-07-14 (Plane retired — migrated to OpenProject, FORGE #455)
 # brizza removed 2026-08-30 (Brizza v1 torn down whole — VM, agent and store)
+# outline removed 2026-10-08 (Outline retired, #1395; its last dumps stay on bezapool)

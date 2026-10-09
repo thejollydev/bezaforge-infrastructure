@@ -140,8 +140,6 @@
       tags: monitoring
     - role: services
       tags: services
-    - role: outline
-      tags: outline
     # OpenProject — self-hosted work tracking at pm.bezaforge.dev.
     # Replaced Plane 2026-07 (Plane retired, FORGE #455).
     - role: openproject

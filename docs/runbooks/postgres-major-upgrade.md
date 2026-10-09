@@ -12,7 +12,6 @@ Each service has its own Postgres, so each is moved by itself.
 |---|---|---|---|
 | NetBox | `netbox-postgres` | 16 | moved to 18 in the change that added this runbook |
 | LangFuse | `langfuse-db` | 17 | to do |
-| Outline | `outline-db` | 15 | not moved: Outline is being torn down |
 | Gitea | `gitea-db` | 15 | to do, last: everything pulls from it |
 
 ## What a move needs in the repository

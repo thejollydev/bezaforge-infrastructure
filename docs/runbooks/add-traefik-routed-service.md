@@ -156,7 +156,7 @@ Open `https://traefik.bezaforge.dev` (basic-auth required). The new router and s
 - **`certresolver=cloudflare` instead of `letsencrypt`.** `cloudflare` is the DNS challenge **provider** (set in static config); `letsencrypt` is the **resolver name** used by service labels. Mixing them produces `unknown certificate resolver` errors.
 - **Compose `version:` field.** Older guides include `version: "3.8"`. Modern Docker Compose ignores it and warns. Safe to omit on new services.
 - **Variable escaping in basic-auth.** Single `$` in label values gets eaten by Compose. Always double them: `$$apr1$$...`
-- **Labels on the wrong service.** In a multi-service compose file, labels go on the service that should be exposed — not on a sidecar. For Outline (three services), the labels are only on `outline`, never on the internal `outline-db`/`outline-redis` sidecars.
+- **Labels on the wrong service.** In a multi-service compose file, labels go on the service that should be exposed — not on a sidecar. For NetBox, the labels are only on `netbox`, never on the internal `netbox-postgres`/`netbox-redis` sidecars.
 
 ---
 

@@ -109,6 +109,15 @@ nfs_mounts_retired:
   # stanzas for 10.10.20.20 and 10.10.10.20 were removed with it.
   - /mnt/bezapool/gdrive
 
+# Compose projects taken down by roles/docker: containers, then the
+# directory under bezaforge_root and the data in it. An entry leaves this
+# list once the host no longer carries the project.
+docker_projects_retired:
+  # Outline (docs.bezaforge.dev) RETIRED 2026-10-08 (#1395): its documents
+  # moved into the knowledge vault on 2026-10-05. The nightly dumps and the
+  # last rsync copy stay on bezapool/forge-ops-backup/outline.
+  - outline
+
 # Service directory
 bezaforge_root: /opt/bezaforge
 
@@ -215,7 +224,6 @@ health_expected_containers:
   - grafana
   - loki
   - openproject
-  - outline
   - gitea
   - uptime-kuma
   - homepage

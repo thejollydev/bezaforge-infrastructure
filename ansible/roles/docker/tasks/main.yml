@@ -290,6 +290,37 @@
     state: present
 
 # ------------------------------------------------------------
+# Retired compose projects
+# ------------------------------------------------------------
+# Deleting a service's role stops Ansible managing it and leaves its
+# containers running, restart policy and all. docker_projects_retired
+# names the projects to take down: the containers go first, while the
+# compose file that describes them still exists, then the directory and
+# the data in it.
+
+- name: Look for retired compose projects still on the host
+  ansible.builtin.stat:
+    path: "{{ bezaforge_root }}/{{ item }}/docker-compose.yml"
+  loop: "{{ docker_projects_retired }}"
+  register: docker_retired_compose
+
+- name: Remove the containers of retired compose projects
+  community.docker.docker_compose_v2:
+    project_src: "{{ bezaforge_root }}/{{ item.item }}"
+    state: absent
+    remove_orphans: true
+  loop: "{{ docker_retired_compose.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.stat.exists
+
+- name: Remove the directories of retired compose projects
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/{{ item }}"
+    state: absent
+  loop: "{{ docker_projects_retired }}"
+
+# ------------------------------------------------------------
 # Wait-for-NFS systemd drop-in
 # ------------------------------------------------------------
 # When forge-ops reboots, Docker can start before the NFS

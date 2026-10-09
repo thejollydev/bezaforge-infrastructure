@@ -13,3 +13,8 @@
 # docs/runbooks/forge-ops-containerd-relocation.md — the guard in
 # tasks/main.yml refuses to point containerd at an empty directory.
 docker_containerd_data_root: /var/lib/containerd
+
+# Compose projects that no longer belong on this host: each is a directory
+# name under bezaforge_root. Their containers are removed and the directory
+# with them, data included. Set per host.
+docker_projects_retired: []

@@ -130,7 +130,6 @@ scrape_configs:
       - targets:
           - https://bezaforge.dev              # homepage (apex)
           - https://git.bezaforge.dev          # Gitea
-          - https://docs.bezaforge.dev         # Outline
           - https://pm.bezaforge.dev           # OpenProject — the #676 outage
           - https://grafana.bezaforge.dev      # Grafana
           - https://prometheus.bezaforge.dev   # Prometheus

@@ -248,7 +248,7 @@ to take a while — roughly 40 G over the wire.
 Do **not** use `--tags`. Every role that owns a stack has to run, or a stack
 stays down: `traefik`, `adguard`, `monitoring` (prometheus, grafana, loki),
 `services` (gitea, uptime-kuma, netbox, langfuse, homepage, open-webui,
-calibre-web), `outline`, `openproject`.
+calibre-web), `openproject`.
 
 If the play fails partway, note that **when every host in a play fails the
 playbook stops there** — later plays never start and are simply absent from the
