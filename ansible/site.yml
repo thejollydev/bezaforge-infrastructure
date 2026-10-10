@@ -335,3 +335,18 @@
     # hypervisor play above for why.
     - role: deploy-stamp
       tags: always
+
+
+# ⚠️ TEMPORARY HOSTS. The play matches nothing unless a drill VM is in the
+# inventory, and a full `site.yml` run then gives it only what the drill
+# needs: Hermes installed by the same role that installs it on the agent
+# host, and nothing started. See docs/runbooks/dr-restore-drill.md, Drill G.
+- name: Configure BezaForge restore-drill hosts
+  hosts: drill_hosts
+  become: true
+
+  roles:
+    - role: hermes-team
+      tags: hermes-team
+    - role: deploy-stamp
+      tags: always

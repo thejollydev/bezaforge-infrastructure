@@ -135,6 +135,67 @@ A walkthrough, not a live restore: "forge-hypervisor is gone — rebuild from ze
 - Restore app data from GCS (Drill B), re-run Ansible to reconstitute hosts, restore databases (Drill C/D).
 - Confirm vault (`--ask-vault-pass`) password + restic password + GCS creds are recorded in **Bitwarden** and reachable without the rack.
 
+### Drill G — forge-agents restore onto a spare VM (the agent team)
+
+forge-agents is bare metal and is rebuilt from code, not from an image; only
+its data is backed up (Brizza ADR 0018). This drill proves both halves: the
+role installs Hermes on a bare host, and the nightly backup
+(`roles/hermes-backup`, pulled by `roles/forge-agents-backup-pull`) restores
+into it with the agents' profiles, memory and boards.
+
+**Three things that must not happen**, each with the step that prevents it:
+
+- **A restored agent must never start.** The archive holds every agent's
+  live bot token, and a second gateway serving them takes the real agents
+  offline. The drill host gets `hermes_team_install_only: true`, so no
+  gateway is ever installed there.
+- **The restored subscription login must never be used.** It refreshes by
+  single-use token: one refresh from the drill host would end the real
+  host's login for every agent. Step 5 moves `auth.json` aside the moment
+  the restore finishes, and nothing in the drill talks to a provider.
+- **The restored Syncthing identity must never run.** It is the real
+  host's device, and two of one device corrupts the vault sync.
+  `host-settings.tar.gz` is listed, never unpacked into place.
+
+```bash
+# 1. The VM. Add the forge_agents_drill module to terraform/vms.tf (it is
+#    kept there, commented with its purpose, only while a drill runs), then:
+cd terraform && terraform apply -target=module.forge_agents_drill
+
+# 2. Hermes, installed by the same role that installs it on forge-agents,
+#    and nothing else (the host is in drill_hosts with install-only set):
+cd ansible && ansible-playbook site.yml --limit forge-agents-drill --ask-become-pass --ask-vault-pass
+
+# 3. Nothing that could start an agent exists on the drill host. Expect
+#    no hermes-gateway unit and no hermes timers:
+ssh <admin>@10.10.50.21 'systemctl --user list-unit-files "hermes*" --no-legend; systemctl --user list-timers --no-legend | grep -c hermes'
+
+# 4. The backup, from the dataset to the drill host, through the control
+#    machine without touching its disk. Then check it against its manifest:
+for f in MANIFEST hermes-backup.zip host-settings.tar.gz; do
+  ssh root@forge-hypervisor "cat /bezapool/forge-agents-backup/$f" \
+    | ssh <admin>@10.10.50.21 "umask 077; mkdir -p ~/restore; cat > ~/restore/$f"
+done
+ssh <admin>@10.10.50.21 'cd ~/restore && grep -E "^[0-9a-f]{64}  " MANIFEST | sha256sum --check --strict'
+
+# 5. Restore, and move the login aside in the same command:
+ssh <admin>@10.10.50.21 '~/.local/bin/hermes import --force ~/restore/hermes-backup.zip; mv ~/.hermes/auth.json ~/restore/auth.json.set-aside; chmod 000 ~/restore/auth.json.set-aside'
+
+# 6. What came back. Compare with the manifest and with the live host:
+ssh <admin>@10.10.50.21 'ls ~/.hermes/profiles; ~/.local/bin/hermes kanban list | grep -c "t_"; cat ~/.hermes/profiles/*/memories/MEMORY.md 2>/dev/null | head; tar -tzf ~/restore/host-settings.tar.gz'
+
+# 7. Record the result below, then destroy the VM: remove the module from
+#    terraform/vms.tf, the host from ansible/inventory/hosts.yml and its
+#    host_vars file, and apply.
+cd terraform && terraform apply
+```
+
+**Pass =** Hermes installs on the bare VM from the role; every profile in
+the manifest is present with its soul, config and `.env`; the board holds
+the same number of cards as the live host; an agent's memory reads back;
+`host-settings.tar.gz` lists Syncthing's identity, Never4gA's config and
+the repository key; and no gateway unit ever existed on the drill host.
+
 ---
 
 ## Cadence — ratified 2026-07-11
@@ -170,3 +231,4 @@ Append one row per drill run. Keep it here (version-controlled) so the history t
 - ADR 0001 (MVB four-layer backup) — the design these layers implement.
 - FORGE-44 — why `bezapool/vzdump` is **not** sanoid-snapshotted (snapshotting backups pins pruned copies).
 - FORGE-60/61/62 (PR #63) — the forge-erp offsite + app-consistent + retention hardening referenced above.
+- `roles/hermes-backup`, `roles/forge-agents-backup-pull` — the agent host's nightly backup that Drill G restores.

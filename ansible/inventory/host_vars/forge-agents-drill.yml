@@ -1,0 +1,26 @@
+---
+# ============================================================
+# forge-agents-drill — the restore drill's throwaway VM
+#
+# VMID 104, VLAN 50. See terraform/vms.tf and
+# docs/runbooks/dr-restore-drill.md (Drill G). Temporary: this file goes
+# when the VM does.
+# ============================================================
+
+ansible_host: 10.10.50.21
+ansible_user: "{{ bezaforge_admin_user }}"
+
+# ------------------------------------------------------------
+# Hermes, installed and nothing more (roles/hermes-team)
+# ------------------------------------------------------------
+# The drill proves two things: that the role installs Hermes on a bare
+# host, and that the backup restores into it. It must NOT prove a third:
+# the restored profiles carry the agents' live bot tokens, and a second
+# gateway serving them would take the real agents offline. So the role
+# stops after the install — no profiles, no gateway, no timers.
+hermes_user: "{{ bezaforge_admin_user }}"
+hermes_team_dir: "{{ lookup('env', 'HOME') }}/Projects/brizza/team"
+hermes_team_install_only: true
+# Nothing here reads the vault, and the role's input check asks for a vault
+# path only when this is on.
+hermes_never4ga_mcp_enabled: false
