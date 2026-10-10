@@ -94,6 +94,7 @@ hermes_installer_url: https://hermes-agent.nousresearch.com/install.sh
 #   python3-dev, libffi-dev    headers for the same
 #   ripgrep, ffmpeg            optional tools it would otherwise skip
 #   python3-yaml               the role's own edit of profile.yaml (profile.yml)
+#   python3-venv               the Google connector's own environment (google.yml)
 hermes_install_packages:
   - git
   - curl
@@ -105,6 +106,7 @@ hermes_install_packages:
   - ripgrep
   - ffmpeg
   - python3-yaml
+  - python3-venv
 
 # The longest the installer may run before it is stopped.
 #
@@ -456,3 +458,32 @@ hermes_never4ga_mcp_exclude:
   - never4ga_work_create
   - never4ga_work_update
   - never4ga_work_comment
+
+# --- Google, for an agent the roster gives it to (#1220) ---
+# Brizza ADR 0017: one local connector per Google account, and only for an
+# agent whose roster entry lists accounts under `google`. Each account is
+# its own stdio server in that profile's config.yaml, so which account a
+# tool reaches is fixed by which server it belongs to and never by an
+# argument the model fills in.
+#
+# The connector is workspace-mcp, in an environment of its own so it shares
+# nothing with Hermes' Python. Kept at its newest release on every deploy,
+# like Hermes itself; `pip list` in the environment says which that was.
+hermes_google_package: workspace-mcp
+hermes_google_venv: "{{ hermes_home }}/.local/share/workspace-mcp"
+
+# How many of each app's tools are loaded: core, extended or complete.
+# extended, because the tool that writes a Gmail draft is not in core.
+hermes_google_tool_tier: extended
+
+# Tools removed by name for every agent, whatever the roster's permissions
+# allow. Empty: the permission levels already decide what exists (Gmail at
+# `drafts` loads no send tool), and a tool one agent should not have is
+# named in that account's `disabled_tools` in the roster.
+hermes_google_disabled_tools: []
+
+# A tool that must be offered, and one that must not, for the test that
+# runs on every deploy. If the connector renames either, the test fails
+# rather than quietly passing.
+hermes_google_expect_tool: draft_gmail_message
+hermes_google_refuse_tool: send_gmail_message

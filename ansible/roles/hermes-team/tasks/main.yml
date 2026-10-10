@@ -512,6 +512,21 @@
 # One include per agent rather than a loop over blocks, so a failure names
 # the agent it happened to and the tasks read as what they are.
 
+# The Google connector, only when the roster gives some agent an account
+# (#1220). Before the profiles, because each profile's test starts it.
+- name: Install the Google connector at its newest release
+  ansible.builtin.pip:
+    name: "{{ hermes_google_package }}"
+    state: latest  # noqa: package-latest
+    virtualenv: "{{ hermes_google_venv }}"
+    virtualenv_command: python3 -m venv
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  when: hermes_agents | selectattr('google', 'defined') | list | length > 0
+  notify: Restart the hermes gateway
+
 - name: Create and configure each agent's profile
   ansible.builtin.include_tasks: profile.yml
   loop: "{{ hermes_agents }}"
