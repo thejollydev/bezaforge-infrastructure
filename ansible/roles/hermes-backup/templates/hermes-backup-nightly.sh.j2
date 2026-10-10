@@ -53,11 +53,15 @@ done
 [ "$profiles" -gt 0 ] || fail "no profile was found on disk to check against"
 
 # 3. What lives outside Hermes. Only the paths that exist.
+#    Counted by hand: bash's own array length is written with a brace and
+#    a hash, which is how a Jinja comment opens, and this file is a
+#    template.
 settings=()
+settings_count=0
 {% for path in hermes_backup_host_settings %}
-[ -e "$HOME_DIR/{{ path }}" ] && settings+=("{{ path }}")
+if [ -e "$HOME_DIR/{{ path }}" ]; then settings+=("{{ path }}"); settings_count=$((settings_count + 1)); fi
 {% endfor %}
-[ "${#settings[@]}" -gt 0 ] || fail "none of the host settings exist"
+[ "$settings_count" -gt 0 ] || fail "none of the host settings exist"
 tar -czf "$work/host-settings.tar.gz" -C "$HOME_DIR" "${settings[@]}" \
     || fail "could not archive the host settings"
 
@@ -79,4 +83,4 @@ mv -f "$work/hermes-backup.zip" "$DEST/hermes-backup.zip"
 mv -f "$work/host-settings.tar.gz" "$DEST/host-settings.tar.gz"
 mv -f "$work/MANIFEST" "$DEST/MANIFEST"
 
-log "backup complete: $profiles profile(s), $(du -sh "$DEST/hermes-backup.zip" | cut -f1) archive, ${#settings[@]} host setting path(s)"
+log "backup complete: $profiles profile(s), $(du -sh "$DEST/hermes-backup.zip" | cut -f1) archive, $settings_count host setting path(s)"
