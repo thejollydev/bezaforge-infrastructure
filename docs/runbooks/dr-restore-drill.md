@@ -145,56 +145,109 @@ into it with the agents' profiles, memory and boards.
 
 **Three things that must not happen**, each with the step that prevents it:
 
-- **A restored agent must never start.** The archive holds every agent's
-  live bot token, and a second gateway serving them takes the real agents
-  offline. The drill host gets `hermes_team_install_only: true`, so no
-  gateway is ever installed there.
+- **A restored agent must never reach Discord.** The archive holds every
+  agent's live bot token, and a second gateway serving them takes the real
+  agents offline. ⚠️ `hermes import` INSTALLS, ENABLES AND STARTS THE
+  GATEWAY ITSELF when it finishes (found in the first drill, 2026-10-09:
+  "User service installed and enabled ... Gateway service running"). The
+  role's `hermes_team_install_only` keeps a gateway off the host before
+  the restore; it does nothing about the one the restore starts. What
+  stops it reaching Discord is step 4: the drill host is cut off from the
+  internet BEFORE the archive is restored. Step 6 then stops and removes
+  the gateway.
 - **The restored subscription login must never be used.** It refreshes by
   single-use token: one refresh from the drill host would end the real
-  host's login for every agent. Step 5 moves `auth.json` aside the moment
-  the restore finishes, and nothing in the drill talks to a provider.
+  host's login for every agent. The same internet block prevents it, and
+  step 5 moves `auth.json` aside the moment the restore finishes.
 - **The restored Syncthing identity must never run.** It is the real
   host's device, and two of one device corrupts the vault sync.
   `host-settings.tar.gz` is listed, never unpacked into place.
 
 ```bash
-# 1. The VM. Add the forge_agents_drill module to terraform/vms.tf (it is
-#    kept there, commented with its purpose, only while a drill runs), then:
-cd terraform && terraform apply -target=module.forge_agents_drill
+# 1. The VM. Add this block to terraform/vms.tf (it is not kept there
+#    between drills), then apply it alone. `cloud_init_user` has to be set
+#    in the untracked terraform.tfvars. VMID 104 and 10.10.50.21 were free
+#    on 2026-10-09; check before reusing them.
+#
+#      module "forge_agents_drill" {
+#        source          = "./modules/proxmox-vm"
+#        vm_id           = 104
+#        name            = "forge-agents-drill"
+#        description     = "TEMPORARY — restore drill for the forge-agents backup. Destroy when the drill is recorded."
+#        node_name       = var.proxmox_node
+#        cores           = 4
+#        memory          = 6144
+#        disk_size       = 40
+#        storage_pool    = "vm-fast"
+#        bridge          = "vmbr0"
+#        vlan_id         = 50
+#        ip_address      = "10.10.50.21/24"
+#        gateway         = "10.10.50.1"
+#        ssh_public_key  = var.ssh_public_key
+#        cloud_init_user = var.cloud_init_user
+#        tags            = ["drill", "temporary"]
+#        on_boot         = false
+#      }
+cd terraform && terraform init && terraform apply -target=module.forge_agents_drill
 
-# 2. Hermes, installed by the same role that installs it on forge-agents,
-#    and nothing else (the host is in drill_hosts with install-only set):
+# 2. Put the host in the inventory's drill_hosts group, with a host_vars
+#    file holding: ansible_host, ansible_user, hermes_user, hermes_team_dir,
+#    hermes_team_install_only: true, hermes_never4ga_mcp_enabled: false.
+#    Pin its SSH host key from a trusted path, not on first sight:
+ssh root@forge-hypervisor 'qm guest exec 104 -- cat /etc/ssh/ssh_host_ed25519_key.pub'
+
+# 3. Hermes, installed by the same role that installs it on forge-agents,
+#    and nothing else. The become password is empty on a cloud-init VM:
 cd ansible && ansible-playbook site.yml --limit forge-agents-drill --ask-become-pass --ask-vault-pass
 
-# 3. Nothing that could start an agent exists on the drill host. Expect
-#    no hermes-gateway unit and no hermes timers:
-ssh <admin>@10.10.50.21 'systemctl --user list-unit-files "hermes*" --no-legend; systemctl --user list-timers --no-legend | grep -c hermes'
+# 4. ⚠️ BEFORE ANY CREDENTIAL ARRIVES: cut the drill host off from
+#    everything but the LAN, and prove it.
+ssh <admin>@10.10.50.21 'sudo nft add table inet drill
+  sudo nft "add chain inet drill out { type filter hook output priority 0; policy accept; }"
+  sudo nft add rule inet drill out oifname lo accept
+  sudo nft add rule inet drill out ip daddr 10.0.0.0/8 accept
+  sudo nft add rule inet drill out reject
+  curl -sS -m 6 -o /dev/null https://discord.com && echo "STOP: THE INTERNET IS STILL REACHABLE" || echo "internet unreachable: ok"'
 
-# 4. The backup, from the dataset to the drill host, through the control
-#    machine without touching its disk. Then check it against its manifest:
+# 5. The backup, from the dataset to the drill host, through the control
+#    machine without touching its disk. Check it against its manifest,
+#    restore it, and move the login aside in the same command:
 for f in MANIFEST hermes-backup.zip host-settings.tar.gz; do
   ssh root@forge-hypervisor "cat /bezapool/forge-agents-backup/$f" \
     | ssh <admin>@10.10.50.21 "umask 077; mkdir -p ~/restore; cat > ~/restore/$f"
 done
-ssh <admin>@10.10.50.21 'cd ~/restore && grep -E "^[0-9a-f]{64}  " MANIFEST | sha256sum --check --strict'
+ssh <admin>@10.10.50.21 'cd ~/restore && grep -E "^[0-9a-f]{64}  " MANIFEST | sha256sum --check --strict \
+  && ~/.local/bin/hermes import --force ~/restore/hermes-backup.zip; \
+  mv ~/.hermes/auth.json ~/restore/auth.json.set-aside; chmod 000 ~/restore/auth.json.set-aside'
 
-# 5. Restore, and move the login aside in the same command:
-ssh <admin>@10.10.50.21 '~/.local/bin/hermes import --force ~/restore/hermes-backup.zip; mv ~/.hermes/auth.json ~/restore/auth.json.set-aside; chmod 000 ~/restore/auth.json.set-aside'
+# 6. Stop and remove the gateway the restore started, and check that no
+#    profile got a Discord adapter while it ran (each should read
+#    "skipping platform 'discord'"):
+ssh <admin>@10.10.50.21 'systemctl --user disable --now hermes-gateway.service
+  rm -f ~/.config/systemd/user/hermes-gateway.service; systemctl --user daemon-reload
+  grep -c "discord connected" ~/.hermes/logs/gateway.log; grep "skipping platform" ~/.hermes/logs/gateway.log | tail -8'
 
-# 6. What came back. Compare with the manifest and with the live host:
-ssh <admin>@10.10.50.21 'ls ~/.hermes/profiles; ~/.local/bin/hermes kanban list | grep -c "t_"; cat ~/.hermes/profiles/*/memories/MEMORY.md 2>/dev/null | head; tar -tzf ~/restore/host-settings.tar.gz'
+# 7. What came back. Compare with the manifest and with the live host:
+ssh <admin>@10.10.50.21 'ls ~/.hermes/profiles
+  python3 -c "import sqlite3,os; c=sqlite3.connect(os.path.expanduser(\"~/.hermes/kanban.db\")); print(c.execute(\"pragma integrity_check\").fetchone(), c.execute(\"select count(*) from tasks\").fetchone())"
+  cat ~/.hermes/profiles/*/memories/MEMORY.md 2>/dev/null | head; tar -tzf ~/restore/host-settings.tar.gz'
 
-# 7. Record the result below, then destroy the VM: remove the module from
-#    terraform/vms.tf, the host from ansible/inventory/hosts.yml and its
-#    host_vars file, and apply.
-cd terraform && terraform apply
+# 8. Confirm the real agents never noticed, on forge-agents:
+ssh <admin>@forge-agents 'systemctl --user is-active hermes-gateway.service; ~/.local/bin/hermes auth status openai-codex | head -1'
+
+# 9. Record the result below, then destroy the VM while its block is still
+#    in vms.tf, and only then remove the block, the inventory entry and the
+#    host_vars file:
+cd terraform && terraform destroy -target=module.forge_agents_drill
+ssh-keygen -R 10.10.50.21
 ```
 
 **Pass =** Hermes installs on the bare VM from the role; every profile in
 the manifest is present with its soul, config and `.env`; the board holds
 the same number of cards as the live host; an agent's memory reads back;
 `host-settings.tar.gz` lists Syncthing's identity, Never4gA's config and
-the repository key; and no gateway unit ever existed on the drill host.
+the repository key; no profile's Discord adapter ever connected from the
+drill host; and the real host's gateway and login are untouched.
 
 ---
 
@@ -222,6 +275,7 @@ Append one row per drill run. Keep it here (version-controlled) so the history t
 | 2026-06-15 | A | forge-erp (VMID 103) → scratch 199 | ✅ Pass | ~not recorded | Booted clean, ERPNext came up. Pre-runbook baseline (recorded retroactively). | Joseph |
 | 2026-07-11 | B | restic `latest` → /root/dr-drill | ✅ Pass | ~3s | **First-ever offsite restore drill.** GCS auth + repo decrypt + download all confirmed working. Restored `/bezapool/forge-erp-backup` (1.86 MiB) from snapshot `486f15b3`; `database.sql.gz` passed `gunzip -t`, both `-files.tar`/`-private-files.tar` passed `tar -tf`. The GCS/password/creds path — never exercised by ops before — is proven. | Joseph |
 | 2026-07-11 | A | forge-erp (VMID 103) → scratch 199 | ✅ Pass | ~40s (restore) | 50 GB image, 68.5% sparse, `qmrestore`→disk in 39.7s. Booted NIC-down (`link_down=1`); guest-agent up ~5s; all 8 ERPNext containers `Up`, `mariadb-database` `Up (healthy)`. Confirms forge-erp guest-agent is present (not part of FORGE-79/83 gap). Scratch VM purged after. | Joseph |
+| 2026-10-09 | G | forge-agents backup → forge-agents-drill (VMID 104) | ✅ Pass, with a finding | ~2.5 min install + 10s restore | **First restore of the agent team's backup.** Hermes v0.21.6 installed on a bare Ubuntu 26.04 VM by `roles/hermes-team` (the first fresh install through the release's new installer), same commit as the live host. The archive matched its manifest; all 7 profiles came back with soul, config, `.env`, session database and scheduled job; the board passed `integrity_check` with 22 cards, the same as live; the one memory entry read back; the settings archive listed Syncthing's identity, Never4gA's config and the repository key. **Finding: `hermes import` installed, enabled and started the gateway by itself.** The drill host had been cut off from the internet first, so no profile got a Discord adapter and the login could not refresh; the real agents and their login were untouched. Without that block the restored gateway would have connected with the live tokens. The procedure above now makes the block a numbered step. VM destroyed after. | Joseph |
 
 ---
 

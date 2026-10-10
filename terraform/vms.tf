@@ -82,47 +82,17 @@ module "forge_erp" {
 }
 
 # ---------------------------------------------------------------------------
-# forge-agents-drill — VMID 104 — ⚠️ TEMPORARY, FOR ONE RESTORE DRILL
-# Ubuntu 26.04, cloned from template 9002
-# VLAN 50 (AI), 10.10.50.21
+# VMID 104 — FREE
 #
-# The spare machine the agent host's backup is restored onto, to show the
-# restore works (Brizza build step 8, #1222; docs/runbooks/
-# dr-restore-drill.md, Drill G). It exists only while a drill runs:
-# REMOVE THIS BLOCK AND APPLY when the drill is recorded. While it stands
-# it holds a restored copy of the agents' credentials.
+# Was forge-brizza (Brizza v1, retired 2026-08-30), released 2026-09-14 when
+# v2 went to bare metal as forge-agents (BezaForge ADR 0011), which is
+# absent from this file because it is not a Proxmox guest.
 #
-# VMID 104 was forge-brizza's (Brizza v1, retired 2026-08-30) and was
-# released on 2026-09-14 when v2 went to bare metal as forge-agents
-# (BezaForge ADR 0011), which is absent from this file because it is not a
-# Proxmox guest.
-#
-# 6 GB, not more: the hypervisor had about 6 GB it could give on
-# 2026-10-09 (forge-ai holds 32). Hermes' install peaked at 4.7 GB when
-# measured on forge-agents. on_boot is false so a hypervisor reboot never
-# brings a forgotten drill VM back.
+# Borrowed on 2026-10-09 for forge-agents-drill, the throwaway VM of the
+# agent team's first restore drill, and destroyed the same day. The block
+# to add for the next drill is in docs/runbooks/dr-restore-drill.md,
+# Drill G.
 # ---------------------------------------------------------------------------
-
-module "forge_agents_drill" {
-  source = "./modules/proxmox-vm"
-
-  vm_id           = 104
-  name            = "forge-agents-drill"
-  description     = "TEMPORARY — restore drill for the forge-agents backup (#1222). Destroy when the drill is recorded."
-  node_name       = var.proxmox_node
-  cores           = 4
-  memory          = 6144
-  disk_size       = 40
-  storage_pool    = "vm-fast"
-  bridge          = "vmbr0"
-  vlan_id         = 50
-  ip_address      = "10.10.50.21/24"
-  gateway         = "10.10.50.1"
-  ssh_public_key  = var.ssh_public_key
-  cloud_init_user = var.cloud_init_user
-  tags            = ["drill", "temporary"]
-  on_boot         = false
-}
 
 # ---------------------------------------------------------------------------
 # forge-arcade — VMID 105
