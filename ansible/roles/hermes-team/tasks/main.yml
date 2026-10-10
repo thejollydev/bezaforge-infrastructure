@@ -215,6 +215,33 @@
 
 # --- Every run: the updater, and the timer that runs it nightly ---------
 
+# ------------------------------------------------------------
+# Install only (see defaults): report what was installed and stop
+# ------------------------------------------------------------
+
+- name: Report the version installed on an install-only host
+  ansible.builtin.command:
+    cmd: "{{ hermes_bin }} --version"
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  register: hermes_install_only_version
+  changed_when: false
+  when: hermes_team_install_only | bool
+
+- name: Say that the role stops here on an install-only host
+  ansible.builtin.debug:
+    msg: >-
+      hermes_team_install_only is set: {{ (hermes_install_only_version.stdout_lines | default(['?']))[0] }}
+      is installed, and nothing else was done — no updater, no profiles, no
+      gateway, no timers.
+  when: hermes_team_install_only | bool
+
+- name: Stop here on an install-only host
+  ansible.builtin.meta: end_role
+  when: hermes_team_install_only | bool
+
 - name: Install the release updater
   ansible.builtin.template:
     src: hermes-update-release.sh.j2

@@ -23,6 +23,15 @@ hermes_user: ""
 # public repository (#1335).
 hermes_team_dir: ""
 
+# --- Install only (the restore drill) ---
+# When true the role installs Hermes and stops: no updater, no profiles, no
+# gateway, no timers. For a host that a backup is about to be restored
+# onto while the real agents are still running elsewhere — the restored
+# profiles carry live bot tokens, and anything that started them would
+# take the real agents offline (docs/runbooks/dr-restore-drill.md, Drill
+# G). Never set on the agent host itself.
+hermes_team_install_only: false
+
 # --- Staying current (decided by Joseph, 2026-09-18) ---
 # Hermes follows its NEWEST PUBLISHED RELEASE, automatically: on every
 # deploy, and nightly by a timer. Nothing here names a version.
