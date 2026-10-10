@@ -240,6 +240,50 @@ mcp_servers:
 ssh joseph@forge-agents '~/.local/bin/brizza mcp list; ~/.local/bin/brizza mcp test never4ga'
 ```
 
+## Google, for an agent the roster gives it to
+
+An agent whose roster entry lists accounts under `google` gets one
+`workspace-mcp` server per account, named `google_<name>`, in its profile's
+`config.yaml`. The roster sets each account's email, login port and which
+apps load at which level. An agent with no `google` entry has no Google
+server at all.
+
+The role holds no secret. Two things are done by hand, once.
+
+**1. Place the OAuth client file.** In the Google Cloud console, download
+the client's JSON and copy it to the host:
+
+```bash
+scp ~/Downloads/client_secret_*.json forge-agents:.hermes/profiles/<agent>/google/client_secret.json
+ssh forge-agents chmod 600 .hermes/profiles/<agent>/google/client_secret.json
+```
+
+Then deploy. The role refuses a client file that is not `0600`, and with
+the file in place it tests each server on every run: the Gmail draft tool
+must be offered and the Gmail send tool must not.
+
+**2. Log each account in.** The first time the agent uses an account, the
+tool answers with a Google sign-in link. The sign-in finishes on the
+account's port on forge-agents, so the laptop needs that port forwarded
+before the link is opened:
+
+```bash
+ssh -N -L 8000:localhost:8000 -L 8001:localhost:8001 forge-agents
+```
+
+Open the link in a browser on the laptop, sign in as the account the link
+names, and the login is saved under
+`~/.hermes/profiles/<agent>/google/<name>/`. That folder is inside the
+profile, so the nightly backup carries it.
+
+A login ends when the account's password changes, when the app's access
+is removed in the account's security settings, or after six months
+unused. The fix is step 2 again for that account.
+
+**Changing what an agent may do** is a change to `permissions` in the
+roster and a deploy. Raising a level asks Google for more, so the account
+has to be logged in again; delete that account's folder contents first.
+
 ## What the agents remember
 
 Since Brizza ADR-0026 (2026-10-01) each agent writes its own Hermes memory

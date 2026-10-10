@@ -1,0 +1,154 @@
+---
+# One Google account for one agent: a stdio server in the profile's
+# config.yaml, and the folder its login is kept in.
+#
+# Included by profile.yml once per entry under the agent's `google` in the
+# roster, as `google_account`: name, email, port and permissions.
+# `hermes_google_label` is the agent and the account, for the task names.
+#
+# The role writes no secret. The OAuth client file and both logins are
+# Joseph's: the client file is placed by hand, and a login is completed in
+# a browser the first time the agent uses that account. A run before
+# either exists says what is missing and carries on.
+
+- name: "Set where the Google files live for {{ hermes_google_label }}"
+  ansible.builtin.set_fact:
+    hermes_google_dir: "{{ hermes_profiles_dir }}/{{ agent.name }}/google"
+    hermes_google_server: "google_{{ google_account.name }}"
+
+# Inside the profile, so the nightly `hermes backup` carries the logins
+# with everything else the profile holds. 0700: the tokens are plain JSON.
+- name: "Create the Google folders for {{ hermes_google_label }}"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_user }}"
+    mode: "0700"
+  loop:
+    - "{{ hermes_google_dir }}"
+    - "{{ hermes_google_dir }}/{{ google_account.name }}"
+
+# Compared whole and replaced whole, as the Never4gA server is, so a key
+# nobody sets any more cannot linger and widen what the agent reaches.
+- name: "Read the Google server held by {{ hermes_google_label }}"
+  ansible.builtin.command:
+    cmd: "{{ hermes_bin }} -p {{ agent.name }} config get mcp_servers.{{ hermes_google_server }}"
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  register: hermes_google_probe
+  changed_when: false
+  failed_when: false
+
+- name: "Replace the Google server for {{ hermes_google_label }}"
+  when: >-
+    hermes_google_probe.rc != 0
+    or (hermes_google_probe.stdout | from_yaml) != hermes_google_wanted
+  vars:
+    hermes_google_wanted:
+      command: "{{ hermes_google_venv }}/bin/workspace-mcp"
+      # --single-user: this server is one account and uses the one login in
+      # its own folder. --permissions names every app that loads; an app
+      # the roster leaves out does not exist for the agent.
+      args: >-
+        {{ ['--single-user', '--tool-tier', hermes_google_tool_tier, '--permissions']
+           + google_account.permissions
+           + ((['--disabled-tools'] + hermes_google_disabled_tools)
+              if hermes_google_disabled_tools | length > 0 else []) }}
+      env:
+        USER_GOOGLE_EMAIL: "{{ google_account.email }}"
+        GOOGLE_CLIENT_SECRET_PATH: "{{ hermes_google_dir }}/client_secret.json"
+        WORKSPACE_MCP_CREDENTIALS_DIR: "{{ hermes_google_dir }}/{{ google_account.name }}"
+        # Where this account's login answers. A string, and different for
+        # each account: two servers on one port send one account's login
+        # to the other.
+        WORKSPACE_MCP_PORT: "{{ google_account.port | string }}"
+      enabled: true
+  block:
+    - name: "Remove the old entry for {{ hermes_google_label }}"
+      ansible.builtin.command:
+        argv:
+          - "{{ hermes_bin }}"
+          - -p
+          - "{{ agent.name }}"
+          - config
+          - unset
+          - "mcp_servers.{{ hermes_google_server }}"
+      become: true
+      become_user: "{{ hermes_user }}"
+      environment:
+        HOME: "{{ hermes_home }}"
+      when: hermes_google_probe.rc == 0
+      changed_when: true
+
+    # JSON for the list and the mapping: `config set` parses the value, and
+    # the port stays a string because it is quoted inside the JSON.
+    - name: "Write the Google server for {{ hermes_google_label }}"
+      ansible.builtin.command:
+        argv:
+          - "{{ hermes_bin }}"
+          - -p
+          - "{{ agent.name }}"
+          - config
+          - set
+          - "mcp_servers.{{ hermes_google_server }}.{{ item.key }}"
+          - "{{ item.value }}"
+      become: true
+      become_user: "{{ hermes_user }}"
+      environment:
+        HOME: "{{ hermes_home }}"
+      loop:
+        - { key: command, value: "{{ hermes_google_wanted.command }}" }
+        - { key: args, value: "{{ hermes_google_wanted.args | to_json }}" }
+        - { key: env, value: "{{ hermes_google_wanted.env | to_json }}" }
+        - { key: enabled, value: "true" }
+      loop_control:
+        label: "{{ item.key }}"
+      changed_when: true
+      notify: Restart the hermes gateway
+
+- name: "Check whether the OAuth client file has been placed for {{ hermes_google_label }}"
+  ansible.builtin.stat:
+    path: "{{ hermes_google_dir }}/client_secret.json"
+  become: true
+  become_user: "{{ hermes_user }}"
+  register: hermes_google_client
+
+- name: "Say what is missing for {{ hermes_google_label }}"
+  ansible.builtin.debug:
+    msg: >-
+      {{ agent.name }} has no OAuth client file, so its Google servers
+      cannot start. Download the client's JSON from the Google Cloud
+      console and put it at {{ hermes_google_dir }}/client_secret.json,
+      mode 0600.
+  when: not hermes_google_client.stat.exists
+
+- name: "Refuse a client file others can read for {{ hermes_google_label }}"
+  ansible.builtin.assert:
+    that: hermes_google_client.stat.mode == '0600'
+    fail_msg: >-
+      {{ hermes_google_dir }}/client_secret.json is mode
+      {{ hermes_google_client.stat.mode }}. It holds the client secret;
+      chmod it to 0600.
+    quiet: true
+  when: hermes_google_client.stat.exists
+
+# The test that fails without this: the profile starts the server the way
+# the gateway will and lists what it offers. It needs no login, only the
+# client file. The draft tool must be there, and the send tool must not.
+- name: "Test the Google server from the profile of {{ hermes_google_label }}"
+  ansible.builtin.command:
+    cmd: "{{ hermes_bin }} -p {{ agent.name }} mcp test {{ hermes_google_server }}"
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  register: hermes_google_test
+  changed_when: false
+  failed_when: >-
+    hermes_google_test.rc != 0
+    or hermes_google_expect_tool not in hermes_google_test.stdout
+    or hermes_google_refuse_tool in hermes_google_test.stdout
+  when: hermes_google_client.stat.exists

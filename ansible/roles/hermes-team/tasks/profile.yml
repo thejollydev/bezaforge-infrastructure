@@ -420,6 +420,22 @@
   when: hermes_never4ga_mcp_enabled
 
 # ------------------------------------------------------------
+# Google, one connector per account (#1220; Brizza ADR 0017)
+# ------------------------------------------------------------
+#
+# Only for an agent whose roster entry has `google`. Every other agent
+# skips this and has no Google server at all.
+
+- name: "Give its Google accounts to {{ agent.name }}"
+  ansible.builtin.include_tasks: google.yml
+  vars:
+    hermes_google_label: "{{ agent.name }} ({{ google_account.name }})"
+  loop: "{{ agent.google | default([]) }}"
+  loop_control:
+    loop_var: google_account
+    label: "{{ agent.name }}: {{ google_account.name }}"
+
+# ------------------------------------------------------------
 # The board, from chat
 # ------------------------------------------------------------
 #
