@@ -245,8 +245,8 @@ ssh joseph@forge-agents '~/.local/bin/brizza mcp list; ~/.local/bin/brizza mcp t
 An agent whose roster entry lists accounts under `google` gets one
 `workspace-mcp` server per account, named `google_<name>`, in its profile's
 `config.yaml`. The roster sets each account's email, login port and which
-apps load at which level. An agent with no `google` entry has no Google
-server at all.
+apps load at which level, and may name single tools to leave out. An agent
+with no `google` entry has no Google server at all.
 
 The role holds no secret. Two things are done by hand, once.
 

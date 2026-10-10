@@ -3,7 +3,8 @@
 # config.yaml, and the folder its login is kept in.
 #
 # Included by profile.yml once per entry under the agent's `google` in the
-# roster, as `google_account`: name, email, port and permissions.
+# roster, as `google_account`: name, email, port, permissions and,
+# optionally, disabled_tools.
 # `hermes_google_label` is the agent and the account, for the task names.
 #
 # The role writes no secret. The OAuth client file and both logins are
@@ -47,6 +48,9 @@
     hermes_google_probe.rc != 0
     or (hermes_google_probe.stdout | from_yaml) != hermes_google_wanted
   vars:
+    # The role's own list and the roster's for this account, together.
+    hermes_google_disabled: >-
+      {{ hermes_google_disabled_tools + (google_account.disabled_tools | default([])) }}
     hermes_google_wanted:
       command: "{{ hermes_google_venv }}/bin/workspace-mcp"
       # --single-user: this server is one account and uses the one login in
@@ -55,8 +59,8 @@
       args: >-
         {{ ['--single-user', '--tool-tier', hermes_google_tool_tier, '--permissions']
            + google_account.permissions
-           + ((['--disabled-tools'] + hermes_google_disabled_tools)
-              if hermes_google_disabled_tools | length > 0 else []) }}
+           + ((['--disabled-tools'] + hermes_google_disabled)
+              if hermes_google_disabled | length > 0 else []) }}
       env:
         USER_GOOGLE_EMAIL: "{{ google_account.email }}"
         GOOGLE_CLIENT_SECRET_PATH: "{{ hermes_google_dir }}/client_secret.json"

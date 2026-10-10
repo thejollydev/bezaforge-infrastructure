@@ -476,9 +476,10 @@ hermes_google_venv: "{{ hermes_home }}/.local/share/workspace-mcp"
 # extended, because the tool that writes a Gmail draft is not in core.
 hermes_google_tool_tier: extended
 
-# Tools removed by name whatever the roster's permissions allow. Empty:
-# the permission levels already decide what exists (Gmail at `drafts`
-# loads no send tool).
+# Tools removed by name for every agent, whatever the roster's permissions
+# allow. Empty: the permission levels already decide what exists (Gmail at
+# `drafts` loads no send tool), and a tool one agent should not have is
+# named in that account's `disabled_tools` in the roster.
 hermes_google_disabled_tools: []
 
 # A tool that must be offered, and one that must not, for the test that
