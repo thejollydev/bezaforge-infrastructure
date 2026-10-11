@@ -265,16 +265,29 @@ must be offered and the Gmail send tool must not.
 **2. Log each account in.** The first time the agent uses an account, the
 tool answers with a Google sign-in link. The sign-in finishes on the
 account's port on forge-agents, so the laptop needs that port forwarded
-before the link is opened:
+first. Leave this running in its own terminal:
 
 ```bash
 ssh -N -L 8000:localhost:8000 -L 8001:localhost:8001 forge-agents
 ```
 
-Open the link in a browser on the laptop, sign in as the account the link
-names, and the login is saved under
-`~/.hermes/profiles/<agent>/google/<name>/`. That folder is inside the
-profile, so the nightly backup carries it.
+Ask the agent in Discord for something from that account, so a link is
+made. **Do not open the link it posts.** The link is about 2,400
+characters and a Discord message holds 2,000, so the posted one arrives
+cut short and Google rejects the sign-in with `invalid_grant:
+code_verifier or verifier is not needed`. Take the whole link from the
+connector's log instead, by the account's port (8001 here):
+
+```bash
+xdg-open "$(ssh forge-agents "grep -o 'Authorization URL: https://[^ ]*localhost%3A8001[^ ]*' ~/.google_workspace_mcp/logs/mcp_server_debug.log | tail -1 | cut -d' ' -f3")"
+```
+
+Sign in as the account the page preselects, pass the "Google hasn't
+verified this app" screen through Advanced, and tick every permission. A
+link works once and for ten minutes; after that the callback fails with
+`Invalid or expired OAuth state parameter`, and asking the agent again
+makes a new one. The login is saved under
+`~/.hermes/profiles/<agent>/google/<name>/`, inside the profile.
 
 A login ends when the account's password changes, when the app's access
 is removed in the account's security settings, or after six months
