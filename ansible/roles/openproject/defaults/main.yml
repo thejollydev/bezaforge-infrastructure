@@ -21,7 +21,9 @@
 # The logical dump is the authoritative restore path.
 # ============================================================
 
-# Upstream release pin (all-in-one image tag). Renovate tracks this.
+# Upstream release pin (all-in-one image tag). Renovate tracks this through
+# its own regex manager in .github/renovate.json: the compose file reads the
+# tag from ${OPENPROJECT_RELEASE}, which the container manager skips.
 # 17.8.0 (released 2026-09-02) is the first tag on Ruby 4.0.6; 17.6.0 and
 # 17.7.x ship 4.0.2, which kept segfaulting with YJIT off (#679).
 # 17.8 adds an opt-in, ONE-WAY conversion of "Version" to multi-value

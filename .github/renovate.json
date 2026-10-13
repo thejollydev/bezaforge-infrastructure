@@ -87,6 +87,18 @@
     },
     {
       "customType": "regex",
+      "description": "The OpenProject release pinned in the openproject role. The compose file's image line is `openproject/openproject:${OPENPROJECT_RELEASE}`, and the container manager below skips any value containing `${ }` on purpose, so the tag it would have tracked is not on that line at all: it is this bare version string in the role's defaults, which no manager saw. The role's comment said Renovate tracked it. OpenProject sat on 17.8.0 from 2026-09-27 while 17.8.1, 17.9.0 and 17.9.1 shipped, with nothing reporting it -- the same blind spot as ollama_version. Docker versioning, against the image's own tags, so only plain x.y.z tags are proposed and not `17`, `dev` or a `-slim` variant.",
+      "managerFilePatterns": ["/^ansible/roles/openproject/defaults/main\\.ya?ml$/"],
+      "matchStrings": [
+        "openproject_release:\\s+\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ],
+      "autoReplaceStringTemplate": "openproject_release: \"{{{newValue}}}\"",
+      "depNameTemplate": "openproject/openproject",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    },
+    {
+      "customType": "regex",
       "description": "The Ollama version pinned in the ollama role. It is a bare version string in an Ansible var, not an `image:` line, so neither the container manager above nor any built-in manager saw it -- Ollama sat three minor versions behind (0.30.7 vs 0.33.3) from 2026-06-08 to 2026-09-05 with nothing reporting it. The role comment explains why the pin is load-bearing: an empty value only installs when the binary is MISSING, so the pin IS the update mechanism and a stale pin is a silently stale install. GitHub tags carry a leading `v` the var does not, hence extractVersionTemplate.",
       "managerFilePatterns": ["/^ansible/roles/ollama/defaults/main\\.ya?ml$/"],
       "matchStrings": [
