@@ -152,6 +152,12 @@
       "ignoreUnstable": true
     },
     {
+      "description": "CI's Python stays on 3.14 until an ansible-core release runs on 3.15. Every ansible-core through 2.21.5 patches dataclasses._is_type at import, which Python 3.15 removed, so ansible-galaxy and ansible-lint die with an AttributeError before linting anything. A Python minor would otherwise merge itself the day a tool catches up, so the ceiling is raised by hand, in the same change that moves the ansible-core pin in ci.yml.",
+      "matchManagers": ["github-actions"],
+      "matchDepNames": ["python"],
+      "allowedVersions": "<3.15"
+    },
+    {
       "description": "Patch, minor and digest updates merge themselves once CI is green (#1378), for everything Renovate manages -- the database engines, ERPNext, LangFuse, ComfyUI and PyTorch included. A merge changes git and nothing else: it reaches a host on the next fleet update pass (ansible/update.yml), which is run by hand.",
       "matchUpdateTypes": ["patch", "minor", "digest"],
       "automerge": true
