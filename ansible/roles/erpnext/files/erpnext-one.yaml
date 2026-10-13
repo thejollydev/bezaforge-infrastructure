@@ -243,7 +243,7 @@ x-backend-defaults:
   volumes:
     - sites:/home/frappe/frappe-bench/sites
 x-customizable-image:
-  image: frappe/erpnext:v16.36.0@sha256:295574c6a112d790a1a16f8c8c8ec3b987b6c8e235818bfd14f0fccaf1db7672
+  image: frappe/erpnext:v16.50.0@sha256:ac5b4591e80b52d2e22f6f5cad5d5e7e300f9764dbfeb3f92d325e86baede08d
   pull_policy: missing
   restart: unless-stopped
 x-depends-on-configurator:

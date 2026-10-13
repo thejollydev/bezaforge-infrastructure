@@ -61,13 +61,13 @@
     },
     {
       "customType": "regex",
-      "description": "Container images in compose files, Jinja (.j2) templates, and Ansible *_image vars. Handles the FORGE-70 tag@sha256 form, tag-only images, and digest-only (no-tag) images. Skips values containing Jinja {{ }} or ${ } (unresolvable tags). IMAGE VALUES MUST BE UNQUOTED: the regex is unanchored so it also matches `<something>_image: `, and the match would include an opening quote but not the closing one, so autoReplaceStringTemplate would emit a dangling quote and corrupt the YAML. Quote support was therefore removed from matchStrings on purpose -- a quoted value is now silently unmanaged (safe) rather than rewritten into broken YAML (unsafe). autoReplaceStringTemplate is what lets Renovate PIN a digest onto a tag-only image; without it the pin branch failed on every run for 3+ weeks with 'Digest is not updated / update failure' because currentDigest never participated in the match.",
+      "description": "Container images in compose files, Jinja (.j2) templates, and Ansible *_image vars. Handles the FORGE-70 tag@sha256 form, tag-only images, and digest-only (no-tag) images. Skips values containing Jinja {{ }} or ${ } (unresolvable tags). IMAGE VALUES MUST BE UNQUOTED: the regex is unanchored so it also matches `<something>_image: `, and the match would include an opening quote but not the closing one, so autoReplaceStringTemplate would emit a dangling quote and corrupt the YAML. Quote support was therefore removed from matchStrings on purpose -- a quoted value is now silently unmanaged (safe) rather than rewritten into broken YAML (unsafe). autoReplaceStringTemplate is what lets Renovate PIN a digest onto a tag-only image; without it the pin branch failed on every run for 3+ weeks with 'Digest is not updated / update failure' because currentDigest never participated in the match. The space after `image:` is spaces or tabs only, never a newline: with \\s+ the regex matched from the end of a key like `x-customizable-image:` across the line break into the `image:` under it, read the dependency as one called `image`, and used up the real line, so that image was never updated (ERPNext's sat on v16.36.0 while the other eight moved to v16.50.0).",
       "managerFilePatterns": [
         "/^ansible/roles/.+\\.ya?ml(\\.j2)?$/",
         "/^docker/.+\\.ya?ml$/"
       ],
       "matchStrings": [
-        "image:\\s+(?<depName>[^\\s:@\"'${}]+)(?::(?<currentValue>[^\\s@\"'${}]+))?(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?"
+        "image:[ \\t]+(?<depName>[^\\s:@\"'${}]+)(?::(?<currentValue>[^\\s@\"'${}]+))?(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?"
       ],
       "autoReplaceStringTemplate": "image: {{{depName}}}{{#if newValue}}:{{{newValue}}}{{/if}}{{#if newDigest}}@{{{newDigest}}}{{/if}}",
       "datasourceTemplate": "docker",
@@ -126,6 +126,12 @@
     {
       "description": "The renovate-version input is a bare version string, not an image reference — a digest pin would emit '44.24.3@sha256:...' and the action would fail to resolve it. Must come AFTER the pinDigests rule above; later rules win.",
       "matchPackageNames": ["ghcr.io/renovatebot/renovate"],
+      "pinDigests": false
+    },
+    {
+      "description": "The same exception for the erpnext_version line: a bare version string with nowhere to put a digest. Without this, whenever the line was already on the newest release Renovate tried to pin a digest onto it, could not, and logged 'Error updating branch: update failure' for renovate/erpnext on every run. Matched by file, not by package: the image refs in files/erpnext-one.yaml are the same package and must stay digest-pinned.",
+      "matchFileNames": ["ansible/roles/erpnext/defaults/main.yml"],
+      "matchPackageNames": ["frappe/erpnext"],
       "pinDigests": false
     },
     {
