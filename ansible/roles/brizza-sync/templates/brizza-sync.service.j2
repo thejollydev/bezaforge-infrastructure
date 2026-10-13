@@ -1,0 +1,10 @@
+# Managed by Ansible (roles/brizza-sync).
+[Unit]
+Description=One pass of the sync between the tracker and the agents' board
+
+[Service]
+Type=oneshot
+ExecStart={{ brizza_sync_bin }} --config {{ brizza_sync_config }} run
+# A pass is a handful of short commands. Five minutes is a pass something
+# is wrong with, and a failed unit is how that gets noticed.
+TimeoutStartSec=300

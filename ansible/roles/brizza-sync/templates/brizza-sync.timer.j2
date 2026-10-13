@@ -1,0 +1,12 @@
+# Managed by Ansible (roles/brizza-sync).
+[Unit]
+Description=Schedule for the sync between the tracker and the agents' board
+
+[Timer]
+OnBootSec=2min
+# Counted from when the last pass finished, so two never overlap.
+OnUnitInactiveSec={{ brizza_sync_every }}
+Unit=brizza-sync.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,66 @@
+---
+# ============================================================
+# brizza-sync role defaults
+#
+# The sync between OpenProject and the agents' board (Brizza ADR 0020,
+# build step 7, #1221). The program lives in the team's private
+# repository, under sync/, and reaches this host through the checkout
+# roles/agent-repos makes. This role installs it from that checkout, writes
+# its settings, and schedules it.
+#
+# It holds no secret. The sync calls `never4ga` for the tracker, which
+# already holds the tracker's token, and `hermes kanban` for the board.
+# ============================================================
+
+# --- Per host (required) ---
+# The user the agents run as: the one that owns the board and Never4gA's
+# stored token.
+brizza_sync_user: ""
+
+# The checkout of the team's repository on this host. The sync is
+# installed from its sync/ directory.
+brizza_sync_checkout: ""
+
+# The tracker projects the sync acts on. Each needs a checkout on this
+# host that Never4gA maps to that project's workspace (`path`), and the
+# board its work goes to. A project not listed is never read or written.
+#
+#   - name: <tracker project identifier>
+#     path: <checkout mapped to its workspace>
+#     board: <hermes board slug>
+brizza_sync_projects: []
+
+# --- Approval ---
+# ADR 0014 principle 2: no recurring job runs until Joseph approves its
+# first run. False installs everything and schedules nothing, so the first
+# pass can be run by hand and read.
+brizza_sync_approved: false
+
+# --- Install layout ---
+# An environment of its own in the user's home, installed in place from
+# the checkout, so the code that runs is the code roles/agent-repos last
+# pulled.
+brizza_sync_venv_dir: .local/share/brizza-sync
+brizza_sync_config_dir: .config/brizza-sync
+brizza_sync_state_dir: .local/state/brizza-sync
+brizza_sync_python: /usr/bin/python3
+
+brizza_sync_never4ga: /usr/local/bin/never4ga
+brizza_sync_actor: brizza-sync/0.1.0
+brizza_sync_assignee: brizza
+
+# --- The tracker's status names ---
+brizza_sync_status_approved: Confirmed
+brizza_sync_status_started: In progress
+brizza_sync_status_awaiting_approval: Tested
+brizza_sync_status_closed: Closed
+brizza_sync_statuses_ended:
+  - Closed
+  - Rejected
+
+# --- Schedule ---
+# A pass starts a minute after the last one finished, so two never overlap.
+brizza_sync_every: 60s
+# The health check. It exits 1 when the tracker and the board disagree,
+# and a failed unit is how that gets noticed.
+brizza_sync_check_on_calendar: "*:0/15"

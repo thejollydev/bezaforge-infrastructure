@@ -287,6 +287,12 @@
     # `hermes-team`, because the backup is made by the hermes command.
     - role: hermes-backup
       tags: hermes-backup
+    # The sync between the tracker and the agents' board (Brizza build
+    # step 7, #1221). After `agent-repos`, whose checkout it installs
+    # from, and after `never4ga` and `hermes-team`, which it calls.
+    # Installed unscheduled until its first pass is approved.
+    - role: brizza-sync
+      tags: brizza-sync
     # Deploy stamp — must stay LAST, `tags: always` (#671). See the
     # hypervisor play above for why.
     - role: deploy-stamp
