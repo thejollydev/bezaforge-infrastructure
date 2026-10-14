@@ -358,7 +358,12 @@
 
 - name: Write the repositories' agent pointers
   ansible.builtin.command:
-    cmd: "{{ never4ga_bin }}/never4ga adapters sync --apply"
+    # --repositories as well as --apply: Never4gA writes a repository's
+    # pointer files only when both are given. Without it this task reported
+    # a change and wrote nothing, which went unseen while the one checkout
+    # here already had its pointers; the first new checkout (trading-desk,
+    # 2026-10-13) then failed doctor with agent_pointer_missing.
+    cmd: "{{ never4ga_bin }}/never4ga adapters sync --apply --repositories"
   become: true
   become_user: "{{ never4ga_user }}"
   environment:
