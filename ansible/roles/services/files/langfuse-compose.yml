@@ -134,9 +134,9 @@ services:
       - bezaforge-net
 
   langfuse-db:
-    # Postgres 17 = Langfuse v3's tested default. Isolated DB — intentionally
-    # not pinned to the fleet's PG15 (no cross-DB dependency). Container name
-    # kept as 'langfuse-db' so the db-dumps role needs no change.
+    # Langfuse v4 needs Postgres 15 or newer. Isolated DB, no cross-DB
+    # dependency. Container name kept as 'langfuse-db' so the db-dumps role
+    # needs no change.
     image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     container_name: langfuse-db
     restart: unless-stopped
@@ -148,7 +148,10 @@ services:
       TZ: UTC
       PGTZ: UTC
     volumes:
-      - langfuse_postgres_data:/var/lib/postgresql/data
+      # Postgres 18 keeps its data in /var/lib/postgresql/18/docker, so the
+      # mount is the parent. The new volume leaves 17's data in
+      # langfuse_postgres_data untouched: going back is a revert.
+      - langfuse_postgres18_data:/var/lib/postgresql
     networks:
       - bezaforge-net
     healthcheck:
@@ -246,7 +249,7 @@ services:
       - "traefik.http.services.langfuse-s3.loadbalancer.server.port=9000"
 
 volumes:
-  langfuse_postgres_data:
+  langfuse_postgres18_data:
   langfuse_clickhouse_data:
   langfuse_clickhouse_logs:
   langfuse_redis_data:

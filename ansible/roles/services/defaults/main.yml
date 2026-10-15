@@ -10,3 +10,10 @@ services_postgres_majors:
     stop: [netbox, netbox-worker]
     image: >-
       {{ (lookup('ansible.builtin.template', 'netbox-compose.yml.j2') | from_yaml).services['netbox-postgres'].image }}
+  - service: langfuse
+    container: langfuse-db
+    db: langfuse
+    user: langfuse
+    stop: [langfuse-web, langfuse-worker]
+    image: >-
+      {{ (lookup('ansible.builtin.file', 'langfuse-compose.yml') | from_yaml).services['langfuse-db'].image }}
