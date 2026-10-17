@@ -1,4 +1,8 @@
 ---
-# No handlers needed — docker_compose_v2 automatically detects
-# compose file changes and recreates affected containers.
-[]
+# docker_compose_v2 recreates a container when its compose file changes, so
+# most changes need no handler. Gitea's app.ini is not in its compose file:
+# a change there needs a restart to be read.
+- name: Restart Gitea
+  ansible.builtin.command:
+    argv: [docker, restart, gitea]
+  changed_when: true
