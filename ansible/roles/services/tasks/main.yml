@@ -199,16 +199,19 @@
   ansible.builtin.include_role:
     name: postgres-major
   vars:
-    postgres_major_container: "{{ item.container }}"
-    postgres_major_compose_service: "{{ item.container }}"
-    postgres_major_project_src: "{{ bezaforge_root }}/{{ item.service }}"
-    postgres_major_image: "{{ item.image }}"
-    postgres_major_db: "{{ item.db }}"
-    postgres_major_user: "{{ item.user }}"
-    postgres_major_stop_containers: "{{ item.stop }}"
+    postgres_major_container: "{{ postgres_major_entry.container }}"
+    postgres_major_compose_service: "{{ postgres_major_entry.container }}"
+    postgres_major_project_src: "{{ bezaforge_root }}/{{ postgres_major_entry.service }}"
+    postgres_major_image: "{{ postgres_major_entry.image }}"
+    postgres_major_db: "{{ postgres_major_entry.db }}"
+    postgres_major_user: "{{ postgres_major_entry.user }}"
+    postgres_major_stop_containers: "{{ postgres_major_entry.stop }}"
   loop: "{{ services_postgres_majors | selectattr('service', 'in', compose_services) | list }}"
   loop_control:
-    label: "{{ item.container }}"
+    # Not `item`: the role loops over the containers it stops, and an inner
+    # loop would otherwise rebind every value above for that task.
+    loop_var: postgres_major_entry
+    label: "{{ postgres_major_entry.container }}"
 
 # --- Start all services ---
 # docker_compose_v2 with state: present runs "docker compose up -d".
