@@ -12,7 +12,7 @@ Each service has its own Postgres, so each is moved by itself.
 |---|---|---|---|
 | NetBox | `netbox-postgres` | 16 | moved to 18 in the change that added this runbook |
 | LangFuse | `langfuse-db` | 17 | moved to 18: volume `langfuse_postgres18_data` |
-| Gitea | `gitea-db` | 15 | to do, last: everything pulls from it |
+| Gitea | `gitea-db` | 15 | moved to 18: `/opt/bezaforge/gitea/postgres18` |
 
 ## What a move needs in the repository
 

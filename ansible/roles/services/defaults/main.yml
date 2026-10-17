@@ -17,3 +17,10 @@ services_postgres_majors:
     stop: [langfuse-web, langfuse-worker]
     image: >-
       {{ (lookup('ansible.builtin.file', 'langfuse-compose.yml') | from_yaml).services['langfuse-db'].image }}
+  - service: gitea
+    container: gitea-db
+    db: gitea
+    user: gitea
+    stop: [gitea]
+    image: >-
+      {{ (lookup('ansible.builtin.template', 'gitea-compose.yml.j2') | from_yaml).services['gitea-db'].image }}
