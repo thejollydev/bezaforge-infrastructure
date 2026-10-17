@@ -53,6 +53,30 @@
     group: "{{ bezaforge_admin_user }}"
     mode: "0600"
   loop: "{{ compose_services | intersect(['gitea']) }}"
+
+# The Gitea image writes every GITEA__ setting from the environment into
+# app.ini at start and never takes one out, so a setting dropped from the
+# compose file stays in force. The webhook allowlist for the retired
+# vault-sync receiver (10.10.10.10) was dropped in #403 and was still read
+# from app.ini afterwards. Only that one key is removed; Gitea owns the rest
+# of the file. Skipped on a fresh host, where there is no app.ini yet.
+- name: Check for Gitea's app.ini
+  ansible.builtin.stat:
+    path: "{{ bezaforge_root }}/gitea/data/gitea/conf/app.ini"
+  register: services_gitea_app_ini
+  when: "'gitea' in compose_services"
+
+- name: Remove the retired webhook allowlist from Gitea's app.ini
+  community.general.ini_file:
+    path: "{{ bezaforge_root }}/gitea/data/gitea/conf/app.ini"
+    section: webhook
+    option: ALLOWED_HOST_LIST
+    state: absent
+    mode: "0644"  # what Gitea leaves it at; the owner is kept as it is
+  when:
+    - "'gitea' in compose_services"
+    - services_gitea_app_ini.stat.exists | default(false)
+  notify: Restart Gitea
 # taiga removed from intersect list 2026-05-22 (retired — see guide 12).
 # When the next template service lands (something else needing secrets baked into
 # compose vs .env-file), add it here.
