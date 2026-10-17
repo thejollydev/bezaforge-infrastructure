@@ -9,14 +9,17 @@
       - postgres_major_project_src | length > 0
       - postgres_major_db | length > 0
       - postgres_major_user | length > 0
-      - postgres_major_wanted | length > 0
+      - postgres_major_image_major | length > 0
     fail_msg: >-
       postgres-major needs the container, compose service, project
       directory, database, user and a postgres:<major> image; got image
       "{{ postgres_major_image }}".
     quiet: true
+  # Not postgres_major_wanted: the set_fact below outlives this pass, and a
+  # fact outranks task vars, so a second database in the same run would read
+  # the first one's integer here and fail on `length`.
   vars:
-    postgres_major_wanted: "{{ postgres_major_image | regex_search('postgres:(\\d+)', '\\1') | default([''], true) | first }}"
+    postgres_major_image_major: "{{ postgres_major_image | regex_search('postgres:(\\d+)', '\\1') | default([''], true) | first }}"
 
 - name: Keep the major the compose file asks for
   ansible.builtin.set_fact:
