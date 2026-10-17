@@ -170,5 +170,6 @@ brizza_sync_projects:
     path: "/home/{{ bezaforge_admin_user }}/Projects/trading-desk"
     board: default
 
-# Not scheduled until the first pass has been run by hand and approved.
-brizza_sync_approved: false
+# Approved by Joseph on 2026-10-17, after the first passes were run by
+# hand and work package 1557 went from Confirmed to Closed through them.
+brizza_sync_approved: true
