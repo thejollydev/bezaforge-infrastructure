@@ -59,8 +59,13 @@ brizza_sync_statuses_ended:
   - Rejected
 
 # --- Schedule ---
-# A pass starts a minute after the last one finished, so two never overlap.
-brizza_sync_every: 60s
+# A pass starts five minutes after the last one finished, so two never
+# overlap. Joseph's choice on 2026-10-17: an idle pass costs about 17 s
+# of CPU, mostly starting never4ga and hermes, so one a minute kept about
+# 4% of forge-agents busy all the time. The cost of five minutes is that
+# a work package moved to Confirmed waits up to that long to reach the
+# board; work given to Brizza in Discord does not wait on the sync.
+brizza_sync_every: 5min
 # The health check. It exits 1 when the tracker and the board disagree,
 # and a failed unit is how that gets noticed.
 brizza_sync_check_on_calendar: "*:0/15"
