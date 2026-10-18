@@ -189,6 +189,9 @@ never4ga_mappings:
     path: "/home/{{ bezaforge_admin_user }}/Projects/learning"
   - workspace: 01a03428-7d75-703a-8b55-58b8d820bbb6   # Never4gA
     path: "/home/{{ bezaforge_admin_user }}/Projects/never4ga"
+    # Never4gA tracks its own AGENTS.md: the agent contract is part of
+    # what it ships. Mapped as such on the laptop too.
+    ships_agent_contract: true
   - workspace: 01a0740b-2b87-71d9-a61a-3c3857b71393   # Never4gA Obsidian
     path: "/home/{{ bezaforge_admin_user }}/Projects/never4ga-obsidian"
   - workspace: 01a03428-7cbf-74eb-9a1a-fc12755a0c56   # BezaCore Labs

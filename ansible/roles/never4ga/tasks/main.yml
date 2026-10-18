@@ -285,11 +285,17 @@
 # converged host reports no changes. Testing the output of `workspace map`
 # for a word like "already" would be guessing at a string the CLI has not
 # promised; the path appearing in `workspace mappings` is a fact.
+# A repository that authors and tracks its own AGENTS.md (Never4gA's own
+# is the one) is mapped with --ships-agent-contract, or adapters sync would
+# add pointer files and edit its .gitignore, which the guard below refuses.
+# The mapping listing does not show the flag, so such an entry is mapped on
+# every run; mapping a path again replaces its entry with the same one.
 - name: Map the repositories to their workspaces
   ansible.builtin.command:
     cmd: >-
       {{ never4ga_bin }}/never4ga workspace map {{ item.item.workspace }}
       --repo {{ item.item.path }}
+      {{ '--ships-agent-contract' if item.item.ships_agent_contract | default(false) else '' }}
   become: true
   become_user: "{{ never4ga_user }}"
   environment:
@@ -299,8 +305,10 @@
     label: "{{ item.item.path }}"
   when:
     - item.stat.exists
-    - item.item.path not in never4ga_existing_mappings.stdout
-  changed_when: true
+    - >-
+      item.item.path not in never4ga_existing_mappings.stdout
+      or item.item.ships_agent_contract | default(false)
+  changed_when: item.item.path not in never4ga_existing_mappings.stdout
 
 # ------------------------------------------------------------
 # The mapped repositories' agent pointers
