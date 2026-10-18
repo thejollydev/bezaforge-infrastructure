@@ -15,3 +15,19 @@ node_exporter_packages:
 # Matches /etc/default/prometheus-node-exporter on forge-ai (2026-09-14).
 # The systemd collector feeds the "Systemd Unit Failed" alert.
 node_exporter_args: "--collector.systemd"
+
+# --- User services ---
+# The systemd collector reads the SYSTEM manager only. Everything a user
+# runs under its own manager -- on forge-agents the Hermes gateway,
+# Never4gA, the tracker-board sync and its check, the nightly backup and
+# Hermes' updater -- was invisible to the "Systemd Unit Failed" rule:
+# Prometheus listed only user@1000.service for that host (2026-10-17).
+#
+# For each user named here, a root timer asks that user's manager for its
+# services and writes their state to the textfile directory as
+# node_systemd_user_unit_state, in the systemd collector's own shape plus a
+# `user` label. The alert reads both metrics. Empty on hosts with no
+# user services worth watching.
+node_exporter_user_unit_owners: []
+node_exporter_textfile_dir: /var/lib/prometheus/node-exporter
+node_exporter_user_units_every: 1min

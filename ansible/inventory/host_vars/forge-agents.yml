@@ -173,3 +173,13 @@ brizza_sync_projects:
 # Approved by Joseph on 2026-10-17, after the first passes were run by
 # hand and work package 1557 went from Confirmed to Closed through them.
 brizza_sync_approved: true
+
+# ------------------------------------------------------------
+# User services, watched (roles/node-exporter)
+# ------------------------------------------------------------
+# The agents' gateway, Never4gA, the sync, the backup and Hermes' updater
+# all run under this user's own systemd manager, which the systemd
+# collector does not read. Reported through the textfile collector so the
+# "Systemd Unit Failed" rule sees them.
+node_exporter_user_unit_owners:
+  - "{{ bezaforge_admin_user }}"

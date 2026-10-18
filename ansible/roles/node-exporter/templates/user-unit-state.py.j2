@@ -1,0 +1,63 @@
+#!/usr/bin/python3
+# Managed by Ansible (roles/node-exporter). Edits here are overwritten.
+#
+# Writes the state of each user's own services for node_exporter's
+# textfile collector, because its systemd collector reads only the system
+# manager. Same shape as node_systemd_unit_state, plus a `user` label.
+import json
+import os
+import subprocess
+import sys
+import tempfile
+
+OWNERS = {{ node_exporter_user_unit_owners | to_json }}
+TARGET = "{{ node_exporter_textfile_dir }}/user_units.prom"
+# Below this line the file is Python only: the templater is told to leave
+# it alone, because an f-string's doubled braces open a Jinja expression.
+{% raw %}
+STATES = ("activating", "active", "deactivating", "failed", "inactive")
+
+
+def escape(value):
+    return value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
+
+
+lines = [
+    "# HELP node_systemd_user_unit_state State of a service in a user's own systemd manager.",
+    "# TYPE node_systemd_user_unit_state gauge",
+    "# HELP node_systemd_user_units_read Whether the user's manager answered (1) or not (0).",
+    "# TYPE node_systemd_user_units_read gauge",
+]
+ok = True
+for owner in OWNERS:
+    done = subprocess.run(
+        ["systemctl", "--user", f"--machine={owner}@", "list-units",
+         "--type=service", "--all", "--no-pager", "-o", "json"],
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    try:
+        units = json.loads(done.stdout) if done.returncode == 0 else None
+    except json.JSONDecodeError:
+        units = None
+    lines.append(f'node_systemd_user_units_read{{user="{escape(owner)}"}} {0 if units is None else 1}')
+    if units is None:
+        ok = False
+        print(f"{owner}: systemctl answered {done.returncode}: {done.stderr.strip()[:300]}",
+              file=sys.stderr)
+        continue
+    for unit in units:
+        name, active = unit.get("unit", ""), unit.get("active", "")
+        for state in STATES:
+            lines.append(
+                f'node_systemd_user_unit_state{{user="{escape(owner)}",name="{escape(name)}",'
+                f'state="{state}"}} {1 if active == state else 0}'
+            )
+
+# Written whole and renamed, so a scrape never reads half a file.
+handle, temporary = tempfile.mkstemp(dir=os.path.dirname(TARGET), prefix=".user_units.")
+with os.fdopen(handle, "w") as out:
+    out.write("\n".join(lines) + "\n")
+os.chmod(temporary, 0o644)
+os.replace(temporary, TARGET)
+sys.exit(0 if ok else 1)
+{% endraw %}

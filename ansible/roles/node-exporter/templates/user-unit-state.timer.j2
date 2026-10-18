@@ -1,0 +1,11 @@
+# Managed by Ansible (roles/node-exporter).
+[Unit]
+Description=Schedule for reporting user services to node_exporter
+
+[Timer]
+OnBootSec=1min
+OnUnitInactiveSec={{ node_exporter_user_units_every }}
+Unit=user-unit-state.service
+
+[Install]
+WantedBy=timers.target
