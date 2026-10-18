@@ -179,3 +179,73 @@
   loop_control:
     label: "{{ item.name }}"
   when: not ansible_check_mode
+
+# ------------------------------------------------------------
+# Keeping them current (see defaults: agent_repos_refresh)
+# ------------------------------------------------------------
+
+- name: Read the user's uid for its manager
+  ansible.builtin.set_fact:
+    agent_repos_uid: "{{ ansible_facts.getent_passwd[agent_repos_user][1] }}"
+  when: agent_repos_refresh
+
+- name: Create the user's script and unit directories
+  ansible.builtin.file:
+    path: "{{ agent_repos_home }}/{{ item }}"
+    state: directory
+    owner: "{{ agent_repos_user }}"
+    group: "{{ agent_repos_user }}"
+    mode: '0755'
+  loop:
+    - .local/bin
+    - .config/systemd/user
+  when: agent_repos_refresh
+
+- name: Install the refresh script
+  ansible.builtin.template:
+    src: agent-repos-refresh.sh.j2
+    dest: "{{ agent_repos_home }}/.local/bin/agent-repos-refresh"
+    owner: "{{ agent_repos_user }}"
+    group: "{{ agent_repos_user }}"
+    mode: '0755'
+  when: agent_repos_refresh
+
+- name: Install the refresh service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ agent_repos_home }}/.config/systemd/user/{{ item }}"
+    owner: "{{ agent_repos_user }}"
+    group: "{{ agent_repos_user }}"
+    mode: '0644'
+  loop:
+    - agent-repos-refresh.service
+    - agent-repos-refresh.timer
+  when: agent_repos_refresh
+
+- name: Enable the refresh
+  ansible.builtin.systemd_service:
+    name: agent-repos-refresh.timer
+    scope: user
+    daemon_reload: true
+    enabled: true
+    state: started
+  become: true
+  become_user: "{{ agent_repos_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ agent_repos_uid }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ agent_repos_uid }}/bus"
+  when:
+    - agent_repos_refresh
+    - not ansible_check_mode
+
+# The test that fails without this: one refresh, now, over every checkout
+# just cloned. It must find each one and fast-forward cleanly.
+- name: Refresh every checkout once
+  ansible.builtin.command:
+    cmd: "{{ agent_repos_home }}/.local/bin/agent-repos-refresh"
+  become: true
+  become_user: "{{ agent_repos_user }}"
+  changed_when: false
+  when:
+    - agent_repos_refresh
+    - not ansible_check_mode

@@ -57,3 +57,14 @@ agent_repos_git_port: 2222
 agent_repos_git_host_key: >-
   ssh-ed25519
   AAAAC3NzaC1lZDI1NTE5AAAAINGObs11bAax7xnK/XlzZo0sA7plwVJ2IsV0IBcNDauP
+
+# --- Keeping the checkouts current ---
+# A clone that only updates at deploy is days behind the code the agents
+# are asked about. A timer under the same user fetches every checkout and
+# fast-forwards it to its branch on Gitea. It never merges, rebases or
+# discards anything: a checkout that cannot be fast-forwarded (local
+# changes, or a branch that moved backwards) is reported, the unit fails,
+# and the failed-unit alert says so. Joseph's choice, 2026-10-18: every
+# fifteen minutes.
+agent_repos_refresh: true
+agent_repos_refresh_every: 15min
