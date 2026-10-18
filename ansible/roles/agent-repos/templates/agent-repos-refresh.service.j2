@@ -1,0 +1,8 @@
+# Managed by Ansible (roles/agent-repos).
+[Unit]
+Description=Fast-forward the agents' repository checkouts
+
+[Service]
+Type=oneshot
+ExecStart={{ agent_repos_home }}/.local/bin/agent-repos-refresh
+TimeoutStartSec=600

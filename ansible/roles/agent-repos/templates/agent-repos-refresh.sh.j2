@@ -1,0 +1,26 @@
+#!/bin/bash
+# Managed by Ansible (roles/agent-repos). Edits here are overwritten.
+#
+# Fast-forward every checkout to its branch on Gitea. Nothing else: no
+# merge, no rebase, no reset. A checkout that cannot be fast-forwarded is
+# named, and the run exits 1 so the unit fails and the alert fires.
+set -u
+failed=()
+err=$(mktemp)
+trap 'rm -f "$err"' EXIT
+{% for repo in agent_repos %}
+dir='{{ agent_repos_root }}/{{ repo.name }}'
+branch='{{ repo.version | default(agent_repos_version) }}'
+if [ ! -d "$dir/.git" ]; then
+  failed+=("{{ repo.name }}: no checkout (the next deploy clones it)")
+elif ! git -C "$dir" fetch --quiet origin "$branch" 2>"$err"; then
+  failed+=("{{ repo.name }}: fetch failed: $(head -c 300 "$err")")
+elif ! git -C "$dir" merge --ff-only --quiet "origin/$branch" 2>"$err"; then
+  failed+=("{{ repo.name }}: cannot fast-forward: $(head -c 300 "$err")")
+fi
+{% endfor %}
+# Not ${ #failed[@]}: in a template, { # opens a Jinja comment.
+if [ -n "${failed[*]-}" ]; then
+  printf '%s\n' "${failed[@]}" >&2
+  exit 1
+fi

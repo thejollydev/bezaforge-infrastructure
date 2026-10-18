@@ -85,6 +85,62 @@ agent_repos:
   # Read on it in Gitea, as it has on brizza.
   - name: trading-desk
     url: "ssh://git@git.bezaforge.dev:2222/{{ bezaforge_admin_user }}/trading-desk.git"
+  # Every other live repository, read-only (Joseph, 2026-10-18), so an agent
+  # can see the real project and not only its vault workspace. Left out:
+  # the vault itself (never-knowledge), which arrives by Syncthing, the two
+  # retired vaults, and the archived repositories.
+  - name: ansible-arch
+    url: "ssh://git@git.bezaforge.dev:2222/{{ bezaforge_admin_user }}/ansible-arch.git"
+  - name: bezacore-automation
+    url: "ssh://git@git.bezaforge.dev:2222/{{ bezaforge_admin_user }}/bezacore-automation.git"
+  - name: bezacore-cogs
+    url: "ssh://git@git.bezaforge.dev:2222/bezacore-labs/bezacore-cogs.git"
+  - name: bezacore-com
+    url: "ssh://git@git.bezaforge.dev:2222/bezacore-labs/bezacore-com.git"
+  - name: bezacore-github-profile
+    url: "ssh://git@git.bezaforge.dev:2222/bezacore-labs/.github.git"
+  - name: bezacore-labs
+    url: "ssh://git@git.bezaforge.dev:2222/bezacore-labs/bezacore-labs.git"
+  - name: bezaforge-infrastructure
+    url: "ssh://git@git.bezaforge.dev:2222/{{ bezaforge_admin_user }}/bezaforge-infrastructure.git"
+  - name: brand-creation-kit
+    url: "ssh://git@git.bezaforge.dev:2222/bezacore-labs/brand-creation-kit.git"
+  - name: dotfiles
+    url: "ssh://git@git.bezaforge.dev:2222/{{ bezaforge_admin_user }}/dotfiles.git"
+  - name: intelligrace
+    url: "ssh://git@git.bezaforge.dev:2222/bezacore-labs/intelligrace.git"
+  - name: job-search
+    url: "ssh://git@git.bezaforge.dev:2222/{{ bezaforge_admin_user }}/job-search.git"
+  - name: learning
+    url: "ssh://git@git.bezaforge.dev:2222/{{ bezaforge_admin_user }}/learning.git"
+  - name: never4ga
+    url: "ssh://git@git.bezaforge.dev:2222/bezacore-labs/never4ga.git"
+  - name: never4ga-archive
+    url: "ssh://git@git.bezaforge.dev:2222/bezacore-labs/never4ga-archive.git"
+  - name: never4ga-obsidian
+    url: "ssh://git@git.bezaforge.dev:2222/bezacore-labs/never4ga-obsidian.git"
+  - name: obsidian-bezacore-theme
+    url: "ssh://git@git.bezaforge.dev:2222/bezacore-labs/obsidian-bezacore-theme.git"
+  - name: petoskey-coc
+    url: "ssh://git@git.bezaforge.dev:2222/bezacore-labs/petoskey-coc.git"
+  - name: petoskey-designs
+    url: "ssh://git@git.bezaforge.dev:2222/bezacore-labs/petoskey-designs.git"
+  - name: portfolio
+    url: "ssh://git@git.bezaforge.dev:2222/{{ bezaforge_admin_user }}/portfolio.git"
+  - name: thejollydev
+    url: "ssh://git@git.bezaforge.dev:2222/{{ bezaforge_admin_user }}/thejollydev.git"
+  - name: throughlin
+    url: "ssh://git@git.bezaforge.dev:2222/bezacore-labs/throughlin.git"
+  - name: thru
+    url: "ssh://git@git.bezaforge.dev:2222/{{ bezaforge_admin_user }}/thru.git"
+  - name: ai-workspace
+    url: "ssh://git@git.bezaforge.dev:2222/{{ bezaforge_admin_user }}/ai-workspace.git"
+  - name: uopeople
+    url: "ssh://git@git.bezaforge.dev:2222/{{ bezaforge_admin_user }}/uopeople.git"
+  - name: video-projects
+    url: "ssh://git@git.bezaforge.dev:2222/{{ bezaforge_admin_user }}/video-projects.git"
+  - name: wedding
+    url: "ssh://git@git.bezaforge.dev:2222/{{ bezaforge_admin_user }}/wedding.git"
 
 # ------------------------------------------------------------
 # Never4gA (roles/never4ga, #1217)
@@ -109,6 +165,48 @@ never4ga_mappings:
     path: "/home/{{ bezaforge_admin_user }}/Projects/brizza"
   - workspace: 01a09f97-4cf7-7273-a667-a12a8d6e5836   # Trading Desk
     path: "/home/{{ bezaforge_admin_user }}/Projects/trading-desk"
+  - workspace: 01a04efd-1a2c-77f9-95b1-44ab24a5d597   # Dev Environment
+    path: "/home/{{ bezaforge_admin_user }}/Projects/ansible-arch"
+  - workspace: 01a04efb-5113-70ec-8e43-66bc061a2776   # BezaCore Cogs
+    path: "/home/{{ bezaforge_admin_user }}/Projects/bezacore-cogs"
+  - workspace: 01a07228-5142-7485-9c84-4c100d020277   # BezaCore Website
+    path: "/home/{{ bezaforge_admin_user }}/Projects/bezacore-com"
+  - workspace: 01a0cc17-80e2-7134-8334-6fa5091dba84   # BezaCore GitHub Profile
+    path: "/home/{{ bezaforge_admin_user }}/Projects/bezacore-github-profile"
+  - workspace: 01a03428-7cbf-74eb-9a1a-fc12755a0c56   # BezaCore Labs
+    path: "/home/{{ bezaforge_admin_user }}/Projects/bezacore-labs"
+  - workspace: 01a04efb-562e-72dd-bc29-2cf5a431a066   # BezaForge Infrastructure
+    path: "/home/{{ bezaforge_admin_user }}/Projects/bezaforge-infrastructure"
+  - workspace: 01a09dd6-5b8c-767b-91bf-1391e3dec62e   # Brand Creation Kit
+    path: "/home/{{ bezaforge_admin_user }}/Projects/brand-creation-kit"
+  - workspace: 01a04efd-1a2c-77f9-95b1-44ab24a5d597   # Dev Environment
+    path: "/home/{{ bezaforge_admin_user }}/Projects/dotfiles"
+  - workspace: 01a04eca-a3cf-74a2-8168-c11be64c63ec   # Intelligrace
+    path: "/home/{{ bezaforge_admin_user }}/Projects/intelligrace"
+  - workspace: 01a0db5f-6448-73a0-8103-cbd7eecc82df   # Job Search
+    path: "/home/{{ bezaforge_admin_user }}/Projects/job-search"
+  - workspace: 01a126c7-9fde-72b1-bce3-e315e245d992   # Learning
+    path: "/home/{{ bezaforge_admin_user }}/Projects/learning"
+  - workspace: 01a03428-7d75-703a-8b55-58b8d820bbb6   # Never4gA
+    path: "/home/{{ bezaforge_admin_user }}/Projects/never4ga"
+  - workspace: 01a0740b-2b87-71d9-a61a-3c3857b71393   # Never4gA Obsidian
+    path: "/home/{{ bezaforge_admin_user }}/Projects/never4ga-obsidian"
+  - workspace: 01a03428-7cbf-74eb-9a1a-fc12755a0c56   # BezaCore Labs
+    path: "/home/{{ bezaforge_admin_user }}/Projects/obsidian-bezacore-theme"
+  - workspace: 01a04efd-4070-7491-95b4-a77b05d91b41   # Petoskey CoC
+    path: "/home/{{ bezaforge_admin_user }}/Projects/petoskey-coc"
+  - workspace: 01a04efd-4255-762d-8b04-91b1e551e2cc   # Petoskey Designs
+    path: "/home/{{ bezaforge_admin_user }}/Projects/petoskey-designs"
+  - workspace: 01a04efd-1bf8-7258-9789-076a1b9667b6   # Portfolio
+    path: "/home/{{ bezaforge_admin_user }}/Projects/portfolio"
+  - workspace: 01a04efd-1ddb-7672-b8f5-432a0401f59d   # TheJollyDev
+    path: "/home/{{ bezaforge_admin_user }}/Projects/thejollydev"
+  - workspace: 01a07bf2-489d-7071-b811-469f0c72d1ba   # UoPeople
+    path: "/home/{{ bezaforge_admin_user }}/Projects/uopeople"
+  - workspace: 01a04efd-3e95-7623-9883-527921a9cac1   # Video Projects
+    path: "/home/{{ bezaforge_admin_user }}/Projects/video-projects"
+  - workspace: 01a04efd-4410-721d-b174-e4be78584d04   # Wedding
+    path: "/home/{{ bezaforge_admin_user }}/Projects/wedding"
 
 # Step 4's done-when, asserted on every run: `doctor` clean, and the Brizza
 # pack returned from inside the Brizza checkout.
