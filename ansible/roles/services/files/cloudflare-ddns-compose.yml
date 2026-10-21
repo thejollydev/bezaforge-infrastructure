@@ -1,0 +1,36 @@
+services:
+  cloudflare-ddns:
+    # Keeps the WireGuard endpoint's public A record on the gateway's WAN
+    # address, which Spectrum changes without notice. Checks every five
+    # minutes and writes to Cloudflare only when the address has moved.
+    image: favonia/cloudflare-ddns:1.17.1@sha256:5e61736b982b87d84a1120b4767c4deff0f2cc55ca3ee9dcb1dc58623039b5cb
+    container_name: cloudflare-ddns
+    restart: unless-stopped
+    # It needs nothing from the host: no files, no ports, no capabilities.
+    user: "65534:65534"
+    read_only: true
+    cap_drop:
+      - all
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      # The record to manage, from group_vars/all's wireguard_endpoint_fqdn
+      # via .env, so the name is written in one place.
+      DOMAINS: ${DOMAINS}
+      # DNS-only. WireGuard is UDP, and Cloudflare's proxy carries HTTP.
+      PROXIED: "false"
+      # The WAN has no IPv6 address to publish.
+      IP6_PROVIDER: none
+      # Read from Cloudflare's own trace endpoint, by address, so finding
+      # the WAN address does not depend on DNS.
+      IP4_PROVIDER: cloudflare.trace
+      UPDATE_CRON: "@every 5m"
+      # Never delete the record when the container stops: a phone away from
+      # home is better served by the last known address than by NXDOMAIN.
+      DELETE_ON_STOP: "false"
+      # Scoped to the bezaforge.dev zone with DNS edit, the same token
+      # Traefik uses for its DNS-01 challenge.
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
+      # Posts to the alerts channel when the address changes and when an
+      # update fails.
+      SHOUTRRR: ${SHOUTRRR}

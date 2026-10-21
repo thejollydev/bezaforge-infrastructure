@@ -137,6 +137,22 @@ bezaforge_dns_rewrites:
   # it, so this is a placeholder rather than stale config, and the two
   # resolvers agreeing matters more than the record being live.
   - {domain: "forge-dev.bezaforge.dev", answer: "10.10.30.10"}
+  # --- passed through to the public answer ------------------------------
+  # The WireGuard endpoint. Its public A record is the gateway's WAN
+  # address, kept current by roles/services' cloudflare-ddns. Answer "A"
+  # is AdGuard's keep-upstream value: the wildcard above would otherwise
+  # send a client at home to Traefik, and the tunnel would never come up
+  # on the home WiFi. roles/dnsmasq renders the same exemption as
+  # `server=/<name>/#`, and the parity check proves the two agree.
+  - {domain: "{{ wireguard_endpoint_fqdn }}", answer: "A"}
+
+# The name WireGuard clients use as their peer Endpoint. A DNS-only
+# Cloudflare record (WireGuard is UDP, which Cloudflare's proxy cannot
+# carry), kept on the gateway's dynamic WAN address by the cloudflare-ddns
+# container on forge-ops. It replaced a No-IP name that Omada's DDNS client
+# had been updating with the wrong provider, which stranded the tunnel when
+# Spectrum changed the address on 2026-10-21.
+wireguard_endpoint_fqdn: vpn.bezaforge.dev
 
 # ------------------------------------------------------------
 # Vault sync by Syncthing (roles/syncthing, #1216)

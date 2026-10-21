@@ -42,6 +42,13 @@ bind-interfaces
 host-record={{ rec.domain }},{{ rec.answer }}
 {% endfor %}
 
+# Exempt from the catch-all: answered by the public DNS, as AdGuard's
+# keep-upstream ("A") rewrites are. More specific than the address= line
+# below, so it wins for that name and nothing else.
+{% for rec in dnsmasq_passthrough_records %}
+server=/{{ rec.domain }}/#
+{% endfor %}
+
 # Catch-all: every other *.bezaforge.dev name (and the bare apex) goes to
 # Traefik on forge-ops, matching AdGuard's `*.bezaforge.dev` rewrite.
 address=/{{ dnsmasq_internal_domain }}/{{ dnsmasq_internal_target }}

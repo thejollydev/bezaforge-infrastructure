@@ -102,6 +102,18 @@ dnsmasq_internal_target: "{{ bezaforge_dns_default_target }}"
 dnsmasq_host_records: >-
   {{ bezaforge_dns_rewrites
      | rejectattr('answer', 'equalto', bezaforge_dns_default_target)
+     | rejectattr('answer', 'in', ['A', 'AAAA'])
+     | list }}
+
+# Records whose AdGuard answer is a keep-upstream value ("A" or "AAAA")
+# rather than an address: names exempted from the wildcard and answered
+# from the public DNS. Rendered as `server=/<name>/#`, which sends that
+# one name to the standard upstreams; dnsmasq lets the more specific
+# domain beat the `address=` catch-all. A `host-record` cannot express
+# this, and would reject "A" as an address.
+dnsmasq_passthrough_records: >-
+  {{ bezaforge_dns_rewrites
+     | selectattr('answer', 'in', ['A', 'AAAA'])
      | list }}
 
 # ------------------------------------------------------------
