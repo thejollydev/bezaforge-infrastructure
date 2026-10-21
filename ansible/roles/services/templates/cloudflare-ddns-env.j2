@@ -1,0 +1,11 @@
+# Cloudflare DDNS .env — rendered from roles/services/templates/cloudflare-ddns-env.j2
+# Secrets sourced from ansible-vault.
+#
+# CLOUDFLARE_API_TOKEN is Traefik's DNS-01 token (cloudflare_dns_api_token):
+# zone DNS edit on bezaforge.dev, which is all this needs.
+# SHOUTRRR is the Grafana alerts webhook in shoutrrr's discord://token@id
+# form, taken apart from the https://discord.com/api/webhooks/<id>/<token> URL.
+{% set webhook = grafana_discord_webhook_url.rstrip('/').split('/') %}
+DOMAINS={{ wireguard_endpoint_fqdn }}
+CLOUDFLARE_API_TOKEN={{ cloudflare_dns_api_token }}
+SHOUTRRR=discord://{{ webhook[-1] }}@{{ webhook[-2] }}

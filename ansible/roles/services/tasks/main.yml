@@ -90,7 +90,7 @@
     owner: "{{ bezaforge_admin_user }}"
     group: "{{ bezaforge_admin_user }}"
     mode: "0644"
-  loop: "{{ compose_services | intersect(['langfuse', 'homepage', 'open-webui']) }}"
+  loop: "{{ compose_services | intersect(['langfuse', 'homepage', 'open-webui', 'cloudflare-ddns']) }}"
 
 # LangFuse's ClickHouse reads this from config.d (bind-mounted by the compose
 # file). It turns off the system log tables that grow without a TTL (#1334).
@@ -139,7 +139,7 @@
     owner: "{{ bezaforge_admin_user }}"
     group: "{{ bezaforge_admin_user }}"
     mode: "0600"
-  loop: "{{ compose_services | intersect(['netbox', 'langfuse', 'homepage', 'open-webui']) }}"
+  loop: "{{ compose_services | intersect(['netbox', 'langfuse', 'homepage', 'open-webui', 'cloudflare-ddns']) }}"
 
 # --- Homepage config + brand assets ---
 # Homepage's YAML config and image assets are version-controlled in

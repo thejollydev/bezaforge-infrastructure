@@ -148,6 +148,11 @@ compose_services:
   # secrets; admin is set in the UI, not env). Re-introduces ebooks to
   # BezaForge after the Kavita retirement (FORGE-16); web-upload workflow.
   - calibre-web
+  # Cloudflare DDNS — keeps the WireGuard endpoint's public record
+  # (wireguard_endpoint_fqdn) on the gateway's dynamic WAN address.
+  # Env-var service: the Cloudflare token and the Discord webhook are in
+  # .env. No ports, no Traefik route; it only calls out.
+  - cloudflare-ddns
 # taiga retired 2026-05-22 — see ROADMAP carryover #23 / guide 12.
 # jellyfin + seedbox retired 2026-07-18 (#485) — media stack removed from
 # BezaForge entirely; reverses FORGE-67/68. Compose files deleted, the
