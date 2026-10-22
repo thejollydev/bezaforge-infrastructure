@@ -43,11 +43,6 @@
       tags: sanoid
     - role: restic-gcs
       tags: restic-gcs
-    # RETIRED 2026-10-21 with forge-agents and the agent team. The role now
-    # only removes the pull's timer, script and keys from this host; delete
-    # it and this line once that has been deployed.
-    - role: forge-agents-backup-pull
-      tags: forge-agents-backup-pull
     # vault-sync retired 2026-09-13: Ansible no longer manages a bezapool git
     # clone of the vault or its timer. bezapool/vault stays (sanoid + restic
     # keep it) and holds the vault's Syncthing copy (roles/syncthing, below).
