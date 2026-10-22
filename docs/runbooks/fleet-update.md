@@ -18,8 +18,7 @@ password, so it needs a real terminal.
    checkout is `main` at the commit GitHub has. A stale checkout would put
    every image Renovate has moved since back on its old pin.
 2. **OS packages**, host by host: forge-hypervisor, then forge-ai and
-   forge-erp, then forge-agents, then forge-ops last because it is DNS for
-   every VLAN.
+   forge-erp, then forge-ops last because it is DNS for every VLAN.
 3. **`site.yml`.** Everything merged is deployed: container images, Ollama,
    LangFuse and the rest. ERPNext is upgraded rather than recreated when its
    image moved ([erpnext-upgrade.md](erpnext-upgrade.md)).
@@ -113,7 +112,4 @@ has not told you the fleet is healthy.
   [dns-failover-test.md](dns-failover-test.md).
 - **ERPNext refused an older version, or the ledger totals moved**:
   [erpnext-upgrade.md](erpnext-upgrade.md).
-- **forge-agents: "`never4ga adapters sync` wants to do more than write
-  pointers"**: its Never4gA build is older than the laptop's. Rebuild the
-  wheel ([never4ga-on-forge-agents.md](never4ga-on-forge-agents.md)).
 - **A health check failed**: the message names the pool, mount or container.

@@ -90,8 +90,8 @@ module "forge_erp" {
 #
 # Borrowed on 2026-10-09 for forge-agents-drill, the throwaway VM of the
 # agent team's first restore drill, and destroyed the same day. The block
-# to add for the next drill is in docs/runbooks/dr-restore-drill.md,
-# Drill G.
+# for it is in docs/runbooks/dr-restore-drill.md, Drill G, which was retired
+# with the agent team on 2026-10-21.
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------

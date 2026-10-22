@@ -1,7 +1,7 @@
 ---
 # ============================================================
 # BezaForge Infrastructure — forge-hypervisor + forge-ops +
-# forge-ai + forge-agents + forge-erp
+# forge-ai + forge-erp
 # ============================================================
 
 - name: Configure BezaForge hypervisor
@@ -43,9 +43,9 @@
       tags: sanoid
     - role: restic-gcs
       tags: restic-gcs
-    # The agent host's nightly backup, pulled into its dataset (Brizza
-    # build step 8, #1222). Deploy this before `hermes-backup` on
-    # forge-agents, which authorises the key generated here.
+    # RETIRED 2026-10-21 with forge-agents and the agent team. The role now
+    # only removes the pull's timer, script and keys from this host; delete
+    # it and this line once that has been deployed.
     - role: forge-agents-backup-pull
       tags: forge-agents-backup-pull
     # vault-sync retired 2026-09-13: Ansible no longer manages a bezapool git
@@ -208,96 +208,6 @@
     - role: deploy-stamp
       tags: always
 
-# ------------------------------------------------------------
-# forge-agents (assistant_hosts) — the Brizza agent team's host.
-#
-# The Lenovo M920Q, bare metal, Ubuntu 26.04 at 10.10.50.20 (BezaForge
-# ADR 0011). It took over the identity Brizza v1's forge-brizza held
-# until 2026-08-30: the address and DNS record followed the name, and
-# VMID 104 was released because this host is not a VM.
-#
-# The base (#1215) plus the vault and the way the agents read it:
-# Syncthing (#1216), the agents' checkouts and Never4gA (#1217). Still to
-# join it as roles in later steps of the Brizza build plan: the Hermes
-# profiles, the tracker sync, and the nightly backup push.
-#
-# Left out on purpose:
-#   - monitoring       is the Prometheus/Grafana/Loki STACK on forge-ops,
-#                      not a client. This host's exporter is node-exporter.
-#   - guest-agent      qemu-guest-agent means nothing on bare metal.
-#   - conffile-cleanup clears duplicates a distro UPGRADE leaves behind;
-#                      this host was installed fresh on 26.04.
-# ------------------------------------------------------------
-
-- name: Configure BezaForge assistant hosts
-  hosts: assistant_hosts
-  become: true
-
-  roles:
-    - role: unattended-upgrades
-      tags: unattended-upgrades
-    # Masks units that can never succeed on the host (opt-in per host_vars),
-    # so the #552 failed-unit alert only ever fires on real failures.
-    - role: systemd-hygiene
-      tags: systemd-hygiene
-    # Resolver config (#638) — see the docker_hosts play for why this is
-    # no longer inside `common`.
-    - role: dns-client
-      tags: dns-client
-    # Read-only journal/log access for the admin user (#638 session).
-    - role: admin-access
-      tags: admin-access
-    # Unlike v1's forge-brizza, this host runs `common`. The worry that
-    # keeps forge-erp off it is a first-touch UFW enable locking admin out;
-    # here the laptop's addresses and the Prometheus scrape source are
-    # already in group_vars/all, so UFW comes up with both allowed.
-    - role: common
-      tags: common
-    - role: fail2ban
-      tags: fail2ban
-    # The distro node_exporter, after `common` so UFW already allows the
-    # scrape. forge-ai and forge-erp run the same package, installed by
-    # hand; this is the first host where a role owns it.
-    - role: node-exporter
-      tags: node-exporter
-    # The vault's forge-agents copy by Syncthing (#1216; ADR 0012). After
-    # `common`, which enables the UFW this role adds its port to.
-    - role: syncthing
-      tags: syncthing
-    # The repositories the agents work on (#1217). Before `never4ga`,
-    # which maps these checkouts to their workspaces and asserts the
-    # Brizza pack from inside one. Its first run stops on purpose, printing
-    # the key Gitea has to be told about.
-    - role: agent-repos
-      tags: agent-repos
-    # The vault made readable by the agents (#1217; Brizza ADR 0016).
-    # After `syncthing`, and not merely by preference: the role refuses to
-    # run against a path with no index.md, because Never4gA would take an
-    # empty directory for a new vault and initialise it.
-    - role: never4ga
-      tags: never4ga
-    # The agents themselves (#1218; Brizza ADRs 0014 and 0015). After
-    # `never4ga`, because the vault read through it is what every agent's
-    # soul tells it to use. No agent STARTS from this role — each waits on
-    # its Discord application and Joseph's approval.
-    - role: hermes-team
-      tags: hermes-team
-    # The host's own half of its nightly backup (Brizza build step 8,
-    # #1222): it makes the copy, and forge-hypervisor pulls it. After
-    # `hermes-team`, because the backup is made by the hermes command.
-    - role: hermes-backup
-      tags: hermes-backup
-    # The sync between the tracker and the agents' board (Brizza build
-    # step 7, #1221). After `agent-repos`, whose checkout it installs
-    # from, and after `never4ga` and `hermes-team`, which it calls.
-    # Installed unscheduled until its first pass is approved.
-    - role: brizza-sync
-      tags: brizza-sync
-    # Deploy stamp — must stay LAST, `tags: always` (#671). See the
-    # hypervisor play above for why.
-    - role: deploy-stamp
-      tags: always
-
 - name: Configure BezaForge ERP host
   hosts: erp_hosts
   become: true
@@ -339,20 +249,5 @@
       tags: docker-prune
     # Deploy stamp — must stay LAST, `tags: always` (#671). See the
     # hypervisor play above for why.
-    - role: deploy-stamp
-      tags: always
-
-
-# ⚠️ TEMPORARY HOSTS. The play matches nothing unless a drill VM is in the
-# inventory, and a full `site.yml` run then gives it only what the drill
-# needs: Hermes installed by the same role that installs it on the agent
-# host, and nothing started. See docs/runbooks/dr-restore-drill.md, Drill G.
-- name: Configure BezaForge restore-drill hosts
-  hosts: drill_hosts
-  become: true
-
-  roles:
-    - role: hermes-team
-      tags: hermes-team
     - role: deploy-stamp
       tags: always

@@ -64,8 +64,7 @@ common_admin_ssh_sources:
 # Fleet node_exporter UFW posture (FORGE-59) — this allow only matters
 # on hosts running an ACTIVE default-deny UFW, which is exactly the
 # `common`-managed set:
-#   - forge-ops, forge-ai,
-#     forge-agents         → run `common` → get this allow. ✓
+#   - forge-ops, forge-ai  → run `common` → get this allow. ✓
 #   - forge-hypervisor     → pve-firewall (disabled), no UFW → reachable.
 #   - forge-erp            → no `common` BY DESIGN (a first-touch UFW
 #                            enable could lock it out, site.yml); no
@@ -127,11 +126,8 @@ bezaforge_dns_rewrites:
   - {domain: "omada.bezaforge.dev", answer: "10.10.10.5"}
   - {domain: "forge-ai.bezaforge.dev", answer: "10.10.50.10"}
   - {domain: "forge-erp.bezaforge.dev", answer: "10.10.20.50"}
-  # forge-agents, the Brizza agent team's host (BezaForge ADR 0011). The
-  # address was forge-brizza's, held for Brizza v2 after v1 was retired on
-  # 2026-08-30 (ADR 0010); the reservation followed the name, so the old
-  # forge-brizza record goes rather than sitting beside this one.
-  - {domain: "forge-agents.bezaforge.dev", answer: "10.10.50.20"}
+  # forge-agents.bezaforge.dev (10.10.50.20) left with the host, retired
+  # 2026-10-21 with the agent team. The address is free.
   # forge-dev (VMID 102) does not currently exist — removed from the fleet.
   # Mirrored deliberately on Joseph's call 2026-08-08: he intends to rebuild
   # it, so this is a placeholder rather than stale config, and the two
@@ -157,8 +153,9 @@ wireguard_endpoint_fqdn: vpn.bezaforge.dev
 # ------------------------------------------------------------
 # Vault sync by Syncthing (roles/syncthing, #1216)
 # ------------------------------------------------------------
-# BezaForge ADR 0012: vault FILES sync two-way between the laptop, bezapool
-# (forge-hypervisor) and forge-agents. The laptop is the only git actor.
+# BezaForge ADR 0012: vault FILES sync two-way between the laptop and
+# bezapool (forge-hypervisor). forge-agents was the third peer until it was
+# retired on 2026-10-21. The laptop is the only git actor.
 #
 # This is the one definition of the set. Every host running roles/syncthing
 # reads it, and the laptop is configured by hand to match
@@ -192,8 +189,4 @@ syncthing_devices:
   - name: forge-hypervisor
     id: "{{ hostvars['forge-hypervisor']['syncthing_device_id'] | default('') }}"
     addresses: ["tcp://10.10.10.10:22000", "quic://10.10.10.10:22000"]
-    required: true
-  - name: forge-agents
-    id: "{{ hostvars['forge-agents']['syncthing_device_id'] | default('') }}"
-    addresses: ["tcp://10.10.50.20:22000", "quic://10.10.50.20:22000"]
     required: true

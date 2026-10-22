@@ -19,7 +19,6 @@ Production-grade private cloud managed entirely as code. VM provisioning via Ter
 | **forge-hypervisor** | Proxmox hypervisor | Ryzen 7 5800X, 48GB RAM, RX 7900 XT, ZFS mirror | Proxmox VE 9.1 |
 | **forge-ops** | Docker service host | i9-12900H, 32GB DDR5 | Debian 13.3 |
 | **forge-ai** | GPU LLM inference | RX 7900 XT passthrough, ROCm | Ubuntu 26.04 |
-| **forge-agents** | Brizza agent team host (bare metal) | Lenovo M920Q, i5-8500T, 16GB, 256GB NVMe | Ubuntu 26.04 |
 | **forge-erp** | ERP (ERPNext v16) | 2 vCPU, 8GB RAM (4GB balloon floor) | Ubuntu 26.04 |
 
 ---
@@ -98,21 +97,19 @@ Ansible automates all post-provisioning configuration for forge-ops. A single co
 | `services` | Codified application services (gitea, netbox, langfuse, homepage, uptime-kuma, open-webui, calibre-web) across 3 secret-management patterns |
 | `openproject` | OpenProject Community PM (`pm.bezaforge.dev`) — all-in-one image (bundled Postgres/memcached/web/Rails workers) behind Traefik; the live work tracker (replaced Plane 2026-07, FORGE #455) |
 | `ollama` | GPU LLM inference on forge-ai (version-pinned install, env-file, UFW rules to VLANs 50/20/30, model seed list, custom Modelfile builds) |
-| `fail2ban` | SSH brute-force protection (forge-ops, forge-ai, forge-agents) |
+| `fail2ban` | SSH brute-force protection (forge-ops, forge-ai) |
 | `coredump` | Crash dumps piped to `systemd-coredump` on the host, capped at 2G each and 5G total, instead of written into the crashing container's layer (forge-ops, #1236). `coredumpctl list` shows every crash |
-| `node-exporter` | The distro `prometheus-node-exporter` with the systemd collector, on forge-agents. forge-ai and forge-erp run the same package, installed by hand |
-| `syncthing` | Knowledge vault files synced two-way by Syncthing between the laptop, `bezapool/vault` on the hypervisor and forge-agents (ADR 0012; `.git`, `.obsidian`, `.trash` excluded; the laptop is the only git actor), plus a sync check that pushes "in sync" and "conflict copies" monitors to Uptime Kuma. Replaced the `vault-sync` git clone, retired 2026-09-13. Runbook: `docs/runbooks/vault-syncthing.md` |
+| `node-exporter` | The distro `prometheus-node-exporter` with the systemd collector and a user-unit reporter. No host uses it since forge-agents was retired (2026-10-21); forge-ai and forge-erp run the same package, installed by hand |
+| `syncthing` | Knowledge vault files synced two-way by Syncthing between the laptop and `bezapool/vault` on the hypervisor (ADR 0012; `.git`, `.obsidian`, `.trash` excluded; the laptop is the only git actor), plus a sync check that pushes "in sync" and "conflict copies" monitors to Uptime Kuma. Replaced the `vault-sync` git clone, retired 2026-09-13. Runbook: `docs/runbooks/vault-syncthing.md` |
 | `pve-notifications` | Proxmox error events, a failed backup job first, posted to the Grafana alerts' Discord channel by a webhook target and matcher driven through `pvesh` (forge-hypervisor, #1285). The built-in mail-to-root target is left as it was |
 | `gdrive-replica` | One-way nightly rclone mirror of Google Drive → `bezapool/gdrive` on the hypervisor (drive.readonly scope; replaces retired Insync — FORGE-35) |
-| `hermes-backup` | forge-agents' nightly backup, made on the host at 02:30: `hermes backup` (every profile, the boards, the login) plus the Syncthing, Never4gA and repository-key settings, one current copy in a directory only its user can read. The host copies it nowhere |
-| `forge-agents-backup-pull` | forge-hypervisor pulls that copy at 03:00 into `bezapool/forge-agents-backup` with a key the agent host confines to reading one directory, then checks it is complete and under 26 hours old |
-| `sanoid` | ZFS auto-snapshots on forge-hypervisor — per-dataset retention on `bezapool` **and `sharepool`** (vault 24h/14d/8w/12m, gdrive 24h/14d/8w/12m, forge-ops-backup 7d/4w/6m, forge-erp-backup, forge-agents-backup 7d/4w/6m, sharepool/files; backup datasets deliberately not snapshotted). Also owns the nightly `syncoid` replica `sharepool/files` → `bezapool/sharepool-backup`. |
+| `sanoid` | ZFS auto-snapshots on forge-hypervisor — per-dataset retention on `bezapool` **and `sharepool`** (vault 24h/14d/8w/12m, gdrive 24h/14d/8w/12m, forge-ops-backup 7d/4w/6m, forge-erp-backup, sharepool/files; backup datasets deliberately not snapshotted). Also owns the nightly `syncoid` replica `sharepool/files` → `bezapool/sharepool-backup`. |
 | `db-dumps` | Nightly 02:30 EDT `pg_dumpall` per Postgres container on forge-ops → NFS-mounted `bezapool/forge-ops-backup` |
 | `postgres-major` | Moves one service's database to a new Postgres major during a deploy: dump from the old server, bring the new one up alone on an empty data location, restore, and compare exact table and row counts. Included by a service's role between the compose file landing and the stack starting; does nothing when the versions match. Runbook: `docs/runbooks/postgres-major-upgrade.md` |
 | `kernel-pin` | Boots a named, already-installed kernel by default and holds its package, for keeping a host on a known-good kernel while a newer one is suspect. Opt-in via `kernel_pin_version`; never reboots |
 | `host-watch` | Runs on one host and posts to Discord when another stops answering ping or DNS, again while it stays down, and when it is back. On forge-hypervisor watching forge-ops, because everything else that watches the fleet runs on forge-ops |
 | `forge-ops-backup-rsync` | Nightly 02:45 EDT rsync of `/opt/bezaforge/<svc>/` → NFS-mounted `bezapool/forge-ops-backup` |
-| `restic-gcs` | Daily 04:00 EDT restic snapshot of `bezapool/{forge-ops-backup,vault,forge-erp-backup,forge-agents-backup}` + `/sharepool/files` (nested Drive mount excluded) → GCS Nearline (`bezaforge-backups-95d56ebe`) |
+| `restic-gcs` | Daily 04:00 EDT restic snapshot of `bezapool/{forge-ops-backup,vault,forge-erp-backup}` + `/sharepool/files` (nested Drive mount excluded) → GCS Nearline (`bezaforge-backups-95d56ebe`) |
 
 ### Secret Management
 
@@ -152,7 +149,7 @@ ansible-playbook site.yml -l forge-ops --check --diff --ask-become-pass --ask-va
 | 20 | Production | 10.10.20.0/24 | Docker services host (forge-ops) |
 | 30 | Development | 10.10.30.0/24 | Reserved — future dev workstation (forge-dev removed 2026-06-24) |
 | 40 | Home | 10.10.40.0/24 | Personal devices, WiFi |
-| 50 | AI | 10.10.50.0/24 | GPU workloads (forge-ai); the Brizza agent team host (forge-agents, 10.10.50.20) |
+| 50 | AI | 10.10.50.0/24 | GPU workloads (forge-ai) |
 
 **Inter-VLAN firewall rules** isolate home/personal devices from infrastructure.
 **AdGuard Home** serves as authoritative DNS for all VLANs with wildcard rewrite for `*.bezaforge.dev`.
@@ -191,7 +188,6 @@ forge-ops containers ──► Promtail ──► Loki ──► Grafana
 forge-ops system     ──► Node Exporter ──► Prometheus ──► Grafana
 forge-ops containers ──► cAdvisor ──► Prometheus ──► Grafana
 forge-ai system      ──► Node Exporter ──► Prometheus ──► Grafana
-forge-agents system  ──► Node Exporter ──► Prometheus ──► Grafana
 All services         ──► Uptime Kuma (availability checks)
 ```
 
@@ -229,7 +225,7 @@ Models served locally — no external API calls for LLM inference.
 
 **bezapool** — ZFS mirror pool on forge-hypervisor:
 - 2× 4TB HDDs in mirror configuration
-- Datasets: `vault` (knowledge vault files — the Syncthing copy, ADR 0012, `roles/syncthing`), `gdrive` (Google Drive docs replica — nightly one-way rclone via `roles/gdrive-replica`), `forge-ops-backup` (nightly app-state mirror), `forge-erp-backup` (ERPNext bench backups), `forge-agents-backup` (the agent team's nightly backup; root-only, as it will hold credentials), `sharepool-backup` (syncoid replica), `vzdump` (Proxmox VM backups — deliberately not snapshotted)
+- Datasets: `vault` (knowledge vault files — the Syncthing copy, ADR 0012, `roles/syncthing`), `gdrive` (Google Drive docs replica — nightly one-way rclone via `roles/gdrive-replica`), `forge-ops-backup` (nightly app-state mirror), `forge-erp-backup` (ERPNext bench backups), `sharepool-backup` (syncoid replica), `vzdump` (Proxmox VM backups — deliberately not snapshotted)
 - NFS exports: `bezapool/{gdrive,forge-ops-backup}` mounted on forge-ops at `/mnt/bezapool/`
 
 > The `media` + `downloads` datasets and their NFS exports were **destroyed 2026-07-18** when the Jellyfin/Seedbox media stack was retired (~106 GB reclaimed). Ebooks are served by Calibre-Web-Automated from `/opt/bezaforge/calibre-web/` bind mounts, **not** from an NFS-mounted dataset.
@@ -266,24 +262,23 @@ bezaforge-infrastructure/
 ├── ansible/
 │   ├── ansible.cfg              # Defaults (inventory path)
 │   ├── requirements.yml         # Galaxy collections (community.docker, etc.)
-│   ├── site.yml                 # Main playbook — 5 plays (hypervisor, docker, gpu, assistant, erp hosts)
+│   ├── site.yml                 # Main playbook — 4 plays (hypervisor, docker, gpu, erp hosts)
 │   ├── update.yml               # The whole fleet update pass: OS packages, site.yml, resolvers, health
 │   ├── health.yml               # Read-only fleet health verification
 │   ├── inventory/
-│   │   ├── hosts.yml            # Host groups (hypervisor_hosts, docker_hosts, gpu_hosts, assistant_hosts)
+│   │   ├── hosts.yml            # Host groups (hypervisor_hosts, docker_hosts, gpu_hosts, erp_hosts)
 │   │   └── host_vars/
 │   │       ├── forge-ops/
 │   │       │   ├── vars.yml     # Connection, network, service list
 │   │       │   └── vault.yml    # Encrypted secrets (ansible-vault)
 │   │       ├── forge-hypervisor/        # Hypervisor vars + vaulted secrets
 │   │       ├── forge-erp/               # ERP host vars + vaulted secrets
-│   │       ├── forge-ai.yml     # GPU host vars (ollama models)
-│   │       └── forge-agents.yml # Agent team host vars (resolver key)
+│   │       └── forge-ai.yml     # GPU host vars (ollama models)
 │   └── roles/
 │       ├── common/                    # Base setup, SSH, UFW, NFS, sysctl, LLMNR off
 │       ├── fail2ban/                  # SSH brute-force protection
 │       ├── coredump/                  # Crash dumps to systemd-coredump, capped
-│       ├── node-exporter/             # Distro node_exporter (forge-agents)
+│       ├── node-exporter/             # Distro node_exporter (no host since forge-agents was retired)
 │       ├── docker/                    # Docker CE, directory tree, bezaforge-net
 │       ├── traefik/                   # Reverse proxy + TLS + middleware
 │       ├── adguard/                   # DNS server (codified log retention)
@@ -298,7 +293,7 @@ bezaforge-infrastructure/
 │       ├── minio-exports/             # LangFuse MinIO logical exports
 │       ├── guest-agent/               # qemu-guest-agent on Proxmox VMs
 │       ├── rocm/                      # forge-ai ROCm as-built
-│       ├── syncthing/                 # Vault sync by Syncthing (hypervisor, forge-agents)
+│       ├── syncthing/                 # Vault sync by Syncthing (hypervisor)
 │       ├── pve-notifications/         # Proxmox errors to Discord (hypervisor)
 │       ├── gdrive-replica/            # Nightly rclone Drive→bezapool mirror (hypervisor)
 │       ├── sanoid/                    # ZFS auto-snapshots on forge-hypervisor (bezapool)

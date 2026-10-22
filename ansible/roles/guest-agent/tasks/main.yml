@@ -7,7 +7,7 @@
 # non-responding agent hangs terraform plan/apply — see
 # reference_bpg_stopped_vm_terraform_hang / FORGE-79).
 #
-# Apply to VM host-groups ONLY (gpu_hosts, erp_hosts, assistant_hosts) — NEVER
+# Apply to VM host-groups ONLY (gpu_hosts, erp_hosts) — NEVER
 # to bare-metal hosts (forge-ops, forge-hypervisor), where a guest agent is
 # meaningless. forge-erp and forge-brizza historically installed it inline in
 # their own roles (FORGE-61 / FORGE-79); this role is the shared home so it's

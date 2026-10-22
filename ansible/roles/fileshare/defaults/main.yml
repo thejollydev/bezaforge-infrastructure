@@ -76,7 +76,7 @@ fileshare_allowed_networks:
   - "10.10.20.0/24"   # production (forge-ops, forge-erp)
   - "10.10.30.0/24"   # dev
   - "10.10.40.0/24"   # home (laptop + Windows desktop)
-  - "10.10.50.0/24"   # AI (forge-ai; 10.10.50.20 reserved for Brizza v2)
+  - "10.10.50.0/24"   # AI (forge-ai)
   - "10.10.99.0/24"   # WireGuard
 
 # Secrets:

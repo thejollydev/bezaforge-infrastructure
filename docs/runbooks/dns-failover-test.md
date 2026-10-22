@@ -304,7 +304,7 @@ A failback is tried at most once per 30 minutes per host. If a restart does not 
 
 ```bash
 cd ~/Projects/bezaforge-infrastructure/ansible
-ansible forge-ops,forge-ai,forge-erp,forge-agents -i inventory/hosts.yml \
+ansible forge-ops,forge-ai,forge-erp -i inventory/hosts.yml \
   -m systemd -a "name=systemd-resolved state=restarted" \
   --become --ask-become-pass --ask-vault-pass
 ```
