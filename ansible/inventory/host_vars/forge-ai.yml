@@ -86,6 +86,9 @@ ollama_models:
   # opencode's models (#953).
   - qwen3-coder:30b
   - qwen2.5-coder:14b
+  # The agent team was retired on 2026-10-21. These models and the -64k
+  # variant below were its local fallback and review model; they stay until
+  # Joseph decides, since nothing breaks by keeping them.
   # The agent team's local fallback (Brizza ADR 0014). Both were pulled by
   # hand and never declared — the same quiet-failure class as the two
   # above — and gemma4:26b is now load-bearing twice over: the base for the

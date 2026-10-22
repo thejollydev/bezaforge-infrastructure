@@ -304,7 +304,7 @@ groups:
         # rebooted, the sharepool ZFS pool failed to import, and sanoid threw
         # CRITICAL every 15 minutes for ~24 h with nobody alerted. A failed
         # systemd unit is the earliest generic signal that a host is degraded.
-        # Covers forge-hypervisor / forge-ai / forge-erp / forge-agents, which
+        # Covers forge-hypervisor / forge-ai / forge-erp, which
         # run the NATIVE prometheus-node-exporter (systemd collector enabled),
         # AND forge-ops — corrected 2026-08-09. This comment used to say
         # forge-ops was "NOT covered yet", which stopped being true the moment
@@ -313,9 +313,9 @@ groups:
         # demonstrably covered: this rule fired for forge-ops on 2026-08-09
         # (bezaforge-backup-rsync.service).
         # USER services were not covered: the systemd collector reads the
-        # system manager only, so everything forge-agents runs under its
-        # user's own manager (the agents' gateway, Never4gA, the sync, the
-        # nightly backup) was invisible -- found 2026-10-17. roles/node-exporter
+        # system manager only, so everything forge-agents ran under its
+        # user's own manager was invisible -- found 2026-10-17, before the
+        # host was retired on 2026-10-21. roles/node-exporter
         # now reports them as node_systemd_user_unit_state (with a `user`
         # label), and node_systemd_user_units_read == 0 fires when that
         # user's manager stops answering the reporter. For a user unit the
@@ -420,7 +420,7 @@ groups:
           for: 30m
           annotations:
             summary: '{{ $labels.instance }} is resolving via the SECONDARY DNS server, not AdGuard'
-            description: 'systemd-resolved failed over and has not come back to AdGuard. Since #663 every host fails itself back within about two minutes of AdGuard answering again (the dns-primary-check timer restarts resolved), so this firing means that did NOT work: either AdGuard is still not answering a direct query from that host, or a restart did not land it on the primary and the check is backing off (one attempt per 30 minutes). The cost of the state: the host loses ad-filtering and vanishes from AdGuard query logs. Check bezaforge_dns_failback_total for attempts, then: journalctl -u bezaforge-dns-primary-check on the host. Manual fix (about 1s of DNS interruption): ansible forge-ops,forge-ai,forge-erp,forge-agents -i inventory/hosts.yml -m systemd -a "name=systemd-resolved state=restarted" --become --ask-become-pass --ask-vault-pass, or on the workstation: sudo systemctl restart systemd-resolved.'
+            description: 'systemd-resolved failed over and has not come back to AdGuard. Since #663 every host fails itself back within about two minutes of AdGuard answering again (the dns-primary-check timer restarts resolved), so this firing means that did NOT work: either AdGuard is still not answering a direct query from that host, or a restart did not land it on the primary and the check is backing off (one attempt per 30 minutes). The cost of the state: the host loses ad-filtering and vanishes from AdGuard query logs. Check bezaforge_dns_failback_total for attempts, then: journalctl -u bezaforge-dns-primary-check on the host. Manual fix (about 1s of DNS interruption): ansible forge-ops,forge-ai,forge-erp -i inventory/hosts.yml -m systemd -a "name=systemd-resolved state=restarted" --become --ask-become-pass --ask-vault-pass, or on the workstation: sudo systemctl restart systemd-resolved.'
           isPaused: false
           notification_settings:
             receiver: Discord

@@ -79,19 +79,7 @@ sanoid_templates:
     daily: 14
     weekly: 8
     monthly: 6
-  # forge-agents backup (#1215, #1222; Brizza ADR 0018, BezaForge ADR 0011).
-  # Holds the nightly `hermes backup` archive and the host settings it
-  # omits, pulled at 03:00 by roles/forge-agents-backup-pull. A nightly
-  # pull gains nothing from hourlies.
-  # The pull keeps ONE current copy (rsync --delete), so these snapshots
-  # ARE the history, and this retention is how far back a restore can
-  # reach. Never give the pull dated archives with their own prune:
-  # snapshotting those pins every pruned archive, the FORGE-44 vzdump trap.
-  forge_agents_backup:
-    hourly: 0
-    daily: 7
-    weekly: 4
-    monthly: 6
+  # forge_agents_backup template REMOVED 2026-10-21 with the agent team.
 
 # ------------------------------------------------------------
 # Datasets covered by sanoid
@@ -125,13 +113,9 @@ sanoid_datasets:
     template: "forge_erp_backup"
     recursive: "no"
 
-  # forge-agents backup (#1215). Created by hand like every dataset here
-  # (docs/runbooks/install-forge-agents.md), root-owned 0700 because the
-  # archive will hold the agents' credentials. It must exist before this row
-  # deploys: sanoid errors on a missing dataset.
-  - dataset: "bezapool/forge-agents-backup"
-    template: "forge_agents_backup"
-    recursive: "no"
+  # bezapool/forge-agents-backup REMOVED 2026-10-21 with the agent team.
+  # The dataset and its snapshots are destroyed by hand after this deploys,
+  # never before: sanoid errors on a missing dataset.
 
   # bezapool/downloads + bezapool/media datasets destroyed 2026-07-18 (#485)
   # when the Jellyfin/Seedbox media stack was retired — sanoid rows removed

@@ -135,7 +135,11 @@ A walkthrough, not a live restore: "forge-hypervisor is gone — rebuild from ze
 - Restore app data from GCS (Drill B), re-run Ansible to reconstitute hosts, restore databases (Drill C/D).
 - Confirm vault (`--ask-vault-pass`) password + restic password + GCS creds are recorded in **Bitwarden** and reachable without the rack.
 
-### Drill G — forge-agents restore onto a spare VM (the agent team)
+### Drill G — forge-agents restore onto a spare VM (the agent team) — RETIRED
+
+> **Retired 2026-10-21** with the agent team and forge-agents. There is no
+> longer a backup to restore: its roles are gone and `bezapool/forge-agents-backup`
+> is destroyed. The procedure and its 2026-10-09 run are kept as the record.
 
 forge-agents is bare metal and is rebuilt from code, not from an image; only
 its data is backed up (Brizza ADR 0018). This drill proves both halves: the
@@ -285,4 +289,4 @@ Append one row per drill run. Keep it here (version-controlled) so the history t
 - ADR 0001 (MVB four-layer backup) — the design these layers implement.
 - FORGE-44 — why `bezapool/vzdump` is **not** sanoid-snapshotted (snapshotting backups pins pruned copies).
 - FORGE-60/61/62 (PR #63) — the forge-erp offsite + app-consistent + retention hardening referenced above.
-- `roles/hermes-backup`, `roles/forge-agents-backup-pull` — the agent host's nightly backup that Drill G restores.
+- `roles/hermes-backup`, `roles/forge-agents-backup-pull` — the agent host's nightly backup that Drill G restored, both removed on 2026-10-21.

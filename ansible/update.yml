@@ -61,9 +61,8 @@
 #
 #   2. the VMs (forge-ai, forge-erp) — freshly booted after step 1.
 #      forge-erp wants a clean container stop for ERPNext/MariaDB.
-#      Then forge-agents. It is bare metal, so step 1 does not bounce it,
-#      but like the VMs it needs AdGuard to reach its mirrors and must be
-#      done before step 3 takes forge-ops down.
+#      (forge-agents, bare metal, came here until it was retired on
+#      2026-10-21.)
 #
 #   3. forge-ops LAST — it runs AdGuard, which is DNS for EVERY VLAN. While
 #      forge-ops is down nothing else can resolve deb.debian.org, so no other
@@ -71,8 +70,7 @@
 #
 # site.yml then runs in its own order, with forge-ops second. That is safe
 # where a reboot is not: a redeployed AdGuard container is back in seconds,
-# the hosts after it resolve through the secondary meanwhile, and by the time
-# forge-agents clones from Gitea the forge-ops play has finished.
+# and the hosts after it resolve through the secondary meanwhile.
 #
 # THE RESOLVER STEP. Bouncing AdGuard — a redeploy in step 2, or a forge-ops
 # reboot — leaves every host on the secondary, 10.10.10.10, because
@@ -171,14 +169,6 @@
     - os-update
   tags: [update, vms]
 
-- name: Update forge-agents (bare metal, before forge-ops)
-  hosts: forge-agents
-  become: true
-  gather_facts: true
-  roles:
-    - os-update
-  tags: [update, agents]
-
 - name: Update forge-ops (last — it is DNS + Traefik for the whole fleet)
   hosts: forge-ops
   become: true
@@ -226,7 +216,7 @@
       ansible.builtin.debug:
         msg:
           - "hosts needing reboot : {{ osu_reboot_hosts | join(', ') if osu_reboot_hosts else 'none' }}"
-          - "reboot order         : forge-hypervisor -> forge-ai/forge-erp -> forge-agents -> forge-ops"
+          - "reboot order         : forge-hypervisor -> forge-ai/forge-erp -> forge-ops"
           - "why forge-ops last   : it runs AdGuard, DNS for every VLAN"
           - "after rebooting      : ansible-playbook ansible/update.yml --tags resolver,health"
       vars:

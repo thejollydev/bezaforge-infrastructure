@@ -1,9 +1,0 @@
-# Managed by Ansible (roles/brizza-sync).
-[Unit]
-Description=Check that the tracker and the agents' board agree
-
-[Service]
-Type=oneshot
-# Exits 1 and lists each disagreement when there is one.
-ExecStart={{ brizza_sync_bin }} --config {{ brizza_sync_config }} check
-TimeoutStartSec=300

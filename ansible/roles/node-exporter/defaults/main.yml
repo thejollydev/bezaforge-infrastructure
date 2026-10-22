@@ -18,10 +18,11 @@ node_exporter_args: "--collector.systemd"
 
 # --- User services ---
 # The systemd collector reads the SYSTEM manager only. Everything a user
-# runs under its own manager -- on forge-agents the Hermes gateway,
-# Never4gA, the tracker-board sync and its check, the nightly backup and
-# Hermes' updater -- was invisible to the "Systemd Unit Failed" rule:
-# Prometheus listed only user@1000.service for that host (2026-10-17).
+# runs under its own manager -- on forge-agents, until it was retired on
+# 2026-10-21, the Hermes gateway and the agents' timers -- was invisible to
+# the "Systemd Unit Failed" rule: Prometheus listed only user@1000.service
+# for that host (2026-10-17). No host uses this role since forge-agents
+# went; it stays for the next host that runs user services.
 #
 # For each user named here, a root timer asks that user's manager for its
 # services and writes their state to the textfile directory as

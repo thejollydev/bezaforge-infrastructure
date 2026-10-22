@@ -397,7 +397,7 @@ found damaged again, the rsync theory is wrong and the cause is live — treat a
 second occurrence as a hardware question (the docker LV, its PV) and not as a
 repeat of this.
 
-It does not touch forge-erp, forge-ai or forge-agents. Nothing suggests they
+It does not touch forge-erp or forge-ai. Nothing suggests they
 are affected: the #982 copy happened only here.
 
 It does not answer #1236. The crash of 2026-09-06 stays unexplained; step 3

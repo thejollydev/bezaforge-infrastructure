@@ -3,7 +3,7 @@
 # syncthing role — the vault's server copies (#1216)
 #
 # BezaForge ADR 0012 / Brizza ADR 0019: vault FILES sync two-way between
-# the laptop, bezapool (on forge-hypervisor) and forge-agents, with `.git`,
+# the laptop and bezapool (on forge-hypervisor), with `.git`,
 # `.obsidian` and `.trash` excluded. The laptop stays the only git actor;
 # its 15-minute commit picks up whatever the other copies wrote.
 #
@@ -129,8 +129,8 @@
     quiet: true
   when: syncthing_folder_require_mount | bool
 
-# Only where the folder is a plain directory. On forge-agents the parent is
-# ~/Vaults; on the hypervisor it would be /bezapool, which is not ours.
+# Only where the folder is a plain directory (on a host whose copy lives
+# under ~/Vaults); on the hypervisor it would be /bezapool, which is not ours.
 - name: Create the folder's parent directory
   ansible.builtin.file:
     path: "{{ syncthing_folder_path | dirname }}"

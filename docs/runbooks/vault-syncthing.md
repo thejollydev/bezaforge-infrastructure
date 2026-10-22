@@ -1,28 +1,32 @@
 # Runbook — The vault on Syncthing
 
-The knowledge vault's files sync two-way between three copies, with the laptop
-as the only git actor (BezaForge ADR 0012, Brizza ADR 0019). This runbook
-covers the first deployment (#1216), the tests that prove it, and what to do
-when something goes wrong.
+The knowledge vault's files sync two-way between two copies, the laptop and
+the hypervisor, with the laptop as the only git actor (BezaForge ADR 0012).
+This runbook covers the first deployment (#1216), the tests that prove it, and
+what to do when something goes wrong.
+
+> **forge-agents was retired on 2026-10-21** with the agent team, and is no
+> longer a Syncthing peer. It was the third copy when this runbook was
+> written; the steps below that name it, or `10.10.50.20`, are the record of
+> that deployment, not something to run.
 
 | Copy | Path | Runs as | Managed by |
 |---|---|---|---|
 | Laptop (`jolly-LOQ-arch`) | `~/Vaults/never-knowledge` | `joseph`, user service | by hand (step 3) |
 | forge-hypervisor | `/bezapool/vault` (ZFS, snapshotted, restic offsite) | `vaultsync` | `roles/syncthing` |
-| forge-agents | `/home/joseph/Vaults/never-knowledge` | `joseph` | `roles/syncthing` |
 
 - **Ignored everywhere:** `.git` at any depth, `/.obsidian` and `/.trash` at
   the root. `.stignore` is never synced, so each copy has its own with the
   same three patterns.
-- **No discovery, no relays.** The servers listen on fixed addresses
-  (`10.10.10.10:22000`, `10.10.50.20:22000`) and the laptop dials them, from
+- **No discovery, no relays.** The server listens on a fixed address
+  (`10.10.10.10:22000`) and the laptop dials it, from
   Home WiFi or over WireGuard.
 - **Git:** the laptop's `never4ga-vault-commit.timer` commits every 15 minutes
   and so picks up what the servers wrote. Syncthing's marker, its ignore file
   and conflict copies are in the vault's `.gitignore`.
 - **Watching it:** a timer on forge-hypervisor pushes two Uptime Kuma
   monitors every 5 minutes. *In sync* checks that Syncthing answers, the
-  folder has no errors, forge-agents and the hypervisor are connected, and no
+  folder has no errors, the hypervisor is connected, and no
   connected device stays behind for more than 15 minutes. *Conflicts* checks
   that no `*.sync-conflict-*` copy exists. A check that stops running goes
   quiet, and Kuma marks it down.

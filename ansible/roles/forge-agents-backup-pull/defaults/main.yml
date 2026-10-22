@@ -1,51 +1,24 @@
 ---
 # ============================================================
-# forge-agents-backup-pull role defaults
-#
-# forge-hypervisor's half of the agent host's nightly backup (Brizza ADR
-# 0018, build step 8, #1222). The agent host makes one current copy each
-# night (roles/hermes-backup); this role fetches it into
-# bezapool/forge-agents-backup, where it gets that dataset's snapshots
-# (roles/sanoid) and the nightly encrypted offsite copy (roles/restic-gcs).
-#
-# ⚠️ PULLED, NOT PUSHED, AND THAT IS THE DESIGN. The archive holds every
-# agent's credentials, and the dataset is root-only with sharing off. A
-# push would put a key that can write to the backups on the one machine
-# whose compromise the backups exist to survive. So the key lives here, and
-# on the agent host it is authorised to do one thing: read the backup
-# directory. Nothing on the agent host can reach this dataset at all.
+# forge-agents-backup-pull — RETIRED 2026-10-21
 # ============================================================
-
-# --- The source ---
-forge_agents_backup_source_host: "10.10.50.20"
-forge_agents_backup_source_user: ""
-# The inventory name of the source, to read its SSH host key from.
-forge_agents_backup_source_inventory_host: forge-agents
-
-# --- The destination ---
-# Created by hand, like every bezapool dataset (docs/runbooks/
-# install-forge-agents.md), root:root 0700. The role does not create it
-# and refuses to run without it: writing into a plain directory where the
-# dataset should be would look like a backup and have no snapshots.
-forge_agents_backup_dest: /bezapool/forge-agents-backup
-
-# --- The key ---
-# Generated HERE on the first run and never anywhere else. A dedicated
-# file, so nothing else picks it up.
-forge_agents_backup_key_path: /root/.ssh/id_ed25519_forge_agents_backup
-forge_agents_backup_key_comment: "{{ inventory_hostname }} pulls the forge-agents backup"
-
-# The source's host key, pinned in a file of its own rather than accepted
-# on first use: the key that arrives first is not trusted because it
-# arrived first.
-forge_agents_backup_known_hosts_path: /root/.ssh/known_hosts_forge_agents_backup
-
-# --- When ---
-# After the agent host's 02:30 backup, before syncoid (03:15) and the
-# offsite copy (04:00), so tonight's archive is in tonight's offsite run.
-forge_agents_backup_on_calendar: "*-*-* 03:00:00"
-
-# The pull fails if the manifest it fetched is older than this. The backup
-# is nightly, so anything past a day and a bit means the agent host did not
-# make one — which this side would otherwise copy faithfully forever.
-forge_agents_backup_max_age_hours: 26
+# The Brizza agent team and forge-agents were torn down on Joseph's ruling
+# of 2026-10-21. This role used to pull the agent host's nightly backup into
+# bezapool/forge-agents-backup. It now only takes its own pieces back off
+# forge-hypervisor: the timer, the service, the script, the pull key and the
+# pinned host key. Once that has been deployed, delete the role and its line
+# in site.yml.
+#
+# The dataset itself is not touched here: destroying it is permanent, so it
+# is Joseph's to run by hand, after this has been deployed (sanoid and restic
+# stop naming it in the same change).
+forge_agents_backup_units:
+  - bezaforge-forge-agents-backup-pull.timer
+  - bezaforge-forge-agents-backup-pull.service
+forge_agents_backup_retired_files:
+  - /etc/systemd/system/bezaforge-forge-agents-backup-pull.timer
+  - /etc/systemd/system/bezaforge-forge-agents-backup-pull.service
+  - /usr/local/bin/bezaforge-forge-agents-backup-pull.sh
+  - /root/.ssh/id_ed25519_forge_agents_backup
+  - /root/.ssh/id_ed25519_forge_agents_backup.pub
+  - /root/.ssh/known_hosts_forge_agents_backup

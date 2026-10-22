@@ -27,18 +27,19 @@
 | OS | Debian 13 Trixie |
 | Role | Docker host — all production services |
 
-## forge-agents (formerly forge-k3s-worker — the Brizza agent team's host)
+## Lenovo M920Q, idle (was forge-agents, and before that forge-k3s-worker)
 
 | Component | Spec |
 |-----------|------|
 | Model | Lenovo ThinkCentre M920Q |
 | CPU | Intel i5-8500T |
 | RAM | 16GB DDR4 |
-| Storage | 256GB NVMe |
-| OS | Ubuntu Server 26.04 LTS, installed 2026-09-14 (see `runbooks/install-forge-agents.md`) |
-| Role | The Brizza agent team's host, bare metal, VLAN 50 at 10.10.50.20 (decided 2026-09-14, Brizza ADR 0018 / BezaForge ADR 0011). Reassigned from the Phase 3 K3s plan on 2026-09-13. Powered on 2026-09-14 it carried a never-used Proxmox 9.2 install at 10.10.20.10, unreachable from every VLAN; it is wiped, not inspected |
+| Storage | 256GB NVMe, wiped |
+| OS | None |
+| State | **Idle hardware, powered off.** Still in U13 on the printed bracket beside the OC220, still cabled to PP 12 and router port 4 |
+| History | The Brizza agent team's host, bare metal, from 2026-09-14 (BezaForge ADR 0011) until Joseph retired the team and the host on 2026-10-21. Its disk was wiped and it carries no OS; its address, 10.10.50.20, and the forge-agents name are released. Before that it was the Phase 3 K3s worker, never used |
 
-> When powered off its NIC holds link at 10 Mbps for Wake-on-LAN — a lit router port does **not** mean this node is running.
+> Router port 4 still has this box on it, with native VLAN 50. Powered off, its NIC can hold a 10 Mbps link for Wake-on-LAN — a lit port 4 does **not** mean anything is running.
 
 ## TINY-WIN
 
