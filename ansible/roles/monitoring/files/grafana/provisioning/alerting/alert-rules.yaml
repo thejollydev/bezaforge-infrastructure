@@ -312,14 +312,10 @@ groups:
         # socket + --collector.systemd to the containerised exporter. It is
         # demonstrably covered: this rule fired for forge-ops on 2026-08-09
         # (bezaforge-backup-rsync.service).
-        # USER services were not covered: the systemd collector reads the
-        # system manager only, so everything forge-agents ran under its
-        # user's own manager was invisible -- found 2026-10-17, before the
-        # host was retired on 2026-10-21. roles/node-exporter
-        # now reports them as node_systemd_user_unit_state (with a `user`
-        # label), and node_systemd_user_units_read == 0 fires when that
-        # user's manager stops answering the reporter. For a user unit the
-        # check is `systemctl --user status <name>` as that user.
+        # USER services are not covered: the systemd collector reads the
+        # system manager only. Nothing on the fleet runs under a user manager
+        # since forge-agents was retired on 2026-10-21, and the user-unit
+        # reporter that covered it was deleted with roles/node-exporter.
         - uid: bfg9sysunitfail01
           title: Systemd Unit Failed
           condition: C
@@ -331,7 +327,7 @@ groups:
               datasourceUid: dfdseqn41ybk0e
               model:
                 editorMode: code
-                expr: node_systemd_unit_state{state="failed"} == 1 or node_systemd_user_unit_state{state="failed"} == 1 or node_systemd_user_units_read == 0
+                expr: node_systemd_unit_state{state="failed"} == 1
                 instant: true
                 intervalMs: 1000
                 legendFormat: '{{ $labels.instance }} / {{ $labels.name }}'
@@ -368,7 +364,7 @@ groups:
           for: 15m
           annotations:
             summary: 'systemd unit {{ $labels.name }} has FAILED on {{ $labels.instance }}'
-            description: 'Check with: systemctl status {{ $labels.name }} --no-pager (add --user, as {{ $labels.user }}, when a user label is set)'
+            description: 'Check with: systemctl status {{ $labels.name }} --no-pager'
           isPaused: false
           notification_settings:
             receiver: Discord
