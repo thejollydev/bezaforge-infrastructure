@@ -23,13 +23,17 @@
           - curl
         state: present
 
+    # /etc/bezaforge is shared: restic-gcs keeps its password there and sets
+    # the directory 0700. A looser mode here flipped it back and forth on
+    # every pass, so neither role was ever idempotent on the hypervisor.
+    # Everything that reads it runs as root.
     - name: Create the configuration directory
       ansible.builtin.file:
         path: "{{ host_watch_env_file | dirname }}"
         state: directory
         owner: root
         group: root
-        mode: "0755"
+        mode: "0700"
 
     - name: Write the webhook to a root-only file
       ansible.builtin.copy:
