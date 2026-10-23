@@ -223,8 +223,8 @@
         osu_reboot_hosts: >-
           {{ groups['all'] | default([])
              | map('extract', hostvars)
-             | selectattr('osu_reboot_flag', 'defined')
-             | selectattr('osu_reboot_flag.stat.exists')
+             | selectattr('osu_reboot_required', 'defined')
+             | selectattr('osu_reboot_required')
              | map(attribute='inventory_hostname')
              | list }}
   tags: [update]

@@ -63,10 +63,33 @@
     - osu_reboot_flag.stat.exists
     - osu_reboot_pkgs.content is defined
 
+# Same rule as roles/health-check: a host held by roles/kernel-pin that
+# already runs its pin, with only newer kernels pending, gains nothing from a
+# reboot (GRUB boots the pin again), so it is not listed as needing one.
+- name: Read the running kernel on a pinned host
+  ansible.builtin.slurp:
+    src: /proc/sys/kernel/osrelease
+  register: osu_running_kernel
+  when:
+    - osu_reboot_flag.stat.exists
+    - kernel_pin_version | default('') | length > 0
+
+- name: Decide whether the reboot is only a kernel the pin will not boot
+  ansible.builtin.set_fact:
+    osu_reboot_held_by_pin: >-
+      {{ osu_running_kernel.content is defined
+         and (osu_running_kernel.content | b64decode | trim) == kernel_pin_version
+         and osu_reboot_reason | default('', true) | length > 0
+         and (osu_reboot_reason.split(', ') | reject('match', '^linux-image-') | list | length) == 0 }}
+
+- name: Decide whether a reboot is required
+  ansible.builtin.set_fact:
+    osu_reboot_required: "{{ osu_reboot_flag.stat.exists and not (osu_reboot_held_by_pin | bool) }}"
+
 - name: Report per-host update result
   ansible.builtin.debug:
     msg:
       - "host            : {{ inventory_hostname }}"
       - "packages        : {{ osu_pending }} upgraded"
-      - "reboot required : {{ osu_reboot_flag.stat.exists | ternary('YES', 'no') }}"
+      - "reboot required : {{ (osu_reboot_required | bool) | ternary('YES', (osu_reboot_held_by_pin | bool) | ternary('no, held by kernel-pin', 'no')) }}"
       - "triggered by    : {{ osu_reboot_reason | default('n/a', true) | trim }}"
