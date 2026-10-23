@@ -93,7 +93,16 @@ adguard_blocklists_manage: true
 # so updating it is a git commit, and a device asking for those names
 # again lights up as IsFiltered in the query log: a tripwire, not just
 # a block.
+#
+# The first two are the ad and tracker lists. AdGuard enables them on
+# install, and they ran uncodified, reported as extras every pass, until
+# 2026-10-22: a rebuild from this file would have quietly dropped the
+# network's ad blocking. The three after them are the threat lists.
 adguard_blocklists:
+  - name: "AdGuard DNS filter"
+    url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt"
+  - name: "AdAway Default Blocklist"
+    url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_2.txt"
   - name: "HaGeZi Threat Intelligence Feeds"
     url: "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/tif.txt"
   - name: "HaGeZi Encrypted DNS Servers"
