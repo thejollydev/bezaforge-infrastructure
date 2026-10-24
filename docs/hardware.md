@@ -1,19 +1,41 @@
 # Hardware Inventory
 
-> Verified against live hardware 2026-08-07. Physical port assignments, IPs and VLAN detail are deployment context and live in the private planning vault, not here.
+> Verified against live hardware 2026-08-07; forge-hypervisor re-verified 2026-10-24. Physical port assignments, IPs and VLAN detail are deployment context and live in the private planning vault, not here.
 
 ## forge-hypervisor
 
 | Component | Spec |
 |-----------|------|
-| Motherboard | MSI MAG X570 TOMAHAWK WIFI (MS-7C84) — 6× SATA 6Gb/s + 2× M.2 Key-M |
+| Case | SAMA V60 mid-tower ATX, white, curved tempered-glass panel, 7× 120 mm ARGB fans |
+| Power supply | EVGA SuperNOVA 750 G2 (220-G2-0750-XR) — 750 W, 80 PLUS Gold, fully modular |
+| Motherboard | MSI MAG X570 TOMAHAWK WIFI (MS-7C84), board 1.0, BIOS 1.I0 (2025-03-20) — 6× SATA 6Gb/s + 2× M.2 Key-M |
 | CPU | AMD Ryzen 7 5800X (8-core / 16-thread, 3.8GHz base / 4.7GHz boost) |
-| RAM | 48GB DDR4 |
-| GPU | AMD Radeon RX 7900 XT (**20GB** GDDR6, Navi 31 / gfx1100) — passed through to forge-ai |
-| Storage | 250GB SSD (boot) + 1TB NVMe (`vm-fast`) + 500GB NVMe (`vm-scratch`) + 2× 4TB HDD (ZFS mirror, `bezapool`) + 2TB HDD (single-disk ZFS, `sharepool`) |
-| Network | 1GbE onboard (interface is named `nic0`) → VLAN-aware bridge `vmbr0` |
+| RAM | 48GB DDR4, two mismatched Corsair Vengeance RGB Pro kits: 2× 8GB `CMW16GX4M2C3000C15` (3000 kit) + 2× 16GB `CMW32GX4M2D3600C18` (3600 kit). **All four run at 2133 MT/s** |
+| GPU | XFX Speedster MERC 310 RX 7900 XT (`RX-79TMERCUR`, **20GB** GDDR6, Navi 31 / gfx1100) in PCI_E1, linked at PCIe 4.0 x16 — passed through to forge-ai |
+| Boot | Crucial MX500 250GB SATA SSD (`CT250MX500SSD1`) |
+| NVMe | M2_1: WD_BLACK SN850X 1TB (`vm-fast`, CPU lanes) · M2_2: WD_BLACK SN770 500GB (`vm-scratch`, chipset lanes) |
+| HDD | 2× WD Red Plus 4TB (`WD40EFPX`, ZFS mirror, `bezapool`) + Seagate FireCuda 2TB SSHD (`ST2000DX002`, single-disk ZFS, `sharepool`) |
+| Network | Realtek RTL8125 **2.5GbE** onboard (interface is named `nic0`), linked at 1 Gbps because the gateway port it uses is gigabit → VLAN-aware bridge `vmbr0`. Onboard Intel Wi-Fi 6 AX200, unused |
 | OS | Proxmox VE 9.x |
 | Role | Hypervisor — all VMs, GPU passthrough. Off-rack tower. |
+
+**PCIe slot layout** (MSI manual, with a Ryzen 3000 or 5000 CPU):
+
+| Slot | Lanes | From | In it |
+|------|-------|------|-------|
+| PCI_E1 | PCIe 4.0 x16 | CPU | RX 7900 XT |
+| PCI_E2 | PCIe 3.0 x1 | chipset | empty |
+| PCI_E3 | PCIe 4.0 x4 (x16 physical) | chipset | empty |
+| PCI_E4 | PCIe 3.0 x1 | chipset | empty |
+| M2_1 | PCIe 4.0 x4 | CPU | SN850X |
+| M2_2 | PCIe 4.0 x4 or M.2 SATA | chipset | SN770 |
+
+**SATA:** six SATA 6Gb/s connectors from the X570 chipset, with no M.2 sharing or disable rule; four are in use (boot SSD and three data drives), so two are free. Identify drives by serial: the kernel's `ataN` numbering changes from boot to boot.
+
+**Known limits:**
+
+- XFX asks for at least an 800 W supply for this card; the PSU is 750 W.
+- The memory runs at the JEDEC default of 2133 MT/s, which usually means A-XMP is off in the BIOS. Mismatched kits should not be expected to run faster than 3000.
 
 ## forge-ops (Bare Metal Docker Host)
 
@@ -66,4 +88,4 @@
 |------|------|
 | Cabinet | VEVOR 15U wall-mount (18" internal depth) — free-standing on a file cabinet |
 | UPS | Tripp Lite SMART1500LCD (1500 VA / 900 W), 2U |
-| Growth headroom | 9U free in the rack; 2 free SATA ports on the hypervisor |
+| Growth headroom | 9U free in the rack; 2 of 6 SATA connectors free on the hypervisor; PCI_E2, PCI_E3 and PCI_E4 empty |
