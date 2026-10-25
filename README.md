@@ -86,21 +86,24 @@ flowchart TB
         d1["Reserved"]
     end
 
-    mgmt -- "admin access" --> prod
-    mgmt --> ai
-    mgmt --> home
-    mgmt --> dev
     admins -- "permitted everywhere" --> mgmt
     remote --> mgmt
-    home -- "services only" --> prod
-    home --x|denied| mgmt
-    home --x|denied| ai
-    home --x|denied| dev
-    ai --x|denied| home
-    dev --x|denied| home
+    mgmt -- "admin access" --> prod
+    mgmt -- "admin access" --> ai
+    mgmt -- "admin access" --> home
+    mgmt -- "admin access" --> dev
+    home -- "reaches services" --> prod
 ```
 
-- **The gateway's ACLs are a deny-list on a default-allow policy.** Home devices cannot reach management, development or AI. Isolation behind the gateway is enforced on the hosts as well: UFW denies inbound by default on the service host, and a Docker-aware firewall source-restricts the two ports published outside the reverse proxy.
+Blocked at the gateway:
+
+| From | Cannot reach |
+|---|---|
+| Home Wi-Fi | Management, Development, AI |
+| AI | Home Wi-Fi |
+| Development | Home Wi-Fi |
+
+- **The gateway's ACLs are a deny-list on a default-allow policy.** The table above is the deny-list; the admin device group overrides it. Isolation behind the gateway is enforced on the hosts as well: UFW denies inbound by default on the service host, and a Docker-aware firewall source-restricts the two ports published outside the reverse proxy.
 - **DNS is split-horizon with two resolvers built from one list.** AdGuard Home on the service host answers first and dnsmasq on the hypervisor second. Both are rendered from a single list in Ansible, and a parity check every 15 minutes alerts if they ever disagree. Clients never get a public resolver, because NXDOMAIN from one would stop them falling back.
 - **TLS everywhere, with nothing published.** Traefik holds a wildcard certificate from Let's Encrypt by DNS-01 through Cloudflare, so internal services get valid certificates without being reachable from the internet. The only public name is the WireGuard endpoint, kept on the dynamic WAN address by a Cloudflare DDNS container.
 
