@@ -161,8 +161,8 @@
     port: '22'
     proto: tcp
 
-# Joseph's admin laptop SSHes from outside the mgmt VLAN (Home WiFi +
-# WireGuard). Without these the common role would lock him out the moment
+# The admin laptop SSHes from outside the mgmt VLAN (Home WiFi +
+# WireGuard). Without these the common role would lock it out the moment
 # it enables UFW on a host that doesn't already have these rules hand-added
 # (forge-ai). Sources defined in group_vars/all (common_admin_ssh_sources).
 - name: Allow SSH from admin sources (laptop — WiFi + WireGuard)

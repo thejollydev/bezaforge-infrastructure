@@ -182,7 +182,7 @@ nfs_client: true
 #   2222  Gitea SSH. vault-sync on forge-hypervisor (10.10.10.10) pushes
 #         the knowledge vault through it — verified, its origin is
 #         ssh://git@git.bezaforge.dev:2222 and that name resolves here —
-#         plus Joseph's laptop from The Bunker WiFi and WireGuard.
+#         plus the admin laptop from The Bunker WiFi and WireGuard.
 #         forge-agents (10.10.50.20) had a per-port allow here for its
 #         read-only checkouts until it was retired on 2026-10-21.
 #   3053  AdGuard admin UI. Browser access from the laptop. The adguard

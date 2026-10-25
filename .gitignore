@@ -54,3 +54,6 @@ AGENTS.md
 CLAUDE.md
 GEMINI.md
 # END never4ga agent instruction files
+
+# OpenProject per-project config: private project list, read by scripts/openproject
+scripts/openproject/projects.local.json

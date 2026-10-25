@@ -1,5 +1,7 @@
 # Runbook — Wiki.js retirement ship-down (one-time, 2026-05-17)
 
+> **Placeholders:** `<admin>` is the admin account (`bezaforge_admin_user`), whose value is in the encrypted group vars.
+
 **Status:** One-time procedure. Once executed and verified, this runbook can be deleted.
 
 This is the operational counterpart to the repo edits that removed Wiki.js from Ansible roles, the homepage dashboard, and project docs on 2026-05-17. Those edits *describe* the desired state; this runbook *takes* the running container down on forge-ops and archives its data.
@@ -10,10 +12,10 @@ This mirrors the Harbor retirement (commit `64c6a59`, 2026-05-17). The compose s
 
 ## On forge-ops (10.10.20.20)
 
-The Phase 1 `joseph` user on forge-ops is in the `docker` group + owns the per-service dirs under `/opt/bezaforge/`, so neither `docker compose` nor renaming the dir needs sudo. Run interactively (one ssh, sequential commands) so any unexpected prompt can be answered:
+The Phase 1 `<admin>` user on forge-ops is in the `docker` group + owns the per-service dirs under `/opt/bezaforge/`, so neither `docker compose` nor renaming the dir needs sudo. Run interactively (one ssh, sequential commands) so any unexpected prompt can be answered:
 
 ```bash
-ssh joseph@10.10.20.20
+ssh <admin>@10.10.20.20
 ```
 
 Then on forge-ops:
@@ -60,7 +62,7 @@ exit  # back to your workstation
 
 ```bash
 # Container should not exist
-ssh joseph@10.10.20.20 'docker ps -a --filter name=wiki --format "{{.Names}} {{.Status}}"'
+ssh <admin>@10.10.20.20 'docker ps -a --filter name=wiki --format "{{.Names}} {{.Status}}"'
 
 # Subdomain should now return 404 from Traefik (no matching router)
 curl -sS -o /dev/null -w "%{http_code}\n" https://wiki.bezaforge.dev
@@ -72,7 +74,7 @@ curl -sS https://home.bezaforge.dev | grep -i 'wiki\.js' || echo "no wiki.js car
 
 ## After-shipdown bookkeeping
 
-1. The next nightly `forge-ops-backup-rsync` run will NOT touch `_retired-wikijs-2026-05-17/` (the role only iterates the `backup_services` list, which no longer includes wiki). The Phase 1 final state was captured in the rsync mirror up through the last successful run before retirement; restic→GCS picked it up the same night. Joseph can confirm the snapshot ID with `sudo restic -r gs:<bucket>:/ snapshots --path /mnt/bezapool/forge-ops-backup/wiki` on forge-hypervisor.
+1. The next nightly `forge-ops-backup-rsync` run will NOT touch `_retired-wikijs-2026-05-17/` (the role only iterates the `backup_services` list, which no longer includes wiki). The Phase 1 final state was captured in the rsync mirror up through the last successful run before retirement; restic→GCS picked it up the same night. The admin can confirm the snapshot ID with `sudo restic -r gs:<bucket>:/ snapshots --path /mnt/bezapool/forge-ops-backup/wiki` on forge-hypervisor.
 2. The next `ansible-playbook site.yml --tags services --limit forge-ops` run will NOT recreate the wiki stack (it's no longer in `compose_services`).
 3. The next nightly `db-dumps` run will NOT attempt a wiki pg_dump (the entry was removed from `postgres_dumps`).
 4. Around 2026-11-17 (6 months out), delete `_retired-wikijs-2026-05-17/` from forge-ops if no need has arisen to revive it.

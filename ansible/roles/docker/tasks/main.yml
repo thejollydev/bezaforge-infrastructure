@@ -98,9 +98,9 @@
     state: present
     update_cache: true
 
-# append: true is critical here — it ADDS docker to joseph's
+# append: true is critical here — it ADDS docker to the admin's
 # groups without removing any existing group memberships.
-# Without append, joseph would be removed from sudo and any
+# Without append, the admin would be removed from sudo and any
 # other groups. This is a common Ansible footgun.
 - name: Add the admin user to the docker group
   ansible.builtin.user:
@@ -185,7 +185,7 @@
 # and any config files it needs. This was established in Phase 1
 # (Step 4.4) and is the standard deployment pattern.
 #
-# owner/group joseph — so you can edit compose files and configs
+# owner/group the admin user — so you can edit compose files and configs
 # without sudo. Docker reads them as root when starting
 # containers, but day-to-day management shouldn't require
 # elevated privileges.
@@ -238,7 +238,7 @@
 # These tasks both create the directory AND set ownership in
 # one step. They're separated from the general directory task
 # above to avoid an idempotency conflict — if the general task
-# set these to joseph:joseph, then these tasks would change
+# set these to the admin user and group, then these tasks would change
 # them back on every run, showing 'changed' forever.
 #
 # state: directory + owner/group means: create if missing,

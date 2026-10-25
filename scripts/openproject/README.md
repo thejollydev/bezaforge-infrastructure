@@ -27,6 +27,7 @@ categories + milestones.
 | `op_provision_rails.rb` | forge-ops (Rails console) | categories + type-enablement — the only parts OpenProject's REST API can't do. One paste provisions every project in `CONFIG`, and realigns BezaForge. |
 | `op_provision.py <id>` | workstation | everything REST-scriptable: project description/status, milestones, the 4 saved views, dashboard grid layout, Active Work board. Idempotent. |
 | `op_build.py` | workstation | one-off used to categorize + retype BezaForge's 99 items (an item→category mapping). Template/reference for the per-project **content pass** (tagging existing items into categories). |
+| `projects.example.json` | — | the shape of `projects.local.json`, the per-project config (descriptions, status, milestones, bespoke taxonomies). The real file is **untracked**: it names personal projects, so it stays out of this public repository. Copy it into the container as `/tmp/op_projects.local.json` before running the Rails script. |
 
 Auth: all three read the API token from `~/.op-token` (chmod 600). REST base
 `https://pm.bezaforge.dev/api/v3`.

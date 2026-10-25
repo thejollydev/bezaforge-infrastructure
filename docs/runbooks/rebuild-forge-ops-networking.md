@@ -1,5 +1,7 @@
 # Runbook — Restore forge-ops Networking on a Rebuild
 
+> **Placeholders:** `<admin>` is the admin account (`bezaforge_admin_user`), whose value is in the encrypted group vars.
+
 This runbook covers bringing a freshly-imaged **forge-ops** back onto the correct VLANs. Follow it before any other Ansible role runs against a rebuilt host.
 
 Written for #628, which codified `/etc/network/interfaces` into `roles/network`. Before that it was hand-written and unmanaged, so a rebuild returned forge-ops with no VLAN 20 interface at all — no production IP, no AdGuard, and therefore **no DNS for any VLAN on the network**.
@@ -112,7 +114,7 @@ A reboot is preferred over `systemctl restart networking` on this host: the rest
 ### 5. Verify
 
 ```bash
-ssh joseph@10.10.20.20 '
+ssh <admin>@10.10.20.20 '
   ip -br addr show enp44s0
   ip -br addr show enp44s0.20
   ip route show default
@@ -124,7 +126,7 @@ Expected: `enp44s0` UP at `10.10.10.20/24`, `enp44s0.20` UP at `10.10.20.20/24`,
 Then confirm DNS is serving the fleet again — this is the thing whose absence looks like a network fault:
 
 ```bash
-ssh joseph@10.10.20.20 'resolvectl query --cache=no grafana.bezaforge.dev'
+ssh <admin>@10.10.20.20 'resolvectl query --cache=no grafana.bezaforge.dev'
 dig +short @10.10.20.20 grafana.bezaforge.dev     # from another host
 ```
 

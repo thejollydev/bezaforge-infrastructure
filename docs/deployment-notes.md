@@ -1,5 +1,7 @@
 # Deployment Notes & Lessons Learned
 
+> **Placeholders:** `<admin>` is the admin account (`bezaforge_admin_user`), whose value is in the encrypted group vars.
+
 Real issues encountered during deployment and how they were resolved.
 This serves as a runbook for future rebuilds and as reference for common edge cases.
 
@@ -140,6 +142,6 @@ environment:
 ufw on forge-ops only allows SSH from specific subnets.
 If locked out from a new IP: ProxyJump through forge-hypervisor:
 ```bash
-ssh -J root@<hypervisor-ip> joseph@<forge-ops-ip>
+ssh -J root@<hypervisor-ip> <admin>@<forge-ops-ip>
 ```
 Then add the new source IP to ufw.

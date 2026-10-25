@@ -1,7 +1,8 @@
 ---
 # BezaForge IaC — CI (static validation only). FORGE-10 / guide 03.
 #
-# Lints + validates on every PR and push to main. Read-only: no secrets,
+# Lints + validates on every PR and push to main. Read-only: one secret
+# (the personal-strings list, which is data, not a credential),
 # no host access, no deploy. Deployment stays manual (ansible-playbook +
 # vzdump rollback) — see phases/2-automation/03-cicd-pipeline.md Part 2
 # for why CD is deliberately not adopted on this single-operator topology.
@@ -50,6 +51,22 @@ jobs:
           python-version: '3.14'
       - run: pip install PyYAML==6.0.3
       - run: scripts/check-alert-rules.py
+
+  # The repository is public, and personal material crept back into it
+  # after it was moved out once (#1335). The strings to look for are a
+  # repository secret, since a list of them in the tree would publish them;
+  # the check prints only file:line for a hit.
+  personal-strings:
+    name: personal strings
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+      - run: scripts/check-personal-strings.py
+        env:
+          PERSONAL_STRINGS: ${{ secrets.PERSONAL_STRINGS }}
 
   ansible-lint:
     # ansible-lint also runs `ansible-playbook --syntax-check` internally

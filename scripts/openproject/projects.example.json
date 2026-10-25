@@ -1,0 +1,20 @@
+{
+  "_comment": "Copy to projects.local.json (untracked) and fill in. op_provision.py reads \"projects\"; op_provision_rails.rb merges \"categories\" into its CONFIG for projects that need a bespoke taxonomy.",
+  "projects": {
+    "bezaforge-infrastructure": {
+      "status": "on_track",
+      "status_note": "Phase 2 nearly complete. No blockers.",
+      "milestones": [
+        ["Phase 2 — Automation & Production Readiness", "Terraform, Ansible, backups, monitoring, security, CI."],
+        ["Phase 3 — Kubernetes", "Future: K3s migration."]
+      ]
+    },
+    "example-product": {
+      "status": "on_track",
+      "description": "One line on what the project is and where it stands."
+    }
+  },
+  "categories": {
+    "example-personal-project": ["Planning", "Doing", "Admin", "Resources"]
+  }
+}

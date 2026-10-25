@@ -1,5 +1,7 @@
 # Runbook — DNS Failover Test (AdGuard-down exercise)
 
+> **Placeholders:** `<admin>` is the admin account (`bezaforge_admin_user`), whose value is in the encrypted group vars.
+
 Proves that fleet DNS survives AdGuard being unavailable, by taking it away and watching what happens. Written for **#638**.
 
 **This runbook is the acceptance criterion for #638, not a nice-to-have.** The ticket's "done when" is that every host's behaviour during an AdGuard outage is *known and intentional*. A config diff cannot establish that. The mechanism under test — whether `systemd-resolved` actually rotates to the second server when the first stops answering — is an assumption until it is measured on these machines.
@@ -55,7 +57,7 @@ If failover works for REFUSED but not BLACKHOLE, that is a real and useful findi
 | forge-ai | `10.10.50.10` | netplan link scope |
 | forge-erp | `10.10.20.50` | netplan link scope |
 | forge-hypervisor | `10.10.10.10` | static resolv.conf → own dnsmasq |
-| Joseph's laptop | `10.10.40.99` | NetworkManager → resolv.conf **and** systemd-resolved (nsswitch `resolve` is first) |
+| The admin laptop | `10.10.40.99` | NetworkManager → resolv.conf **and** systemd-resolved (nsswitch `resolve` is first) |
 | Proxmox UI | `https://10.10.10.10:8006` | — |
 
 ---
@@ -177,7 +179,7 @@ Measured 2026-08-09: with AdGuard stopped, the workstation resolved an uncacheab
 
 ### B2. Stop AdGuard
 
-SSH into forge-ops first (`ssh joseph@10.10.20.20`), then:
+SSH into forge-ops first (`ssh <admin>@10.10.20.20`), then:
 
 ```
 cd /opt/bezaforge/adguard

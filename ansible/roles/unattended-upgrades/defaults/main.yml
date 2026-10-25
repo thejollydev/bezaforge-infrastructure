@@ -5,7 +5,7 @@
 # Baseline posture, converged by site.yml on every run. Security-pocket
 # updates land automatically; everything else waits for a deliberate pass
 # via update.yml. Reboots are NEVER automatic — kernel/libc updates set
-# /var/run/reboot-required and wait for Joseph, in the documented order
+# /var/run/reboot-required and wait for the admin, in the documented order
 # (hypervisor -> VMs -> forge-ops; forge-ops is DNS for every VLAN).
 
 # Hard off. An unattended reboot of forge-hypervisor would bounce every VM,

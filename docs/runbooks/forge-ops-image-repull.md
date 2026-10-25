@@ -1,5 +1,7 @@
 # Runbook — Re-pull Every Image on forge-ops, and Reclaim the Old containerd Root
 
+> **Placeholders:** `<admin>` is the admin account (`bezaforge_admin_user`), whose value is in the encrypted group vars.
+
 This runbook removes every container and every image on forge-ops, re-pulls the
 images from their registry digests, brings the stack back through `site.yml`,
 and then finishes #982 by reclaiming `/var/lib/containerd`.
@@ -83,13 +85,13 @@ expected and is not a fault.
 
 - **Console or management-VLAN access.** You are stopping AdGuard, so DNS for
   the whole network goes down. Do not rely on anything that resolves a name
-  mid-run, including `ssh forge-ops`. Use `ssh joseph@10.10.20.20`.
+  mid-run, including `ssh forge-ops`. Use `ssh <admin>@10.10.20.20`.
 - **Registry access without AdGuard.** forge-ops resolves through
   `10.10.20.20` (AdGuard, on this host) then `10.10.10.10` (the hypervisor's
   dnsmasq). The backstop is what carries the pulls. Confirm it answers for a
   public name before you stop anything — step 1.
-- **Root on forge-ops** (`sudo`, password — `joseph` has no passwordless sudo).
-  Only steps 3, 5 and 8 need it; `joseph` is in the `docker` group, so every
+- **Root on forge-ops** (`sudo`, password — `<admin>` has no passwordless sudo).
+  Only steps 3, 5 and 8 need it; `<admin>` is in the `docker` group, so every
   `docker` and `docker compose` command below runs unprivileged.
 - **An Ansible control host that is not forge-ops**, checked out on `main`,
   with both the become password and the vault password to hand. Step 6 asks
@@ -119,7 +121,7 @@ Three non-empty answers, or stop here and fix the backstop.
 ### 2. Record the before state
 
 ```bash
-ssh joseph@10.10.20.20 'mkdir -p /tmp/repull-1244
+ssh <admin>@10.10.20.20 'mkdir -p /tmp/repull-1244
 docker ps --format "{{.Names}}\t{{.Image}}" | sort > /tmp/repull-1244/containers-before.txt
 docker ps -q | xargs docker inspect --format "{{.Config.Image}} {{.Image}}" | while read ref id; do
   printf "%s\t%s\n" "$ref" "$(docker image inspect "$id" --format "{{index .RepoDigests 0}}")"
@@ -145,7 +147,7 @@ The dumps are in a superseded layer and they are sparse. Preserve a
 **manifest and one representative dump**, not 15 G:
 
 ```bash
-ssh joseph@10.10.20.20
+ssh <admin>@10.10.20.20
 S=/var/lib/docker/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/1977/fs
 D=/opt/bezaforge/_evidence/1236-hocuspocus-cores
 sudo mkdir -p "$D"
@@ -174,7 +176,7 @@ On 2026-09-22 this found 16 dumps and kept `core.388`, 1.45 G apparent and
 
 Then note in #1236 that the snapshot is gone and what survived.
 
-If Joseph has said the dumps are not worth keeping, skip this step and record
+If the owner has said the dumps are not worth keeping, skip this step and record
 that decision on #1236 instead. Do not decide it here.
 
 ### 4. Stop every stack
@@ -183,7 +185,7 @@ that decision on #1236 instead. Do not decide it here.
 references on the images and `docker rmi` refuses.
 
 ```bash
-ssh joseph@10.10.20.20
+ssh <admin>@10.10.20.20
 for p in $(docker compose ls --format json | python3 -c \
   'import sys,json;[print(p["ConfigFiles"]) for p in json.load(sys.stdin)]'); do
   echo "== $p"; docker compose -f "$p" down --remove-orphans
@@ -266,7 +268,7 @@ up by then, so DNS is back while the rest pulls.
 Counts and content first:
 
 ```bash
-ssh joseph@10.10.20.20
+ssh <admin>@10.10.20.20
 docker ps --format "{{.Names}}\t{{.Image}}" | sort > /tmp/repull-1244/containers-after.txt
 diff /tmp/repull-1244/containers-before.txt /tmp/repull-1244/containers-after.txt \
   && echo "same 30 containers on the same image refs"
@@ -326,7 +328,7 @@ Only once step 7 is clean. The rename is the point — if anything still resolve
 the old path, you find out with the data recoverable.
 
 ```bash
-ssh joseph@10.10.20.20
+ssh <admin>@10.10.20.20
 sudo du -sh /var/lib/containerd
 sudo mv /var/lib/containerd /var/lib/containerd.old-982
 sudo systemctl reboot
@@ -339,7 +341,7 @@ that the host comes up on the new data root**, which is why #982 waited for it.
 After it comes back:
 
 ```bash
-ssh joseph@10.10.20.20
+ssh <admin>@10.10.20.20
 uptime -s
 grep '^root' /etc/containerd/config.toml       # /var/lib/docker/containerd
 docker ps --format '{{.Names}}' | sort | diff /tmp/repull-1244/containers-before.txt - \

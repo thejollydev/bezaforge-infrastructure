@@ -17,7 +17,7 @@
 # Consumers (all via SMB/cifs): laptop, Windows desktop,
 # forge-ai. Code/vault do NOT live here — that's Bucket A (git + Gitea).
 #
-# One-time prereqs (Joseph, interactive):
+# One-time prereqs (the admin, interactive):
 #   1. zpool create sharepool on the blank Seagate + `zfs create
 #      sharepool/files` (done before first run).
 #   2. A read-WRITE rclone token (scope = drive, NOT drive.readonly):
