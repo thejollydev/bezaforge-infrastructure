@@ -95,9 +95,9 @@ restic_gcs_credentials_file: "{{ restic_etc_dir }}/gcs-backup-sa.json"
 # ------------------------------------------------------------
 # GCS / restic repository config (NON-secret defaults)
 # ------------------------------------------------------------
-# Override these per-host in host_vars/forge-hypervisor.yml
-# once the GCS bucket is created. Bucket name will be something
-# like bezaforge-backups-<random-suffix>.
+# Override these per host once the GCS bucket exists. The bucket
+# name is something like <project>-<random-suffix>; keep both in
+# the encrypted vault, not in the public tree.
 gcs_project_id: ""
 gcs_bucket: ""
 restic_repository: "gs:{{ gcs_bucket }}:/"

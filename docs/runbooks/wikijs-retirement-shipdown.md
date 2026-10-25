@@ -72,7 +72,7 @@ curl -sS https://home.bezaforge.dev | grep -i 'wiki\.js' || echo "no wiki.js car
 
 ## After-shipdown bookkeeping
 
-1. The next nightly `forge-ops-backup-rsync` run will NOT touch `_retired-wikijs-2026-05-17/` (the role only iterates the `backup_services` list, which no longer includes wiki). The Phase 1 final state was captured in the rsync mirror up through the last successful run before retirement; restic→GCS picked it up the same night. Joseph can confirm the snapshot ID with `sudo restic -r gs:bezaforge-backups-... snapshots --path /mnt/bezapool/forge-ops-backup/wiki` on forge-hypervisor.
+1. The next nightly `forge-ops-backup-rsync` run will NOT touch `_retired-wikijs-2026-05-17/` (the role only iterates the `backup_services` list, which no longer includes wiki). The Phase 1 final state was captured in the rsync mirror up through the last successful run before retirement; restic→GCS picked it up the same night. Joseph can confirm the snapshot ID with `sudo restic -r gs:<bucket>:/ snapshots --path /mnt/bezapool/forge-ops-backup/wiki` on forge-hypervisor.
 2. The next `ansible-playbook site.yml --tags services --limit forge-ops` run will NOT recreate the wiki stack (it's no longer in `compose_services`).
 3. The next nightly `db-dumps` run will NOT attempt a wiki pg_dump (the entry was removed from `postgres_dumps`).
 4. Around 2026-11-17 (6 months out), delete `_retired-wikijs-2026-05-17/` from forge-ops if no need has arisen to revive it.

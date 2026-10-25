@@ -173,10 +173,10 @@ These sign cookies/sessions/tokens. **Rotating invalidates all existing sessions
 
 The service account itself is long-lived; only the JSON key rotates:
 
-1. In Google Cloud console → IAM → Service accounts → `restic@bezaforge-backups.iam.gserviceaccount.com` (or whatever the SA is) → Keys → **Add key** → JSON.
+1. In Google Cloud console → IAM → Service accounts → the restic service account (`restic@<project>.iam.gserviceaccount.com`; the project is `vault_gcs_project_id`) → Keys → **Add key** → JSON.
 2. `ansible-vault edit` the variable; paste the new JSON.
 3. `ansible-playbook --tags restic-gcs --limit forge-hypervisor`.
-4. Verify with `sudo restic -r gs:bezaforge-backups-<id>:/ snapshots` on forge-hypervisor.
+4. Verify with `sudo restic -r gs:<bucket>:/ snapshots` (the bucket is `vault_gcs_bucket`) on forge-hypervisor.
 5. **Then** in Google Cloud console, delete the old key.
 
 ### `ansible-vault` password itself
