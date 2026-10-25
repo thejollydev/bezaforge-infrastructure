@@ -2,7 +2,7 @@
 # BezaForge IaC — Renovate → Discord notifications. FORGE-90.
 #
 # Renovate (FORGE-81) opens dependency-update PRs authored by the RENOVATE_TOKEN
-# PAT. GitHub does NOT notify Joseph about them — they're his own PAT's PRs — so
+# PAT. GitHub does NOT notify the owner about them — they're the owner's own PAT's PRs — so
 # without this they stay silent until someone checks the PRs tab or the
 # dependency dashboard (#88). This posts each new Renovate PR to the BezaForge
 # Alerts Discord channel, matching the Grafana / Uptime-Kuma alert flow.

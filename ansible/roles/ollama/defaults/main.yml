@@ -96,7 +96,7 @@ ollama_models_dir: "/usr/share/ollama/.ollama/models"
 
 # How long an idle loaded model stays in VRAM before unload.
 # "5m" is the upstream default; "24h" trades VRAM availability
-# for cold-start latency. Joseph's pattern is interactive
+# for cold-start latency. The usage pattern is interactive
 # back-and-forth, so a long keep-alive is preferable.
 ollama_keep_alive: "24h"
 
@@ -162,7 +162,7 @@ ollama_ufw_allow_from:
   # 22/tcp is allow-listed to 10.10.40.99 rather than to the subnet. It does
   # depend on the DHCP reservation that the SSH rule already relies on.
   - 10.10.40.99     # the workstation over WiFi (matches the 22/tcp host rule)
-  # Same workstation over WireGuard. Rare but wanted (Joseph, 2026-08-09):
+  # Same workstation over WireGuard. Rare but wanted (owner's call, 2026-08-09):
   # without it, Ollama is reachable from the laptop at home and silently not
   # reachable while away — and the failure mode is UFW's DROP, i.e. a ~5s
   # timeout that reads as "the AI host is down" rather than "you are on the

@@ -1,5 +1,7 @@
 # Runbook — Move containerd's Data Root onto the Docker LV (forge-ops)
 
+> **Placeholders:** `<admin>` is the admin account (`bezaforge_admin_user`), whose value is in the encrypted group vars.
+
 This runbook moves containerd's content store and overlayfs snapshots from the
 150 G root LV onto `forge--ops--vg-docker`, the 300 G volume that exists for
 exactly this data.
@@ -93,8 +95,8 @@ permanently on a volume nobody is watching.
 - Console or management-VLAN access to forge-ops. You are stopping AdGuard, so
   DNS for the whole network goes down; do not rely on anything that resolves a
   name mid-run, including `ssh forge-ops` if your workstation needs DNS for it.
-  Use `ssh joseph@10.10.20.20`.
-- Root on forge-ops (`sudo`, password — `joseph` has no passwordless sudo).
+  Use `ssh <admin>@10.10.20.20`.
+- Root on forge-ops (`sudo`, password — `<admin>` has no passwordless sudo).
 
 ---
 

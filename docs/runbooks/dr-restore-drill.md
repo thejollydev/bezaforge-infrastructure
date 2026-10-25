@@ -1,6 +1,8 @@
 # Runbook — Disaster-recovery restore drill
 
-**Audience:** Joseph, or any future operator with `root@forge-hypervisor` + `--ask-vault-pass` access.
+> **Placeholders:** `<admin>` is the admin account (`bezaforge_admin_user`), whose value is in the encrypted group vars.
+
+**Audience:** the admin, or any future operator with `root@forge-hypervisor` + `--ask-vault-pass` access.
 
 **Status:** Policy v1 — **ratified 2026-07-11** (FORGE-76). Backups are only as good as the last *restore* you proved. This runbook makes restore-testing a scheduled, repeatable thing instead of a hope. It does **not** automate anything — it defines *what* to drill, *how often*, *the exact commands*, and *where to log the result*.
 
@@ -78,7 +80,7 @@ rm -rf /root/dr-drill
 Restore a service's nightly dump into a scratch database inside its own container — never over the live DB. Example: Gitea (adjust service/container per `db-dumps` defaults).
 
 ```bash
-# On forge-ops as joseph. Newest dump for the service:
+# On forge-ops as <admin>. Newest dump for the service:
 ls -t /mnt/bezapool/forge-ops-backup/gitea/*.sql.gz | head -1
 # Create a scratch DB and load into it (socket auth inside the container):
 docker exec gitea-db \
@@ -100,7 +102,7 @@ docker exec gitea-db \
 Prove the ERPNext `bench backup` can be restored (the layer that actually protects the books). Restore into a **scratch site**, not the live `erp.bezaforge.dev`.
 
 ```bash
-# On forge-erp as joseph. Latest bench backup set (db + files):
+# On forge-erp as <admin>. Latest bench backup set (db + files):
 ls -t /var/lib/docker/volumes/erpnext-one_sites/_data/erp.bezaforge.dev/private/backups/ | head
 # bench restore into a throwaway site (does NOT touch erp.bezaforge.dev):
 docker exec erpnext-one-backend-1 bench new-site dr-drill.local --no-mariadb-socket --admin-password <tmp> --mariadb-root-password <root>
@@ -276,10 +278,10 @@ Append one row per drill run. Keep it here (version-controlled) so the history t
 
 | Date | Drill | Target | Result | RTO (wall-clock) | Notes / findings | Operator |
 |------|-------|--------|--------|------------------|------------------|----------|
-| 2026-06-15 | A | forge-erp (VMID 103) → scratch 199 | ✅ Pass | ~not recorded | Booted clean, ERPNext came up. Pre-runbook baseline (recorded retroactively). | Joseph |
-| 2026-07-11 | B | restic `latest` → /root/dr-drill | ✅ Pass | ~3s | **First-ever offsite restore drill.** GCS auth + repo decrypt + download all confirmed working. Restored `/bezapool/forge-erp-backup` (1.86 MiB) from snapshot `486f15b3`; `database.sql.gz` passed `gunzip -t`, both `-files.tar`/`-private-files.tar` passed `tar -tf`. The GCS/password/creds path — never exercised by ops before — is proven. | Joseph |
-| 2026-07-11 | A | forge-erp (VMID 103) → scratch 199 | ✅ Pass | ~40s (restore) | 50 GB image, 68.5% sparse, `qmrestore`→disk in 39.7s. Booted NIC-down (`link_down=1`); guest-agent up ~5s; all 8 ERPNext containers `Up`, `mariadb-database` `Up (healthy)`. Confirms forge-erp guest-agent is present (not part of FORGE-79/83 gap). Scratch VM purged after. | Joseph |
-| 2026-10-09 | G | forge-agents backup → forge-agents-drill (VMID 104) | ✅ Pass, with a finding | ~2.5 min install + 10s restore | **First restore of the agent team's backup.** Hermes v0.21.6 installed on a bare Ubuntu 26.04 VM by `roles/hermes-team` (the first fresh install through the release's new installer), same commit as the live host. The archive matched its manifest; all 7 profiles came back with soul, config, `.env`, session database and scheduled job; the board passed `integrity_check` with 22 cards, the same as live; the one memory entry read back; the settings archive listed Syncthing's identity, Never4gA's config and the repository key. **Finding: `hermes import` installed, enabled and started the gateway by itself.** The drill host had been cut off from the internet first, so no profile got a Discord adapter and the login could not refresh; the real agents and their login were untouched. Without that block the restored gateway would have connected with the live tokens. The procedure above now makes the block a numbered step. VM destroyed after. | Joseph |
+| 2026-06-15 | A | forge-erp (VMID 103) → scratch 199 | ✅ Pass | ~not recorded | Booted clean, ERPNext came up. Pre-runbook baseline (recorded retroactively). | admin |
+| 2026-07-11 | B | restic `latest` → /root/dr-drill | ✅ Pass | ~3s | **First-ever offsite restore drill.** GCS auth + repo decrypt + download all confirmed working. Restored `/bezapool/forge-erp-backup` (1.86 MiB) from snapshot `486f15b3`; `database.sql.gz` passed `gunzip -t`, both `-files.tar`/`-private-files.tar` passed `tar -tf`. The GCS/password/creds path — never exercised by ops before — is proven. | admin |
+| 2026-07-11 | A | forge-erp (VMID 103) → scratch 199 | ✅ Pass | ~40s (restore) | 50 GB image, 68.5% sparse, `qmrestore`→disk in 39.7s. Booted NIC-down (`link_down=1`); guest-agent up ~5s; all 8 ERPNext containers `Up`, `mariadb-database` `Up (healthy)`. Confirms forge-erp guest-agent is present (not part of FORGE-79/83 gap). Scratch VM purged after. | admin |
+| 2026-10-09 | G | forge-agents backup → forge-agents-drill (VMID 104) | ✅ Pass, with a finding | ~2.5 min install + 10s restore | **First restore of the agent team's backup.** Hermes v0.21.6 installed on a bare Ubuntu 26.04 VM by `roles/hermes-team` (the first fresh install through the release's new installer), same commit as the live host. The archive matched its manifest; all 7 profiles came back with soul, config, `.env`, session database and scheduled job; the board passed `integrity_check` with 22 cards, the same as live; the one memory entry read back; the settings archive listed Syncthing's identity, Never4gA's config and the repository key. **Finding: `hermes import` installed, enabled and started the gateway by itself.** The drill host had been cut off from the internet first, so no profile got a Discord adapter and the login could not refresh; the real agents and their login were untouched. Without that block the restored gateway would have connected with the live tokens. The procedure above now makes the block a numbered step. VM destroyed after. | admin |
 
 ---
 

@@ -1,7 +1,7 @@
 ---
 # Connection
 # Proxmox VE 9.x on Debian 13. Default user is root (Proxmox-managed).
-# Joseph ran `ssh-copy-id root@10.10.10.10` once on 2026-05-17 so Ansible's
+# The admin ran `ssh-copy-id root@10.10.10.10` once on 2026-05-17 so Ansible's
 # SSH key auth works. If that gets lost (key rotation, new workstation),
 # re-run ssh-copy-id or fall back to `--ask-pass` on the playbook command.
 ansible_host: 10.10.10.10

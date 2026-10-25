@@ -28,7 +28,7 @@ def req(method, path, body=None):
     except urllib.error.HTTPError as e:
         return e.code, {"error": e.read().decode()[:300]}
 
-# --- 11 categories (exact names Joseph must create in the UI) ---
+# --- 11 categories (exact names to create in the UI first) ---
 CATS = ["Backups & DR", "Networking & DNS", "Monitoring", "Storage & Files",
         "Config Management", "Provisioning", "Security & Secrets",
         "Documentation", "AI & Inference", "Platform & Tooling",

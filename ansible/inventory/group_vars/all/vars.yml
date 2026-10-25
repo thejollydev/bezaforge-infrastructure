@@ -35,10 +35,10 @@ knowledge_vault_name: "{{ vault_knowledge_vault_name }}"
 # VLAN (10.10.10.0/24, allowed separately in roles/common). This
 # codifies hand-added UFW rules that existed only on forge-ops
 # (drift discovered 2026-06-08, FORGE-36 session) — without them a
-# fresh-UFW host (e.g. forge-ai) would lock Joseph out the moment
+# fresh-UFW host (e.g. forge-ai) would lock the admin out the moment
 # the common role enables UFW.
 #
-# Joseph administers from his laptop:
+# The admin works from a laptop:
 #   - 10.10.40.99 — laptop on Home WiFi (VLAN 40)
 #   - 10.10.99.99 — laptop over WireGuard (while away)
 # /32 single hosts (strictest — not the whole VLAN, so other Home
@@ -129,7 +129,7 @@ bezaforge_dns_rewrites:
   # forge-agents.bezaforge.dev (10.10.50.20) left with the host, retired
   # 2026-10-21 with the agent team. The address is free.
   # forge-dev (VMID 102) does not currently exist — removed from the fleet.
-  # Mirrored deliberately on Joseph's call 2026-08-08: he intends to rebuild
+  # Mirrored deliberately on the owner's call 2026-08-08: it is to be rebuilt
   # it, so this is a placeholder rather than stale config, and the two
   # resolvers agreeing matters more than the record being live.
   - {domain: "forge-dev.bezaforge.dev", answer: "10.10.30.10"}

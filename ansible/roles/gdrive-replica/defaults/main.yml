@@ -16,7 +16,7 @@
 # 8w/12m) catch anything a sync deletes; Drive's own trash is
 # upstream of that.
 #
-# One-time prereqs (Joseph, interactive):
+# One-time prereqs (the admin, interactive):
 #   1. Own Google OAuth client ID (Desktop app) on the
 #      Drive owner's Google account — consent screen MUST
 #      be published to Production (Testing-mode refresh tokens

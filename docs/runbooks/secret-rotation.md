@@ -1,6 +1,8 @@
 # Runbook — Secret rotation policy
 
-**Audience:** Joseph, or any future operator with `--ask-vault-pass` access.
+> **Placeholders:** `<admin>` is the admin account (`bezaforge_admin_user`), whose value is in the encrypted group vars.
+
+**Audience:** the admin, or any future operator with `--ask-vault-pass` access.
 
 **Status:** Policy v1 — 2026-05-17. This is a *floor* — nothing here is automated yet (HashiCorp Vault would automate; see Phase 2 guide 04). The point of the runbook is to make rotation a known, scheduled, repeatable thing rather than a never-thing.
 
@@ -28,7 +30,7 @@ Three reasons:
 | **Restic GCS service-account JSON** (`vault_gcs_credentials_json`) | 90 days (the key, not the SA) | Suspected compromise; SA permission scope change |
 | **TLS certs** (Let's Encrypt via Traefik) | Auto (~60d) | Renewal failure (Cloudflare DNS-01 API token expired) |
 | **SSH host keys** | **Never under routine** | Host re-built; suspected compromise of the host (then full re-key + known-hosts cleanup across all clients) |
-| **SSH user keys** (Joseph's `~/.ssh/`) | When practical (every ~2 years) | Workstation compromise; key algorithm deprecation |
+| **SSH user keys** (the admin's `~/.ssh/`) | When practical (every ~2 years) | Workstation compromise; key algorithm deprecation |
 | **ansible-vault password** | Annual | Workstation compromise; password manager audit |
 
 ---
@@ -116,7 +118,7 @@ openssl rand -base64 32 | tr -d '/+=' | head -c 32 ; echo
 # 2. Update inside the running container BEFORE updating Ansible — if step 4
 #    fails the password mismatch only affects the container restart, not
 #    config drift.
-ssh -t joseph@10.10.20.20
+ssh -t <admin>@10.10.20.20
 docker exec -it gitea-db psql -U gitea -c "ALTER USER gitea WITH PASSWORD '<new>';"
 exit
 
@@ -152,7 +154,7 @@ docker logs gitea --tail 50 | grep -iE "error|fatal"                     # empty
 
 These sign cookies/sessions/tokens. **Rotating invalidates all existing sessions** — everyone gets logged out, all API tokens issued before rotation are dead.
 
-1. Coordinate the timing (no users mid-task; for Joseph-only services this is a non-issue).
+1. Coordinate the timing (no users mid-task; for single-user services this is a non-issue).
 2. Generate new value (`openssl rand -hex 64` for `SECRET_KEY`-style values).
 3. `ansible-vault edit`.
 4. `ansible-playbook` → container restart.

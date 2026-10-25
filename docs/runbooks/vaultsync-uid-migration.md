@@ -4,7 +4,7 @@ Written for **#965**. Run once. A fresh host needs none of this, because `roles/
 
 ## Why
 
-The bezapool exports use `sec=sys`, which trusts the client's **numeric** uid. On the hypervisor, vaultsync was uid 1000. On every forge-* VM, uid 1000 is joseph. So joseph on an NFS client *was* vaultsync on the hypervisor. This was shown, not assumed: an unprivileged `touch` in `/bezapool/gdrive` from forge-ops succeeded.
+The bezapool exports use `sec=sys`, which trusts the client's **numeric** uid. On the hypervisor, vaultsync was uid 1000. On every forge-* VM, uid 1000 is the admin user. So the admin user on an NFS client *was* vaultsync on the hypervisor. This was shown, not assumed: an unprivileged `touch` in `/bezapool/gdrive` from forge-ops succeeded.
 
 Two changes close it:
 

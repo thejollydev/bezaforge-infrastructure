@@ -43,7 +43,7 @@ Unattended-Upgrade::Package-Blacklist {
 
 // Never reboot on our own — forge-hypervisor would bounce every VM and
 // forge-ops would take DNS + Traefik down. /var/run/reboot-required is the
-// signal; `update.yml` reports it and Joseph reboots in the safe order.
+// signal; `update.yml` reports it and the admin reboots in the safe order.
 Unattended-Upgrade::Automatic-Reboot "{{ unattended_automatic_reboot | ternary('true', 'false') }}";
 
 Unattended-Upgrade::Remove-Unused-Kernel-Packages "{{ unattended_remove_unused_deps | ternary('true', 'false') }}";

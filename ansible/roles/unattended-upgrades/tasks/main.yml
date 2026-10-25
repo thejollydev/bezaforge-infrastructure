@@ -2,7 +2,7 @@
 # ============================================================
 # unattended-upgrades — automatic SECURITY patching only
 # ============================================================
-# Closes the window where a known CVE sits unpatched between Joseph's manual
+# Closes the window where a known CVE sits unpatched between the admin's manual
 # passes. Deliberately does NOT auto-reboot: see defaults/main.yml.
 
 - name: Install unattended-upgrades

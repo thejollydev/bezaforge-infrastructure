@@ -1,5 +1,7 @@
 # Runbook — The vault on Syncthing
 
+> **Placeholders:** `<admin>` is the admin account (`bezaforge_admin_user`), and `<vault>` is the knowledge vault's folder name (`knowledge_vault_name`). Both values are in the encrypted group vars.
+
 The knowledge vault's files sync two-way between two copies, the laptop and
 the hypervisor, with the laptop as the only git actor (BezaForge ADR 0012).
 This runbook covers the first deployment (#1216), the tests that prove it, and
@@ -12,7 +14,7 @@ what to do when something goes wrong.
 
 | Copy | Path | Runs as | Managed by |
 |---|---|---|---|
-| Laptop (`jolly-LOQ-arch`) | `~/Vaults/never-knowledge` | `joseph`, user service | by hand (step 3) |
+| Laptop | `~/Vaults/<vault>` | `<admin>`, user service | by hand (step 3) |
 | forge-hypervisor | `/bezapool/vault` (ZFS, snapshotted, restic offsite) | `vaultsync` | `roles/syncthing` |
 
 - **Ignored everywhere:** `.git` at any depth, `/.obsidian` and `/.trash` at
@@ -93,7 +95,7 @@ and the only symptom is that the servers stay empty.
 1. Write the laptop's ignore file and folder marker:
 
    ```bash
-   printf '%s\n' '// Same patterns as roles/syncthing on the servers. Not synced; keep them in step.' '.git' '/.obsidian' '/.trash' > ~/Vaults/never-knowledge/.stignore && mkdir -p ~/Vaults/never-knowledge/.stfolder && cat ~/Vaults/never-knowledge/.stignore
+   printf '%s\n' '// Same patterns as roles/syncthing on the servers. Not synced; keep them in step.' '.git' '/.obsidian' '/.trash' > ~/Vaults/<vault>/.stignore && mkdir -p ~/Vaults/<vault>/.stfolder && cat ~/Vaults/<vault>/.stignore
    ```
 
 2. Add forge-hypervisor as a device. One command per server, with the ID
@@ -114,22 +116,22 @@ and the only symptom is that the servers stay empty.
 4. Add the folder, shared with all three:
 
    ```bash
-   K=$(grep -o '<apikey>[^<]*' ~/.local/state/syncthing/config.xml | cut -d'>' -f2); ME=$(syncthing device-id); curl -fsS -X POST -H "X-API-Key: $K" -H 'Content-Type: application/json' http://127.0.0.1:8384/rest/config/folders -d "{\"id\":\"never-knowledge\",\"label\":\"never-knowledge\",\"path\":\"$HOME/Vaults/never-knowledge\",\"type\":\"sendreceive\",\"fsWatcherEnabled\":true,\"rescanIntervalS\":3600,\"devices\":[{\"deviceID\":\"$ME\"},{\"deviceID\":\"<HYPERVISOR-ID>\"},{\"deviceID\":\"<AGENTS-ID>\"}]}" && echo "folder added"
+   K=$(grep -o '<apikey>[^<]*' ~/.local/state/syncthing/config.xml | cut -d'>' -f2); ME=$(syncthing device-id); curl -fsS -X POST -H "X-API-Key: $K" -H 'Content-Type: application/json' http://127.0.0.1:8384/rest/config/folders -d "{\"id\":\"<vault>\",\"label\":\"<vault>\",\"path\":\"$HOME/Vaults/<vault>\",\"type\":\"sendreceive\",\"fsWatcherEnabled\":true,\"rescanIntervalS\":3600,\"devices\":[{\"deviceID\":\"$ME\"},{\"deviceID\":\"<HYPERVISOR-ID>\"},{\"deviceID\":\"<AGENTS-ID>\"}]}" && echo "folder added"
    ```
 
 5. Check that all three IDs stuck. If the folder was added before the
    devices, it will list only the laptop; repair it with the same body
-   through `PATCH .../rest/config/folders/never-knowledge`.
+   through `PATCH .../rest/config/folders/<vault>`.
 
    ```bash
-   K=$(grep -o '<apikey>[^<]*' ~/.local/state/syncthing/config.xml | cut -d'>' -f2); curl -fsS -H "X-API-Key: $K" http://127.0.0.1:8384/rest/config/folders/never-knowledge | jq -c '[.devices[].deviceID]'
+   K=$(grep -o '<apikey>[^<]*' ~/.local/state/syncthing/config.xml | cut -d'>' -f2); curl -fsS -H "X-API-Key: $K" http://127.0.0.1:8384/rest/config/folders/<vault> | jq -c '[.devices[].deviceID]'
    ```
 
 The laptop dials both servers and sends them the vault, about 11 MB without
 `.git` and `.obsidian`. Watch it finish:
 
 ```bash
-ssh root@10.10.10.10 'find /bezapool/vault -type f | wc -l'; ssh joseph@10.10.50.20 'find ~/Vaults/never-knowledge -type f | wc -l'; find ~/Vaults/never-knowledge -path '*/.git' -prune -o -path '*/.obsidian' -prune -o -path '*/.trash' -prune -o -type f -print | wc -l
+ssh root@10.10.10.10 'find /bezapool/vault -type f | wc -l'; ssh <admin>@10.10.50.20 'find ~/Vaults/<vault> -type f | wc -l'; find ~/Vaults/<vault> -path '*/.git' -prune -o -path '*/.obsidian' -prune -o -path '*/.trash' -prune -o -type f -print | wc -l
 ```
 
 The three counts should match within a minute or two. Each includes that
@@ -196,11 +198,11 @@ history once.
 **Laptop to servers, within a minute:**
 
 ```bash
-date -Is > ~/Vaults/never-knowledge/syncthing-test-laptop.txt
+date -Is > ~/Vaults/<vault>/syncthing-test-laptop.txt
 ```
 
 ```bash
-sleep 60; ssh root@10.10.10.10 cat /bezapool/vault/syncthing-test-laptop.txt; ssh joseph@10.10.50.20 cat ~/Vaults/never-knowledge/syncthing-test-laptop.txt
+sleep 60; ssh root@10.10.10.10 cat /bezapool/vault/syncthing-test-laptop.txt; ssh <admin>@10.10.50.20 cat ~/Vaults/<vault>/syncthing-test-laptop.txt
 ```
 
 Expect the same timestamp twice.
@@ -208,17 +210,17 @@ Expect the same timestamp twice.
 **forge-agents to the laptop and bezapool, then into git:**
 
 ```bash
-ssh joseph@10.10.50.20 'date -Is > ~/Vaults/never-knowledge/syncthing-test-agents.txt'
+ssh <admin>@10.10.50.20 'date -Is > ~/Vaults/<vault>/syncthing-test-agents.txt'
 ```
 
 ```bash
-sleep 60; cat ~/Vaults/never-knowledge/syncthing-test-agents.txt; ssh root@10.10.10.10 cat /bezapool/vault/syncthing-test-agents.txt
+sleep 60; cat ~/Vaults/<vault>/syncthing-test-agents.txt; ssh root@10.10.10.10 cat /bezapool/vault/syncthing-test-agents.txt
 ```
 
 Wait for the next quarter hour, then:
 
 ```bash
-git -C ~/Vaults/never-knowledge log --oneline -1 -- syncthing-test-agents.txt
+git -C ~/Vaults/<vault> log --oneline -1 -- syncthing-test-agents.txt
 ```
 
 Expect a commit from the laptop's timer.
@@ -227,22 +229,22 @@ Expect a commit from the laptop's timer.
 the same file on both sides, then start it again:
 
 ```bash
-ssh -t joseph@10.10.50.20 'sudo systemctl stop syncthing@joseph && echo "edited on forge-agents" > ~/Vaults/never-knowledge/syncthing-test-agents.txt'
+ssh -t <admin>@10.10.50.20 'sudo systemctl stop syncthing@<admin> && echo "edited on forge-agents" > ~/Vaults/<vault>/syncthing-test-agents.txt'
 ```
 
 ```bash
-echo "edited on the laptop" > ~/Vaults/never-knowledge/syncthing-test-agents.txt
+echo "edited on the laptop" > ~/Vaults/<vault>/syncthing-test-agents.txt
 ```
 
 ```bash
-sleep 30; ssh -t joseph@10.10.50.20 'sudo systemctl start syncthing@joseph'
+sleep 30; ssh -t <admin>@10.10.50.20 'sudo systemctl start syncthing@<admin>'
 ```
 
 forge-agents' edit is older, so it becomes the conflict copy, and the copy
 syncs everywhere. Then run the check:
 
 ```bash
-sleep 60; ls ~/Vaults/never-knowledge | grep sync-conflict; ssh root@10.10.10.10 'systemctl start bezaforge-syncthing-check.service; journalctl -u bezaforge-syncthing-check.service -n 4 --no-pager -o cat'
+sleep 60; ls ~/Vaults/<vault> | grep sync-conflict; ssh root@10.10.10.10 'systemctl start bezaforge-syncthing-check.service; journalctl -u bezaforge-syncthing-check.service -n 4 --no-pager -o cat'
 ```
 
 Expect one `syncthing-test-agents.sync-conflict-…txt`, `conflicts: down: 1
@@ -251,7 +253,7 @@ conflict copies: …`, and *Vault sync — conflicts* red in Uptime Kuma.
 **Clean up**, then confirm both monitors return to green:
 
 ```bash
-rm ~/Vaults/never-knowledge/syncthing-test-*.txt && sleep 60 && ssh root@10.10.10.10 'systemctl start bezaforge-syncthing-check.service; journalctl -u bezaforge-syncthing-check.service -n 4 --no-pager -o cat'
+rm ~/Vaults/<vault>/syncthing-test-*.txt && sleep 60 && ssh root@10.10.10.10 'systemctl start bezaforge-syncthing-check.service; journalctl -u bezaforge-syncthing-check.service -n 4 --no-pager -o cat'
 ```
 
 ---
@@ -268,13 +270,13 @@ writers are working on them, which ADR 0012 says to revisit.
 server's side first:
 
 ```bash
-ssh -t joseph@10.10.50.20 'systemctl status syncthing@joseph --no-pager; sudo journalctl -u syncthing@joseph -n 30 --no-pager'
+ssh -t <admin>@10.10.50.20 'systemctl status syncthing@<admin> --no-pager; sudo journalctl -u syncthing@<admin> -n 30 --no-pager'
 ```
 
 For the GUI, tunnel it to the laptop and open <http://127.0.0.1:8385>:
 
 ```bash
-ssh -N -L 8385:127.0.0.1:8384 joseph@10.10.50.20
+ssh -N -L 8385:127.0.0.1:8384 <admin>@10.10.50.20
 ```
 
 **"folder marker missing".** On the hypervisor, `bezapool/vault` is not
@@ -292,7 +294,7 @@ old device removed in the laptop's GUI).
 
 Stop and disable Syncthing on the servers
 (`systemctl disable --now syncthing@vaultsync` on the hypervisor,
-`sudo systemctl disable --now syncthing@joseph` on forge-agents) and remove
+`sudo systemctl disable --now syncthing@<admin>` on forge-agents) and remove
 the folder from the laptop's GUI. Every copy keeps its files, and the laptop's
 git history is untouched. Remove `syncthing` from both plays in `site.yml` to
 keep it from coming back.

@@ -88,7 +88,7 @@ ollama_models:
   - qwen2.5-coder:14b
   # The agent team was retired on 2026-10-21. These models and the -64k
   # variant below were its local fallback and review model; they stay until
-  # Joseph decides, since nothing breaks by keeping them.
+  # the owner decides, since nothing breaks by keeping them.
   # The agent team's local fallback (Brizza ADR 0014). Both were pulled by
   # hand and never declared — the same quiet-failure class as the two
   # above — and gemma4:26b is now load-bearing twice over: the base for the
@@ -97,7 +97,7 @@ ollama_models:
   - gemma4:26b
   - qwen3.8:27b
 
-# ⚠️ UNDECLARED DRIFT, deliberately left for Joseph rather than guessed.
+# ⚠️ UNDECLARED DRIFT, deliberately left for the owner rather than guessed.
 # `ollama list` on forge-ai shows 14 models; this file declares three.
 # The rest have no recorded consumer, so declaring them here would
 # assert a desired state nobody chose:
@@ -185,7 +185,7 @@ ollama_modelfiles:
       num_ctx: 65536
       draft_num_predict: 0
 
-# 30 minutes, not 24 hours (Joseph, 2026-10-01, #1352). The model above
+# 30 minutes, not 24 hours (owner's call, 2026-10-01, #1352). The model above
 # fills ~17 GiB of the 20 GiB card, and ComfyUI on the same GPU needs the
 # rest when it runs. Since #321 the agents' self-improvement review loads
 # it regularly, so 24h meant the card was effectively never free. 30m keeps

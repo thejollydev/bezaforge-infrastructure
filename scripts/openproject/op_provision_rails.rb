@@ -35,17 +35,22 @@ CONFIG = {
   "ansible-arch"=>INFRA, "ai-workspace"=>INFRA,
   # --- business/ops ---
   "bezacore-ops"=>BUSINESS, "bezacore-labs"=>BUSINESS,
-  # --- personal / life (bespoke) ---
-  "recovery"    =>["Step Work","Sponsorship","Meetings","Study & Reading","Service"],
-  "education"   =>["Coursework","Certifications","Assignments","Resources"],
-  "personal"    =>["Home","Health","Finance","Family & Relationships","Admin","Hobbies"],
-  "vault-knowledge"=>["Structure","Bases & Templates","Content & MOCs","Sync & Automation","Docs"],
-  "bible-study" =>["Original Meaning","Bridging Contexts","Contemporary Application",
-                   "Teaching & Ministry Prep","Questions & Research","Resources"],
-  "video-projects"=>["Planning & Scripting","Filming","Editing","Publishing","Assets & Gear"],
-  "wedding"     =>["Venue & Vendors","Guests & Invitations","Attire","Budget",
-                   "Ceremony","Reception","Travel & Lodging"],
+  # --- personal / life: bespoke taxonomies, merged in below from the private
+  # projects.local.json, so this public file does not list them ---
 }
+
+# Bespoke taxonomies for personal projects live in projects.local.json under
+# "categories", outside the public repository. Copy it in beside this script:
+#   docker cp projects.local.json openproject:/tmp/op_projects.local.json
+# Without it, only the projects above are provisioned, and the personal ones
+# show up in the "NOT IN CONFIG" report.
+LOCAL = ENV.fetch("OP_PROJECTS_FILE", "/tmp/op_projects.local.json")
+if File.exist?(LOCAL)
+  require "json"
+  JSON.parse(File.read(LOCAL)).fetch("categories", {}).each { |ident, cats| CONFIG[ident] = cats }
+else
+  puts "no #{LOCAL}: provisioning the public projects only"
+end
 
 # Deliberately absent, not forgotten. These three are pure hierarchy nodes that
 # hold no work of their own, so a taxonomy and an Epic type would be clutter on

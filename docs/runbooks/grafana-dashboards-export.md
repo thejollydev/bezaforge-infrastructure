@@ -1,5 +1,7 @@
 # Runbook — Export Grafana dashboards into version control
 
+> **Placeholders:** `<admin>` is the admin account (`bezaforge_admin_user`), whose value is in the encrypted group vars.
+
 **Why:** Grafana dashboards live in a SQLite DB inside the container. If the volume is lost (or Grafana is re-deployed clean) they must be re-created by hand. This runbook captures them into `ansible/roles/monitoring/files/grafana/dashboards/` so they ship with the repo and are re-provisioned on the next playbook run.
 
 ---
@@ -82,11 +84,11 @@ cd ansible && ansible-playbook site.yml --tags monitoring \
 
 ```bash
 # 1. No provisioning errors. Expect NOTHING from this.
-ssh joseph@10.10.20.20 \
+ssh <admin>@10.10.20.20 \
   'docker logs grafana --since 10m 2>&1 | grep -iE "failed to (walk|create folder)"'
 
 # 2. Positive confirmation the walk completed.
-ssh joseph@10.10.20.20 \
+ssh <admin>@10.10.20.20 \
   'docker logs grafana --since 10m 2>&1 | grep -iE "finished to provision dashboards"'
 ```
 

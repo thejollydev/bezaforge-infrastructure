@@ -11,8 +11,10 @@ UI/Rails-only in OpenProject's REST API):
   docker exec openproject bundle exec rails runner '<see op_provision_rails.rb>'
 
 Usage:  op_provision.py <identifier>
-Config: PROJECTS dict below (description/status/milestones per project;
-        everything else is identical across projects).
+Config: projects.local.json beside this script (or $OP_PROJECTS_FILE), key
+        "projects": description/status/milestones per project. It is private
+        and untracked; projects.example.json shows the shape. Everything else
+        is identical across projects.
 """
 import base64, json, os, sys, urllib.parse, urllib.request, urllib.error
 
@@ -23,42 +25,15 @@ S_NEW, S_INPROGRESS = 1, 7        # global status ids
 T_BUG, T_EPIC = 7, 5              # global type ids
 
 # ---- per-project config (the only things that vary) --------------------------
-_ON = "on_track"
-PROJECTS = {
-  # ---- infrastructure ----
-  "bezaforge": {"status": _ON,
-    "status_note": "Phase 2 ~complete; work-tracking migrated to OpenProject. No blockers.",
-    "milestones": [
-      ("Phase 2 — Automation & Production Readiness", "Active: Terraform, Ansible, backups, monitoring, security, CI/CD."),
-      ("Phase 3 — Kubernetes", "Future: K3s migration. Placeholder.")]},
-  "dev-environment": {"status": _ON,
-    "description": "Joseph's Arch Linux KDE workstation setup — dotfiles (GNU Stow), ansible-arch automation, shell/editor/system tooling."},
-  # ---- development ----
-  "bezacore-marketing": {"status": _ON,
-    "description": "bezacore.com — BezaCore Labs' parent marketing site (Next.js 16 / React 19 / Tailwind, Cloud Run). LIVE."},
-  "portfolio": {"status": _ON,
-    "description": "soper.dev — Joseph's founder/engineer portfolio (single hand-written HTML, GitHub Pages). LIVE."},
-  "pcoc": {"status": _ON,
-    "description": "petoskeychurchofchrist.com — Petoskey Church of Christ website (WordPress + Divi 5, git-deploy). LIVE. Intelligrace pilot tenant."},
-  "throughlin": {"status": _ON,
-    "description": "OSS sovereign 'whole-life brain' any AI plugs into — files-as-truth (Python 3.14 core + TypeScript loom, MCP). BezaCore Labs co-flagship; design phase."},
-  "intelligrace": {"status": _ON,
-    "description": "BezaCore Labs co-flagship product (Django 6 + Django Ninja + Wagtail 7.4 + Next.js 16, Cloud Run). Phase 0."},
-  "brizza": {"status": _ON,
-    "description": "Personal AI assistant. v1 (Hermes Agent bridge on forge-brizza) was torn down whole 2026-08-30; v2 is a ground-up rebuild with a different shape — multiple Hermes clients or an agent swarm, possibly laptop-orchestrated."},
-  "bezacore-cogs": {"status": _ON,
-    "description": "BezaCore Labs small-tools (COG) collection. Ideation — first candidate: village-app."},
-  # ---- business / ops ----
-  "bezacore-ops": {"status": _ON,
-    "description": "BezaCore Labs LLC business-operations hub — the studio's legal, finance, strategy, brand, and consultancy/services layer."},
-  # ---- personal / life (no status badge) ----
-  "vault-knowledge": {"status": _ON,
-    "description": "never-knowledge Obsidian vault system — structure, Bases/Templater, MOCs, and Gitea-based sync automation. Successor to Master-Mind (retired 2026-08-15)."},
-  "recovery": {"description": "AA recovery program — step work, sponsorship, meetings, Big Book / Joe & Charlie study, and service."},
-  "education": {"description": "Formal education — UoPeople BS Computer Science (expected 12/2027) and professional certifications."},
-  "personal": {"description": "Personal life & home — maintenance, health & fitness, finance, family, admin, and hobbies."},
-  "bible-study": {"description": "Personal Bible study alongside the NIV Application Commentary — Original Meaning → Bridging Contexts → Contemporary Application, with an eye toward light ministry involvement."},
-}
+# Kept out of this public repository: it names personal projects. The file is
+# untracked; projects.example.json shows the shape.
+PROJECTS_FILE = os.environ.get(
+    "OP_PROJECTS_FILE", os.path.join(os.path.dirname(os.path.abspath(__file__)), "projects.local.json"))
+if os.path.exists(PROJECTS_FILE):
+    with open(PROJECTS_FILE) as f:
+        PROJECTS = json.load(f).get("projects", {})
+else:
+    PROJECTS = {}
 
 def req(method, path, body=None):
     data = json.dumps(body).encode() if body is not None else None
@@ -200,4 +175,6 @@ def provision(proj):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2: sys.exit("usage: op_provision.py <identifier>")
+    if not PROJECTS:
+        print(f"note: no project config at {PROJECTS_FILE}; description, status and milestones are left as they are")
     provision(sys.argv[1])
