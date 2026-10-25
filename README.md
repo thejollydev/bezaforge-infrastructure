@@ -66,7 +66,7 @@ The service host runs on bare metal rather than as a VM, so DNS and the reverse 
 Five VLANs on a TP-Link Omada SDN stack. There is no switch: every host cables straight into the gateway, the hypervisor's uplink is an 802.1Q trunk into a VLAN-aware bridge, and each VM's virtual NIC is tagged with its own VLAN. The service host carries management untagged and production tagged on one 2.5GbE port.
 
 ```mermaid
-flowchart LR
+flowchart TB
     remote["WireGuard clients<br/>own tunnel subnet"]
     admins["Admin devices<br/>an IP group"]
 
