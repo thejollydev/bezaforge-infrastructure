@@ -9,9 +9,10 @@
 # Required vars (from ansible-vault inventory/host_vars/forge-hypervisor/vault.yml):
 #   - vault_restic_password           (string)
 #   - vault_gcs_credentials_json      (string — full JSON contents)
-# Required vars (from vars.yml or vault.yml — non-secret):
-#   - gcs_project_id                  (string, e.g. "bezaforge-backups")
-#   - gcs_bucket                      (string, e.g. "bezaforge-backups-abcd1234")
+# Required vars (non-secret, but kept in vault.yml as vault_gcs_project_id
+# and vault_gcs_bucket, so the public tree does not name them):
+#   - gcs_project_id                  (string, e.g. "example-backups")
+#   - gcs_bucket                      (string, e.g. "example-backups-abcd1234")
 #
 # Pre-deploy guard: refuses to deploy if required vars are empty,
 # so we don't accidentally enable a timer pointing at a nonexistent
