@@ -149,8 +149,8 @@ services:
       PGTZ: UTC
     volumes:
       # Postgres 18 keeps its data in /var/lib/postgresql/18/docker, so the
-      # mount is the parent. The new volume leaves 17's data in
-      # langfuse_postgres_data untouched: going back is a revert.
+      # mount is the parent. 17's data stayed in langfuse_postgres_data until
+      # it was removed by hand on 2026-10-25 (#1396).
       - langfuse_postgres18_data:/var/lib/postgresql
     networks:
       - bezaforge-net
