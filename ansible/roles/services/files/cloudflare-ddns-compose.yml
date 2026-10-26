@@ -3,7 +3,7 @@ services:
     # Keeps the WireGuard endpoint's public A record on the gateway's WAN
     # address, which Spectrum changes without notice. Checks every five
     # minutes and writes to Cloudflare only when the address has moved.
-    image: favonia/cloudflare-ddns:1.17.1@sha256:5e61736b982b87d84a1120b4767c4deff0f2cc55ca3ee9dcb1dc58623039b5cb
+    image: favonia/cloudflare-ddns:1.18.0@sha256:345b41895a8846d74c62d30bd27e61101a754f8ab8da10c68115823883803afb
     container_name: cloudflare-ddns
     restart: unless-stopped
     # It needs nothing from the host: no files, no ports, no capabilities.
