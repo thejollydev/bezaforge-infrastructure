@@ -85,9 +85,9 @@ services:
       # declares /var/lib/postgresql as its volume, so the mount is the parent
       # directory. Mounted at .../data as before, 18 would write to an
       # anonymous volume and lose the database at the next recreate. The
-      # directory is new on purpose: the Postgres 16 data stays untouched in
-      # /opt/bezaforge/netbox/postgres until it is removed by hand
-      # (roles/postgres-major, docs/runbooks/postgres-major-upgrade.md).
+      # directory is new on purpose: the Postgres 16 data stayed untouched in
+      # /opt/bezaforge/netbox/postgres until it was removed by hand on
+      # 2026-10-25 (#1396; roles/postgres-major, docs/runbooks/postgres-major-upgrade.md).
       - /opt/bezaforge/netbox/postgres18:/var/lib/postgresql
     networks:
       - bezaforge-net

@@ -13,8 +13,8 @@ services:
       POSTGRES_PASSWORD: {{ gitea_db_password }}
     volumes:
       # Postgres 18 keeps its data in /var/lib/postgresql/18/docker, so the
-      # mount is the parent. The new directory leaves 15's data in
-      # /opt/bezaforge/gitea/postgres untouched: going back is a revert.
+      # mount is the parent. 15's data stayed in /opt/bezaforge/gitea/postgres
+      # until it was removed by hand on 2026-10-25 (#1396).
       - /opt/bezaforge/gitea/postgres18:/var/lib/postgresql
     networks:
       - bezaforge-net
