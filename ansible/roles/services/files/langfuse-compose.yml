@@ -189,7 +189,7 @@ services:
       start_period: 1s
 
   langfuse-redis:
-    image: redis:8@sha256:2c2dff791878316e3b083188be0d578423b24813cdda5de0e80ea4f7b3e6bfd6
+    image: redis:8@sha256:0a014ae5c04f55c82aaad2314de411c7a203de1c4312c3e526939226a0185dd9
     container_name: langfuse-redis
     restart: unless-stopped
     # noeviction: Redis is a durable-ish queue here, not just a cache —
