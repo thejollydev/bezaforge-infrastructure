@@ -31,7 +31,7 @@
 # "Target versions" (Administration > Work packages > Versions and
 # categories). It replaces the API's `version` property with
 # `targetVersions`, so leave it off until every API client reads the new field.
-openproject_release: "17.9.2"
+openproject_release: "17.9.4"
 
 # Public URL — Traefik routes pm.bezaforge.dev → this container on
 # bezaforge-net. AdGuard rewrites the host to 10.10.20.20. The
