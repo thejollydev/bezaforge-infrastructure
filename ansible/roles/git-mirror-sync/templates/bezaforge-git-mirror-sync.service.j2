@@ -1,0 +1,27 @@
+[Unit]
+Description=BezaForge: copy main from GitHub to GitLab and Gitea
+Documentation=file:///usr/local/bin/bezaforge-git-mirror-sync
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/bin/bezaforge-git-mirror-sync
+# A throwaway user each run, which can read the config only through the
+# credential below; the tokens' file itself is root's alone.
+DynamicUser=yes
+LoadCredential=config:/etc/bezaforge-git-mirror-sync/config.json
+# The bare copies it pushes from, kept between runs.
+StateDirectory=bezaforge-git-mirror-sync
+Environment=HOME=%S/bezaforge-git-mirror-sync
+StandardOutput=journal
+StandardError=journal
+# Three attempts per remote, ten seconds apart, over every repository.
+TimeoutStartSec=4min
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

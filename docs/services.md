@@ -70,6 +70,13 @@ Base path: `/opt/bezaforge/{service}/docker-compose.yml`
 - **Role:** Self-hosted Git server (internal repos, mirrors)
 - **Storage:** Persistent volume for repositories
 
+### Git mirror sync
+- **Runs as:** systemd timer `bezaforge-git-mirror-sync.timer` on forge-ops, every five minutes (not a container)
+- **Role:** copies each repository's `main` from GitHub to GitLab and Gitea, for merges made away from the workstation's `git land` (GitHub's app, a website's writing editor). Repositories are found on Gitea, so a new one is picked up on its own. Never forces a push: a mirror holding a commit GitHub doesn't is refused and reported, never overwritten
+- **Secrets:** a read-only fine-grained GitHub token per owner, a GitLab token and a Gitea token, all vaulted (shape in `ansible/roles/git-mirror-sync/defaults/main.yml`). Installs nothing until they're set
+- **Alerting:** the generic failed-unit alert, once a failure has lasted 15 minutes (three runs). See what failed: `journalctl -u bezaforge-git-mirror-sync`
+- **Ansible role:** `ansible/roles/git-mirror-sync/`
+
 ### OpenProject
 - **Image:** `openproject/openproject` all-in-one (bundles Postgres + memcached + web + Rails workers under one supervisor), pinned to a release tag; Renovate tracks it
 - **Role:** Self-hosted project + work tracking at `pm.bezaforge.dev` — the live work tracker (replaced Plane 2026-07, FORGE #455). Its Community REST API v3 filters server-side (unlike Plane CE), so the Claude Code integration works via the free `op-query` helper

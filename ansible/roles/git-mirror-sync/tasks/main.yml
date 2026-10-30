@@ -1,0 +1,72 @@
+---
+# ============================================================
+# git-mirror-sync role — GitHub's main copied to GitLab and Gitea
+#
+# Deploys: the sync script, its config (the tokens, readable by
+# root alone; systemd hands it to the service as a credential), a
+# oneshot service that runs as a throwaway user, and a five-minute
+# timer. Installs nothing while git_mirror_sync_owners is empty.
+# ============================================================
+
+- name: Sync main to the mirrors
+  when: git_mirror_sync_owners | length > 0
+  block:
+    - name: Check every token and name is set
+      ansible.builtin.assert:
+        that:
+          - git_mirror_sync_gitlab_token | length > 0
+          - git_mirror_sync_gitea_user | length > 0
+          - git_mirror_sync_gitea_token | length > 0
+          - git_mirror_sync_owners | map(attribute=item, default='') | select('equalto', '') | list | length == 0
+        fail_msg: "git-mirror-sync: a token or name is missing from the vault (see the role's defaults)"
+        quiet: true
+      loop: [github, github_token, gitlab, gitea]
+      no_log: true
+
+    - name: Deploy bezaforge-git-mirror-sync
+      ansible.builtin.copy:
+        src: bezaforge-git-mirror-sync.py
+        dest: /usr/local/bin/bezaforge-git-mirror-sync
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Ensure the config directory exists
+      ansible.builtin.file:
+        path: /etc/bezaforge-git-mirror-sync
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Deploy the config
+      ansible.builtin.template:
+        src: config.json.j2
+        dest: /etc/bezaforge-git-mirror-sync/config.json
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+    - name: Deploy the service and timer
+      ansible.builtin.template:
+        src: "{{ item }}.j2"
+        dest: "/etc/systemd/system/{{ item }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop:
+        - bezaforge-git-mirror-sync.service
+        - bezaforge-git-mirror-sync.timer
+      notify: reload systemd
+
+    # The timer needs the new unit files visible to systemd to enable
+    # cleanly.
+    - name: Flush handlers (reload systemd)
+      ansible.builtin.meta: flush_handlers
+
+    - name: Ensure bezaforge-git-mirror-sync.timer is enabled and running
+      ansible.builtin.systemd:
+        name: bezaforge-git-mirror-sync.timer
+        enabled: true
+        state: started

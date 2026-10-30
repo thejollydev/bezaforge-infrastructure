@@ -1,0 +1,43 @@
+---
+# ============================================================
+# git-mirror-sync role defaults
+#
+# Every five minutes, copies each repository's main branch from
+# GitHub to GitLab and Gitea. A merge made from a laptop reaches all
+# three through `git land`; one made anywhere else (GitHub's app, a
+# website's writing editor) lands on GitHub alone, and Gitea sits
+# where nothing outside the home network can reach it. This does the
+# copy from inside. See files/bezaforge-git-mirror-sync.py for what
+# it does and never does (it never forces a push).
+#
+# Off until owners are set: with git_mirror_sync_owners empty the
+# role installs nothing.
+# ============================================================
+
+# systemd OnCalendar syntax.
+git_mirror_sync_schedule: "*:0/5"
+
+# The only branch it moves.
+git_mirror_sync_branch: main
+
+git_mirror_sync_github_url: https://github.com
+git_mirror_sync_gitlab_url: https://gitlab.com
+# Through Traefik, as the workstation reaches it.
+git_mirror_sync_gitea_url: "https://git.{{ bezaforge_dns_domain }}"
+
+# Each account whose repositories are mirrored, by its name on each
+# host. Its repositories are found on Gitea, so a new repository is
+# picked up as soon as Gitea has it.
+#   - github: <owner on GitHub>
+#     github_token: <fine-grained token for that owner: All
+#                    repositories, Contents read-only>
+#     gitlab: <namespace on GitLab>
+#     gitea: <owner on Gitea>
+git_mirror_sync_owners: []
+
+# One token for each mirror, able to push to every owner above.
+#   GitLab: a personal access token with write_repository.
+#   Gitea:  a token with write:repository, and the user it belongs to.
+git_mirror_sync_gitlab_token: ""
+git_mirror_sync_gitea_user: ""
+git_mirror_sync_gitea_token: ""
