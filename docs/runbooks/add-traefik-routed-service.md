@@ -2,14 +2,14 @@
 
 This runbook covers the steps to add a new HTTPS-routed Docker service to the BezaForge stack on forge-ops. Follow it any time you spin up a new service that should be reachable at `https://<service>.bezaforge.dev`.
 
-For Traefik installation, configuration, or DNS challenge setup — see `docs/architecture.md` and the BezaForge Phase 1 Traefik deployment notes. This runbook assumes Traefik is already running and the wildcard cert is healthy.
+For Traefik installation, configuration, or DNS challenge setup — see `docs/architecture.md` and the BezaForge Phase 1 Traefik deployment notes. This runbook assumes Traefik is already running and its `letsencrypt` resolver is issuing certificates.
 
 ---
 
 ## Prerequisites (one-time, already in place)
 
 - Traefik v3 running on forge-ops at `/opt/bezaforge/traefik`
-- Wildcard cert for `*.bezaforge.dev` issued via Let's Encrypt DNS challenge (Cloudflare provider)
+- Certificates issued per service via Let's Encrypt DNS challenge (Cloudflare provider). There is no `*.bezaforge.dev` wildcard certificate
 - Docker network `bezaforge-net` exists as an external network
 - AdGuard Home configured with a wildcard rewrite for `*.bezaforge.dev → 10.10.20.20`
 - Certresolver name in Traefik config: **`letsencrypt`** (not `cloudflare`)
@@ -22,7 +22,7 @@ For Traefik installation, configuration, or DNS challenge setup — see `docs/ar
 
 Pattern: `<service>.bezaforge.dev` (e.g. `langfuse.bezaforge.dev` for LangFuse, `pm.bezaforge.dev` for OpenProject).
 
-Keep names short, lowercase, no underscores. The hostname will appear in router labels and certificate SANs (the wildcard cert covers them automatically).
+Keep names short, lowercase, no underscores. The hostname will appear in router labels and certificate SANs (Traefik requests a certificate for each new hostname on first use).
 
 ### 2. Confirm AdGuard DNS coverage
 
@@ -75,7 +75,7 @@ networks:
 | `traefik.enable=true` | Opt this service into Traefik | Traefik is configured with `exposedByDefault: false` — without this label the service is invisible to Traefik |
 | `traefik.http.routers.<service>.rule` | Hostname matching | Use Host(\`<service>.bezaforge.dev\`); back-ticks are required by the rule syntax |
 | `traefik.http.routers.<service>.entrypoints=websecure` | Bind to :443 | `web` (port 80) is configured to redirect to `websecure` automatically |
-| `traefik.http.routers.<service>.tls.certresolver=letsencrypt` | Use the wildcard cert | Resolver name is `letsencrypt`, NOT `cloudflare` |
+| `traefik.http.routers.<service>.tls.certresolver=letsencrypt` | Request this hostname's certificate | Resolver name is `letsencrypt`, NOT `cloudflare` |
 | `traefik.http.services.<service>.loadbalancer.server.port=<port>` | Internal container port | The port the service listens on inside the container, NOT a host-exposed port |
 
 **Do NOT publish ports externally.** Don't add a `ports:` block to the service — Traefik reaches it on the Docker network. Adding a `ports:` block bypasses Traefik and skips TLS.
@@ -131,7 +131,7 @@ dig +short <service>.bezaforge.dev
 ```bash
 curl -I https://<service>.bezaforge.dev
 # Expected: 200 / 301 / 401 (any non-cert-error response means TLS + routing work)
-# Cert error = wildcard cert not yet issued or expired
+# Cert error = this hostname's cert not yet issued (allow a minute for DNS-01) or renewal failed
 ```
 
 **Cert validity:**
@@ -139,7 +139,7 @@ curl -I https://<service>.bezaforge.dev
 echo | openssl s_client -servername <service>.bezaforge.dev -connect <service>.bezaforge.dev:443 2>/dev/null \
   | openssl x509 -noout -dates -issuer -subject
 # Expected issuer: Let's Encrypt
-# Expected subject: CN=*.bezaforge.dev
+# Expected subject: CN=<service>.bezaforge.dev
 ```
 
 **Traefik dashboard:**
@@ -152,7 +152,7 @@ Open `https://traefik.bezaforge.dev` (basic-auth required). The new router and s
 - **No `ports:` block.** Adding `ports: ["8000:8000"]` bypasses Traefik. The service should NOT be reachable from the LAN directly — only via Traefik on :443.
 - **Wrong `loadbalancer.server.port`.** This is the internal container port. If your service listens on 3000 inside the container, set port=3000 — even if you'd normally map it to 8080 externally.
 - **Network attachment missing.** If the service isn't on `bezaforge-net`, Traefik can't reach it. Symptom: "no available server" in Traefik logs.
-- **Cert error in browser.** Usually means the AdGuard rewrite is missing — DNS resolves to a public IP that doesn't have the wildcard cert. Or the wildcard cert renewal failed (check Traefik logs for ACME errors).
+- **Cert error in browser.** Usually means the AdGuard rewrite is missing — DNS resolves to a public IP instead of Traefik. Or issuing or renewing this hostname's certificate failed (check Traefik logs for ACME errors).
 - **`certresolver=cloudflare` instead of `letsencrypt`.** `cloudflare` is the DNS challenge **provider** (set in static config); `letsencrypt` is the **resolver name** used by service labels. Mixing them produces `unknown certificate resolver` errors.
 - **Compose `version:` field.** Older guides include `version: "3.8"`. Modern Docker Compose ignores it and warns. Safe to omit on new services.
 - **Variable escaping in basic-auth.** Single `$` in label values gets eaten by Compose. Always double them: `$$apr1$$...`
