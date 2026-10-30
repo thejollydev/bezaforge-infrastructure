@@ -105,7 +105,7 @@ Blocked at the gateway:
 
 - **The gateway's ACLs are a deny-list on a default-allow policy.** The table above is the deny-list; the admin device group overrides it. Isolation behind the gateway is enforced on the hosts as well: UFW denies inbound by default on the service host, and a Docker-aware firewall source-restricts the two ports published outside the reverse proxy.
 - **DNS is split-horizon with two resolvers built from one list.** AdGuard Home on the service host answers first and dnsmasq on the hypervisor second. Both are rendered from a single list in Ansible, and a parity check every 15 minutes alerts if they ever disagree. Clients never get a public resolver, because NXDOMAIN from one would stop them falling back.
-- **TLS everywhere, with nothing published.** Traefik holds a wildcard certificate from Let's Encrypt by DNS-01 through Cloudflare, so internal services get valid certificates without being reachable from the internet. The only public name is the WireGuard endpoint, kept on the dynamic WAN address by a Cloudflare DDNS container.
+- **TLS everywhere, with nothing published.** Traefik gets each service its own certificate from Let's Encrypt by DNS-01 through Cloudflare, so internal services get valid certificates without being reachable from the internet. The only public name is the WireGuard endpoint, kept on the dynamic WAN address by a Cloudflare DDNS container.
 
 ---
 
@@ -166,7 +166,7 @@ Secrets live in ansible-vault files and are injected three ways depending on the
 
 | Service | What it does |
 |---|---|
-| Traefik v3 | Reverse proxy, wildcard TLS, security headers |
+| Traefik v3 | Reverse proxy, per-service TLS, security headers |
 | AdGuard Home and dnsmasq | Split-horizon DNS, ad and threat blocking |
 | Prometheus, Grafana, Loki, Promtail | Metrics, dashboards, alerting and logs |
 | Uptime Kuma | Availability checks and push heartbeats for nightly jobs |
