@@ -188,6 +188,11 @@ def main() -> int:
         except (Failure, urllib.error.URLError) as e:
             failures.append(f"{owner['gitea']}: {e}")
             continue
+        # Every owner here has repositories, so none listed is a wrong name
+        # or a Gitea token that can't see them, not a quiet success.
+        if not repos:
+            failures.append(f"{owner['gitea']}: Gitea lists no repositories; check the name and its token")
+            continue
         answered = 0
         for repo in repos:
             checked += 1
