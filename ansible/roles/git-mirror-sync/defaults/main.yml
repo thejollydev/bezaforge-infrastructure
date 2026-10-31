@@ -37,7 +37,9 @@ git_mirror_sync_owners: []
 
 # One token for each mirror, able to push to every owner above.
 #   GitLab: a personal access token with write_repository.
-#   Gitea:  a token with write:repository, and the user it belongs to.
+#   Gitea:  a token with write:repository, read:user and read:organization,
+#           which listing an account's repositories needs, and the user it
+#           belongs to.
 git_mirror_sync_gitlab_token: ""
 git_mirror_sync_gitea_user: ""
 git_mirror_sync_gitea_token: ""
