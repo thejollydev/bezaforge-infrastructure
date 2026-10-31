@@ -235,9 +235,13 @@ health_expected_containers:
 # the network for 65 minutes, taking the house's primary resolver with it.
 # 6.12.107 had run from 2026-09-25 without it.
 #
-# Clear this once a kernel newer than 6.12.111 has been run and trusted. The
-# pin does not stop newer kernels installing; it only decides which one boots.
-kernel_pin_version: "6.12.107+deb13-amd64"
+# Held on 6.12.113 from 2026-10-30, so the watch changes one thing at a time.
+# Going back means setting 6.12.107 here again: its package stays held, and
+# so installed, until the pin is cleared.
+#
+# Clear this once 6.12.113 has been run and trusted. The pin does not stop
+# newer kernels installing; it only decides which one boots.
+kernel_pin_version: "6.12.113+deb13-amd64"
 
 # git-mirror-sync: GitHub's main copied to GitLab and Gitea. Account names
 # and tokens are vaulted; until they are there, the role installs nothing.
