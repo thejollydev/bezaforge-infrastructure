@@ -238,3 +238,11 @@ health_expected_containers:
 # Clear this once a kernel newer than 6.12.111 has been run and trusted. The
 # pin does not stop newer kernels installing; it only decides which one boots.
 kernel_pin_version: "6.12.107+deb13-amd64"
+
+# git-mirror-sync: GitHub's main copied to GitLab and Gitea. Account names
+# and tokens are vaulted; until they are there, the role installs nothing.
+# The shape of each is in roles/git-mirror-sync/defaults/main.yml.
+git_mirror_sync_owners: "{{ vault_git_mirror_sync_owners | default([]) }}"
+git_mirror_sync_gitlab_token: "{{ vault_git_mirror_sync_gitlab_token | default('') }}"
+git_mirror_sync_gitea_user: "{{ vault_git_mirror_sync_gitea_user | default('') }}"
+git_mirror_sync_gitea_token: "{{ vault_git_mirror_sync_gitea_token | default('') }}"

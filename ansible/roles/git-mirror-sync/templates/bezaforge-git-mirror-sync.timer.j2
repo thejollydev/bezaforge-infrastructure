@@ -1,0 +1,10 @@
+[Unit]
+Description=Schedule for BezaForge's GitHub-to-mirrors copy
+
+[Timer]
+OnCalendar={{ git_mirror_sync_schedule }}
+AccuracySec=30s
+Unit=bezaforge-git-mirror-sync.service
+
+[Install]
+WantedBy=timers.target

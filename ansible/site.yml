@@ -150,6 +150,11 @@
       tags: backups
     - role: forge-ops-backup-rsync
       tags: backups
+    # GitHub's main copied to GitLab and Gitea every five minutes, for
+    # merges made away from a laptop's `git land`. Installs nothing until
+    # its tokens are in host_vars/forge-ops/vault.yml.
+    - role: git-mirror-sync
+      tags: git-mirror-sync
     # Deploy stamp — must stay LAST, `tags: always` (#671). See the
     # hypervisor play above for why.
     - role: deploy-stamp
