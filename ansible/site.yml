@@ -21,6 +21,11 @@
     # Until this, they went only to mail-to-root, which nothing reads.
     - role: pve-notifications
       tags: pve-notifications
+    # Mail to root through an authenticated relay (#1620), because Google
+    # refuses it direct from the home WAN address. vzdump reports and zed
+    # use it.
+    - role: mail-relay
+      tags: mail-relay
     # Pins SATA LPM to max_performance (#1101): the kernel's
     # med_power_with_dipm default flapped the bezapool WD Reds' links for
     # months across three misdiagnosed incidents (#92, #955, #1101). Early

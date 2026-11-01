@@ -1,0 +1,81 @@
+---
+# ============================================================
+# mail-relay — send this host's mail through an authenticated relay
+# ============================================================
+# #1620: Postfix was delivering straight to Google from the home WAN address,
+# whose reverse DNS is the ISP's, as a domain with no SPF record. Between
+# 2026-10-18 and 10-31 half of it bounced with 550-5.7.25, and a report that
+# got through landed in spam. vzdump reports use this path, and so do ZFS's
+# zed and anything else that mails root, so a pool fault could have been
+# rejected the same way.
+#
+# Proxmox keeps sending to Postfix, so its mail-to-root target and the
+# /root/.forward it relies on are left alone.
+
+- name: Assert the relay account is set
+  ansible.builtin.assert:
+    that:
+      - mail_relay_user | length > 0
+      - mail_relay_password | length > 0
+    fail_msg: >-
+      mail_relay_user or mail_relay_password is empty. Set them in host_vars
+      from vault.yml.
+    quiet: true
+  no_log: true
+
+# Postfix cannot log in to the relay without a SASL mechanism, and this is
+# not installed with it.
+- name: Install the SASL modules
+  ansible.builtin.apt:
+    name: libsasl2-modules
+    state: present
+
+- name: Write the relay credentials
+  ansible.builtin.template:
+    src: sasl_passwd.j2
+    dest: /etc/postfix/sasl_passwd
+    owner: root
+    group: root
+    mode: "0600"
+  register: mail_relay_credentials
+  no_log: true
+  notify: Restart postfix
+
+- name: Check whether the credentials map exists
+  ansible.builtin.stat:
+    path: /etc/postfix/sasl_passwd.db
+  register: mail_relay_map
+
+- name: Build the credentials map
+  ansible.builtin.command:
+    cmd: postmap /etc/postfix/sasl_passwd
+  when: mail_relay_credentials.changed or not mail_relay_map.stat.exists
+  changed_when: true
+  notify: Restart postfix
+
+- name: Keep the credentials map private
+  ansible.builtin.file:
+    path: /etc/postfix/sasl_passwd.db
+    owner: root
+    group: root
+    mode: "0600"
+
+# `secure` checks the relay's certificate against its name, so the password
+# is never offered to anything else. A failure holds mail in the queue,
+# where mailq shows it, rather than losing it.
+- name: Point Postfix at the relay
+  ansible.builtin.lineinfile:
+    path: /etc/postfix/main.cf
+    regexp: "^{{ item.key }}\\s*="
+    line: "{{ item.key }} = {{ item.value }}"
+  loop:
+    - {key: myhostname, value: "{{ mail_relay_hostname }}"}
+    - {key: relayhost, value: "{{ mail_relay_host }}"}
+    - {key: smtp_sasl_auth_enable, value: "yes"}
+    - {key: smtp_sasl_password_maps, value: "hash:/etc/postfix/sasl_passwd"}
+    - {key: smtp_sasl_security_options, value: noanonymous}
+    - {key: smtp_tls_security_level, value: secure}
+    - {key: smtp_tls_CAfile, value: /etc/ssl/certs/ca-certificates.crt}
+  loop_control:
+    label: "{{ item.key }}"
+  notify: Restart postfix

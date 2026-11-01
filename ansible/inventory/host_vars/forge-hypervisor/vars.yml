@@ -118,6 +118,12 @@ gdrive_replica_heartbeat_url: "{{ vault_gdrive_replica_heartbeat_url | default('
 # vaulted value rather than copied, so one rotation covers both.
 pve_notifications_discord_webhook_url: "{{ hostvars['forge-ops'].grafana_discord_webhook_url }}"
 
+# --- mail-relay (#1620) ---
+# An app password on a Google account that is not the one that receives this
+# mail. Both values are in vault.yml, because this repository is public.
+mail_relay_user: "{{ vault_mail_relay_user }}"
+mail_relay_password: "{{ vault_mail_relay_password }}"
+
 # --- host-watch (#1398) ---
 # This host watches forge-ops, because nothing on forge-ops can report that
 # forge-ops is gone. Ping, and a DNS question to AdGuard, once a minute; a
