@@ -1,0 +1,16 @@
+---
+# ============================================================
+# mail-relay — send this host's mail through an authenticated relay
+# ============================================================
+# The account and its app password. Set in host_vars from vault.yml; the
+# role refuses to run without them.
+mail_relay_user: ""
+mail_relay_password: ""
+
+# Square brackets stop Postfix looking up an MX record for the name.
+mail_relay_host: "[smtp.gmail.com]:587"
+
+# The name the host sends as. Mail from a name with no SPF record is what
+# got this host rejected, and the relay replaces the sender with its own
+# account regardless, so this only has to be the host's real name.
+mail_relay_hostname: "{{ inventory_hostname }}.{{ domain }}"

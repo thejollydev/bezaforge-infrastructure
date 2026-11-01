@@ -147,7 +147,7 @@ About forty roles take a fresh Debian or Ubuntu install to production. One playb
 | Base | `common` (packages, SSH hardening, UFW, sysctl, resolver), `fail2ban`, `unattended-upgrades`, `systemd-hygiene`, `coredump`, `kernel-pin`, `network` |
 | Containers | `docker`, `docker-firewall`, `docker-prune`, `traefik`, `services`, `openproject`, `erpnext` |
 | DNS | `adguard`, `dnsmasq`, `dns-client` |
-| Observability | `monitoring` (Prometheus, Grafana with dashboards and alert rules in version control, Loki, Promtail, cAdvisor, blackbox exporter), `host-watch`, `pve-notifications`, `deploy-stamp` |
+| Observability | `monitoring` (Prometheus, Grafana with dashboards and alert rules in version control, Loki, Promtail, cAdvisor, blackbox exporter), `host-watch`, `pve-notifications`, `mail-relay`, `deploy-stamp` |
 | Inference | `rocm`, `ollama` (pinned version, model seed list, custom Modelfiles), `comfyui` |
 | Storage and backups | `sanoid`, `db-dumps`, `postgres-major`, `restic-gcs`, `minio-exports`, `fileshare`, `fileshare-client`, `syncthing`, `gdrive-replica` |
 

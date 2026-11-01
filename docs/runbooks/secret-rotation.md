@@ -73,6 +73,8 @@ The following secret variable names appear in templates under `ansible/roles/*/t
 | `vault_adguard_admin_password` | Admin UI | `host_vars/forge-ops/vault.yml` | AdGuard control API (DNS rewrite reconciliation) — **⚠️ SECOND COPY, see below** | — (added 2026-08-09, #649) |
 | `vault_restic_password` | Backup encryption | `host_vars/forge-hypervisor/vault.yml` | restic repo encryption | — (initial 2026-05-17) |
 | `vault_gcs_credentials_json` | External-scope API | `host_vars/forge-hypervisor/vault.yml` | restic GCS service account | — (initial 2026-05-17) |
+| `vault_mail_relay_user` | External-scope API | `host_vars/forge-hypervisor/vault.yml` | `roles/mail-relay`: the Google account forge-hypervisor sends through. Not a secret, but it would be a personal address in a public repository | — (not a rotated value) |
+| `vault_mail_relay_password` | External-scope API | `host_vars/forge-hypervisor/vault.yml` | `roles/mail-relay`: that account's app password | — (added 2026-10-31) |
 
 > **"— (initial)"** means the value has been in place since the variable was first defined and has never been rotated. **All Phase 1 / early Phase 2 secrets share this status as of 2026-05-17.** First annual rotation pass is due 2027-02 (one year after Phase 1 service deployment 2026-02-23) for internal DBs + admin UIs.
 
