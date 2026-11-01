@@ -133,8 +133,9 @@ def sync(config: dict, owner: dict, repo: str, cache: Path) -> tuple[bool, list[
     GitHub answered for it, and the failures."""
     branch = config["branch"]
     source = (f"{config['github_url']}/{owner['github']}/{repo}.git", basic("x-access-token", owner["github_token"]))
+    gitlab_repo = config.get("gitlab_names", {}).get(repo, repo)
     mirrors = {
-        "GitLab": (f"{config['gitlab_url']}/{owner['gitlab']}/{repo}.git", basic("oauth2", config["gitlab_token"])),
+        "GitLab": (f"{config['gitlab_url']}/{owner['gitlab']}/{gitlab_repo}.git", basic("oauth2", config["gitlab_token"])),
         "Gitea": (f"{config['gitea_url']}/{owner['gitea']}/{repo}.git", basic(config["gitea_user"], config["gitea_token"])),
     }
     name = f"{owner['github']}/{repo}"

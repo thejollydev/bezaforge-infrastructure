@@ -250,3 +250,5 @@ git_mirror_sync_owners: "{{ vault_git_mirror_sync_owners | default([]) }}"
 git_mirror_sync_gitlab_token: "{{ vault_git_mirror_sync_gitlab_token | default('') }}"
 git_mirror_sync_gitea_user: "{{ vault_git_mirror_sync_gitea_user | default('') }}"
 git_mirror_sync_gitea_token: "{{ vault_git_mirror_sync_gitea_token | default('') }}"
+git_mirror_sync_gitlab_names:
+  .github: bezacore-github-profile
