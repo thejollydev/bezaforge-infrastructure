@@ -33,9 +33,9 @@ erpnext_docker_user: "{{ bezaforge_admin_user }}"
 erpnext_backend_container: "{{ erpnext_app_project }}-backend-1"
 erpnext_backup_script: /usr/local/bin/forge-erp-backup.sh
 
-# Free space an upgrade starts with. The 16.52.1 pull ran through 15.6 GB on
-# 2026-11-01; containerd keeps each image's compressed layers beside the
-# unpacked ones, so a pull costs far more than the image size docker prints.
+# Free space an upgrade starts with. Measured on the 16.52.1 pull, 2026-11-01:
+# 15.8 GB used at its peak and 4.1 GB kept once it finished, for an image docker
+# calls 4.47 GB. It failed the first time with 15.6 GB free.
 erpnext_image_store: /var/lib/containerd
 erpnext_upgrade_min_free_gb: 20
 
