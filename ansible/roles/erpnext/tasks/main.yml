@@ -180,6 +180,49 @@
         erpnext_running_tag: "{{ erpnext_running_image | regex_search(':v(\\d+\\.\\d+\\.\\d+)', '\\1') | default([''], true) | first }}"
         erpnext_wanted_tag: "{{ erpnext_wanted_image | regex_search(':v(\\d+\\.\\d+\\.\\d+)', '\\1') | default([''], true) | first }}"
 
+    # The new image is pulled to this disk beside the running one, and the
+    # weekly prune's 30-day filter keeps the two before it. On 2026-11-01 that
+    # left 15.6 GB, the pull filled it, and the pass stopped with ERPNext still
+    # up on the old version. Room is made here, before the backup, so a disk
+    # that cannot take the upgrade stops the run with nothing changed.
+    - name: Read the free space where images are stored
+      ansible.builtin.command:
+        argv: [df, --output=avail, -BG, "{{ erpnext_image_store }}"]
+      register: erpnext_free_before
+      changed_when: false
+      check_mode: false
+
+    # Without the 30-day filter on purpose. Containers exist for every service
+    # in the project, so the running image stays and becomes the rollback
+    # target; what goes is what an earlier upgrade left behind.
+    - name: Remove the images no container uses
+      ansible.builtin.command:
+        argv: [docker, image, prune, --all, --force]
+      changed_when: true
+      when: >-
+        (erpnext_free_before.stdout_lines | last | trim | regex_replace('G$', '') | int)
+        < erpnext_upgrade_min_free_gb
+
+    - name: Read the free space again
+      ansible.builtin.command:
+        argv: [df, --output=avail, -BG, "{{ erpnext_image_store }}"]
+      register: erpnext_free_now
+      changed_when: false
+      check_mode: false
+
+    - name: Refuse an upgrade the disk cannot take
+      ansible.builtin.assert:
+        that:
+          - (erpnext_free_now.stdout_lines | last | trim | regex_replace('G$', '') | int) >= erpnext_upgrade_min_free_gb
+        fail_msg: >-
+          {{ erpnext_image_store }} has
+          {{ erpnext_free_now.stdout_lines | last | trim }} free with every
+          unused image removed, and an upgrade needs
+          {{ erpnext_upgrade_min_free_gb }}G. ERPNext is untouched and still on
+          {{ erpnext_running_image }}. Something other than images is filling
+          the disk, or the disk has to grow.
+      when: not ansible_check_mode
+
     - name: Record the ledger totals before the upgrade
       ansible.builtin.command:
         argv: "{{ erpnext_ledger_totals_argv }}"
