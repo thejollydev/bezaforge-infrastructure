@@ -35,6 +35,10 @@ git_mirror_sync_gitea_url: "https://git.{{ bezaforge_dns_domain }}"
 #     gitea: <owner on Gitea>
 git_mirror_sync_owners: []
 
+# A repository with another name on GitLab, by its name everywhere else.
+# GitLab takes no name that starts with a dot.
+git_mirror_sync_gitlab_names: {}
+
 # One token for each mirror, able to push to every owner above.
 #   GitLab: a personal access token with write_repository.
 #   Gitea:  a token with write:repository, read:user and read:organization,
