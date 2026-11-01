@@ -32,13 +32,14 @@ containers:
 
 1. Refuses to go to an older version. That means a stale checkout; pull and
    run again.
-2. Records the ledger totals: the number of posted GL entries and their debit
+2. Makes room. With under 20 GB free it removes every image no container uses, which keeps the running image as the rollback target. If that still leaves under 20 GB it stops, with ERPNext untouched.
+3. Records the ledger totals: the number of posted GL entries and their debit
    and credit sums.
-3. Runs the nightly backup job now (`bench backup --with-files`, then the
+4. Runs the nightly backup job now (`bench backup --with-files`, then the
    copy to bezapool), so the dump is off the VM before anything changes.
-4. Brings the stack up on the new image.
-5. Runs `bench --site erp.bezaforge.dev migrate`.
-6. Records the ledger totals again and fails if they differ.
+5. Brings the stack up on the new image.
+6. Runs `bench --site erp.bezaforge.dev migrate`.
+7. Records the ledger totals again and fails if they differ.
 
 The run prints both versions, `bench version`, and both ledger lines.
 

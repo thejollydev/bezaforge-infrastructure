@@ -33,6 +33,12 @@ erpnext_docker_user: "{{ bezaforge_admin_user }}"
 erpnext_backend_container: "{{ erpnext_app_project }}-backend-1"
 erpnext_backup_script: /usr/local/bin/forge-erp-backup.sh
 
+# Free space an upgrade starts with. The 16.52.1 pull ran through 15.6 GB on
+# 2026-11-01; containerd keeps each image's compressed layers beside the
+# unpacked ones, so a pull costs far more than the image size docker prints.
+erpnext_image_store: /var/lib/containerd
+erpnext_upgrade_min_free_gb: 20
+
 # One line that must read the same before and after a migrate: how many
 # posted ledger entries there are, and their debit and credit sums.
 erpnext_ledger_totals_argv:
