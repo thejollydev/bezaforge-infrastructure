@@ -72,7 +72,7 @@ The following secret variable names appear in templates under `ansible/roles/*/t
 | `vault_adguard_admin_user` | Admin UI | `host_vars/forge-ops/vault.yml` | AdGuard control API (DNS rewrite reconciliation) — **⚠️ SECOND COPY, see below** | — (added 2026-08-09, #649) |
 | `vault_adguard_admin_password` | Admin UI | `host_vars/forge-ops/vault.yml` | AdGuard control API (DNS rewrite reconciliation) — **⚠️ SECOND COPY, see below** | — (added 2026-08-09, #649) |
 | `vault_restic_password` | Backup encryption | `host_vars/forge-hypervisor/vault.yml` | restic repo encryption | — (initial 2026-05-17) |
-| `vault_gcs_credentials_json` | External-scope API | `host_vars/forge-hypervisor/vault.yml` | restic GCS service account | — (initial 2026-05-17) |
+| `vault_gcs_credentials_json` | External-scope API | `host_vars/forge-hypervisor/vault.yml` | restic GCS service account | 2026-11-01 |
 | `vault_mail_relay_user` | External-scope API | `host_vars/forge-hypervisor/vault.yml` | `roles/mail-relay`: the Google account forge-hypervisor sends through. Not a secret, but it would be a personal address in a public repository | — (not a rotated value) |
 | `vault_mail_relay_password` | External-scope API | `host_vars/forge-hypervisor/vault.yml` | `roles/mail-relay`: that account's app password | — (added 2026-10-31) |
 
@@ -243,7 +243,7 @@ Save the new password in Bitwarden (entry: "BezaForge ansible-vault password"). 
 | When | What |
 |------|------|
 | 2027-02 | First annual pass — all "Internal DB" + "App framework" + "Admin UI" rows |
-| Overdue since 2026-08-17 (#115) | First `vault_gcs_credentials_json` rotation; the next is 90 days after it lands |
+| 2027-01-30 | Next `vault_gcs_credentials_json` rotation |
 | By 2027-01-30 | Next `cloudflare_dns_api_token` rotation. The token expires that day, and an expired token stops `cloudflare-ddns` and Traefik's certificate renewals |
 | Continuous | Update "Last rotated" column above + commit, every time a rotation lands |
 
