@@ -68,7 +68,7 @@ The following secret variable names appear in templates under `ansible/roles/*/t
 | `homepage_qbittorrent_password` | Internal API | `host_vars/forge-ops/vault.yml` | Homepage widget → qBittorrent | Removed 2026-07-18 (media stack retired — #485) |
 | `seedbox_protonvpn_wireguard_private_key` | External-scope API | `host_vars/forge-ops/vault.yml` | Seedbox Gluetun ProtonVPN WireGuard key | Removed 2026-07-18 (media stack retired — #485) |
 | `grafana_admin_password` | Admin UI | `host_vars/forge-ops/vault.yml` | Grafana initial admin password | — (initial) |
-| `cloudflare_dns_api_token` | External-scope API | `host_vars/forge-ops/vault.yml` | Traefik DNS-01 challenge, and `cloudflare-ddns` (the WireGuard endpoint's public record) | — (initial) |
+| `cloudflare_dns_api_token` | External-scope API | `host_vars/forge-ops/vault.yml` | Traefik DNS-01 challenge, and `cloudflare-ddns` (the WireGuard endpoint's public record) | 2026-11-01 (expires 2027-01-30) |
 | `vault_adguard_admin_user` | Admin UI | `host_vars/forge-ops/vault.yml` | AdGuard control API (DNS rewrite reconciliation) — **⚠️ SECOND COPY, see below** | — (added 2026-08-09, #649) |
 | `vault_adguard_admin_password` | Admin UI | `host_vars/forge-ops/vault.yml` | AdGuard control API (DNS rewrite reconciliation) — **⚠️ SECOND COPY, see below** | — (added 2026-08-09, #649) |
 | `vault_restic_password` | Backup encryption | `host_vars/forge-hypervisor/vault.yml` | restic repo encryption | — (initial 2026-05-17) |
@@ -244,7 +244,7 @@ Save the new password in Bitwarden (entry: "BezaForge ansible-vault password"). 
 |------|------|
 | 2027-02 | First annual pass — all "Internal DB" + "App framework" + "Admin UI" rows |
 | Overdue since 2026-08-17 (#115) | First `vault_gcs_credentials_json` rotation; the next is 90 days after it lands |
-| Overdue since 2026-08-17 (#115) | First `cloudflare_dns_api_token` rotation; the next is 90 days after it lands |
+| By 2027-01-30 | Next `cloudflare_dns_api_token` rotation. The token expires that day, and an expired token stops `cloudflare-ddns` and Traefik's certificate renewals |
 | Continuous | Update "Last rotated" column above + commit, every time a rotation lands |
 
 A simple way to keep the schedule honest: drop a calendar reminder for each annual pass + each quarterly external-token pass. When the calendar fires, this runbook is the procedure.
