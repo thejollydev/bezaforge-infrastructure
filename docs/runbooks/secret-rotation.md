@@ -68,15 +68,31 @@ The following secret variable names appear in templates under `ansible/roles/*/t
 | `homepage_qbittorrent_password` | Internal API | `host_vars/forge-ops/vault.yml` | Homepage widget → qBittorrent | Removed 2026-07-18 (media stack retired — #485) |
 | `seedbox_protonvpn_wireguard_private_key` | External-scope API | `host_vars/forge-ops/vault.yml` | Seedbox Gluetun ProtonVPN WireGuard key | Removed 2026-07-18 (media stack retired — #485) |
 | `grafana_admin_password` | Admin UI | `host_vars/forge-ops/vault.yml` | Grafana initial admin password | — (initial) |
-| `cloudflare_dns_api_token` | External-scope API | `host_vars/forge-ops/vault.yml` | Traefik DNS-01 challenge | — (initial) |
+| `cloudflare_dns_api_token` | External-scope API | `host_vars/forge-ops/vault.yml` | Traefik DNS-01 challenge, and `cloudflare-ddns` (the WireGuard endpoint's public record) | 2026-11-01 (expires 2027-01-30) |
 | `vault_adguard_admin_user` | Admin UI | `host_vars/forge-ops/vault.yml` | AdGuard control API (DNS rewrite reconciliation) — **⚠️ SECOND COPY, see below** | — (added 2026-08-09, #649) |
 | `vault_adguard_admin_password` | Admin UI | `host_vars/forge-ops/vault.yml` | AdGuard control API (DNS rewrite reconciliation) — **⚠️ SECOND COPY, see below** | — (added 2026-08-09, #649) |
 | `vault_restic_password` | Backup encryption | `host_vars/forge-hypervisor/vault.yml` | restic repo encryption | — (initial 2026-05-17) |
-| `vault_gcs_credentials_json` | External-scope API | `host_vars/forge-hypervisor/vault.yml` | restic GCS service account | — (initial 2026-05-17) |
+| `vault_gcs_credentials_json` | External-scope API | `host_vars/forge-hypervisor/vault.yml` | restic GCS service account | 2026-11-01 |
 | `vault_mail_relay_user` | External-scope API | `host_vars/forge-hypervisor/vault.yml` | `roles/mail-relay`: the Google account forge-hypervisor sends through. Not a secret, but it would be a personal address in a public repository | — (not a rotated value) |
 | `vault_mail_relay_password` | External-scope API | `host_vars/forge-hypervisor/vault.yml` | `roles/mail-relay`: that account's app password | — (added 2026-10-31) |
 
 > **"— (initial)"** means the value has been in place since the variable was first defined and has never been rotated. **All Phase 1 / early Phase 2 secrets share this status as of 2026-05-17.** First annual rotation pass is due 2027-02 (one year after Phase 1 service deployment 2026-02-23) for internal DBs + admin UIs.
+
+### Not yet in the table
+
+The table above lists `host_vars/forge-ops` and `host_vars/forge-hypervisor` and is not complete. These names are read from the roles, not from the encrypted files, so their class is given but not which vault file holds them, and none has a rotation date recorded.
+
+| Class | Variables | Used by |
+|-------|-----------|---------|
+| External-scope API | `vault_git_mirror_sync_gitlab_token`, `vault_git_mirror_sync_gitea_token` | `roles/git-mirror-sync` |
+| External-scope OAuth | `vault_gdrive_replica_client_secret`, `vault_gdrive_replica_token` | `roles/gdrive-replica` rclone config |
+| External-scope OAuth | `vault_fileshare_drive_client_secret`, `vault_fileshare_drive_token` | `roles/fileshare` rclone config |
+| External webhooks | `grafana_discord_webhook_url`, `host_watch_discord_webhook_url`, `pve_notifications_discord_webhook_url` | Grafana and `cloudflare-ddns`, `roles/host-watch`, `roles/pve-notifications` |
+| External push URLs | `vault_gdrive_replica_heartbeat_url`, `vault_syncthing_conflicts_push_url`, `vault_syncthing_insync_push_url` | Uptime Kuma heartbeats |
+| Internal DB | `vault_erp_db_password`, `langfuse_clickhouse_password`, `langfuse_minio_root_password` | ERPNext MariaDB, Langfuse |
+| App framework | `openproject_secret_key_base`, `open_webui_secret_key` | OpenProject, Open WebUI |
+| Admin UI | `openproject_admin_password`, `traefik_basicauth_hash` | OpenProject first-boot seed, Traefik dashboard |
+| Internal credential | `vault_fileshare_smb_password` | `roles/fileshare`, `roles/fileshare-client` |
 
 ### ⚠️ AdGuard Home admin — the one secret that exists in TWO places
 
@@ -147,10 +163,36 @@ docker logs gitea --tail 50 | grep -iE "error|fatal"                     # empty
 
 1. Generate the new token in the provider UI **with the same scope** as the existing one. Don't delete the old token yet.
 2. `ansible-vault edit` the variable.
-3. `ansible-playbook` with the relevant tag (e.g., `--tags traefik` for Cloudflare).
-4. Verify the new token works (Traefik: tail logs for the next ACME renewal attempt; GCS: `restic snapshots` from forge-hypervisor — should succeed).
+3. `ansible-playbook` with the tags for **every** consumer of that variable.
+4. Verify the new token works.
 5. **Then** revoke the old token in the provider UI.
 6. Update "Last rotated" + commit.
+
+### `cloudflare_dns_api_token`
+
+One token, two consumers: Traefik's DNS-01 challenge and the `cloudflare-ddns` container. Deploying only Traefik leaves `cloudflare-ddns` on the old value, and revoking that stops the WireGuard endpoint's record following the WAN address.
+
+1. In the Cloudflare dashboard, open the existing token, note its permissions and zone, and create a new token with exactly those. Don't use **Roll**: it invalidates the old value at once, which removes the overlap this procedure depends on.
+2. Update the variable:
+
+   ```bash
+   cd ~/Projects/bezaforge-infrastructure && ansible-vault edit ansible/inventory/host_vars/forge-ops/vault.yml --ask-vault-pass
+   ```
+
+3. Deploy to both consumers. Both containers are recreated, so every route behind Traefik drops for a few seconds:
+
+   ```bash
+   cd ~/Projects/bezaforge-infrastructure && ansible-playbook ansible/site.yml --tags traefik,services --limit forge-ops --ask-become-pass --ask-vault-pass
+   ```
+
+4. Verify read-only on forge-ops. `cloudflare-ddns` checks the token when it starts, and both hashes must match:
+
+   ```bash
+   ssh forge-ops 'for c in traefik cloudflare-ddns; do docker inspect "$c" --format "{{range .Config.Env}}{{println .}}{{end}}" | grep -E "^(CF_DNS_API_TOKEN|CLOUDFLARE_API_TOKEN)=" | cut -d= -f2- | sha256sum; done; docker logs cloudflare-ddns 2>&1 | tail -8'
+   ```
+
+   A wrong DNS-edit permission cannot show here: Traefik only uses it at a certificate renewal, and `cloudflare-ddns` only when the address moves. Compare the two tokens' permissions in the dashboard before revoking.
+5. **Then** delete the old token in the Cloudflare dashboard.
 
 ### App framework secret (`*_SECRET_KEY`, `NEXTAUTH_SECRET`, `*_PEPPERS`)
 
@@ -177,10 +219,10 @@ These sign cookies/sessions/tokens. **Rotating invalidates all existing sessions
 
 The service account itself is long-lived; only the JSON key rotates:
 
-1. In Google Cloud console → IAM → Service accounts → the restic service account (`restic@<project>.iam.gserviceaccount.com`; the project is `vault_gcs_project_id`) → Keys → **Add key** → JSON.
+1. In Google Cloud console → IAM → Service accounts → the restic service account (`restic-backup@<project>.iam.gserviceaccount.com`; the project is `vault_gcs_project_id`) → Keys → **Add key** → JSON.
 2. `ansible-vault edit` the variable; paste the new JSON.
 3. `ansible-playbook --tags restic-gcs --limit forge-hypervisor`.
-4. Verify with `sudo restic -r gs:<bucket>:/ snapshots` (the bucket is `vault_gcs_bucket`) on forge-hypervisor.
+4. Verify on forge-hypervisor, as root, with the repository and credentials the backup itself uses: `. /etc/bezaforge/restic.env && restic snapshots --no-lock --latest 1`.
 5. **Then** in Google Cloud console, delete the old key.
 
 ### `ansible-vault` password itself
@@ -201,8 +243,8 @@ Save the new password in Bitwarden (entry: "BezaForge ansible-vault password"). 
 | When | What |
 |------|------|
 | 2027-02 | First annual pass — all "Internal DB" + "App framework" + "Admin UI" rows |
-| 2026-08-17 (90d after restic ship) | First `vault_gcs_credentials_json` rotation |
-| 2026-08-17 (90d after Cloudflare token issuance) | First `cloudflare_dns_api_token` rotation (verify last-issued date — may already be older) |
+| 2027-01-30 | Next `vault_gcs_credentials_json` rotation |
+| By 2027-01-30 | Next `cloudflare_dns_api_token` rotation. The token expires that day, and an expired token stops `cloudflare-ddns` and Traefik's certificate renewals |
 | Continuous | Update "Last rotated" column above + commit, every time a rotation lands |
 
 A simple way to keep the schedule honest: drop a calendar reminder for each annual pass + each quarterly external-token pass. When the calendar fires, this runbook is the procedure.
