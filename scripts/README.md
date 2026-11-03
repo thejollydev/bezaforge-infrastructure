@@ -14,7 +14,7 @@ Ad-hoc automation scripts for BezaForge infrastructure management.
 | `grafana-export-dashboards.sh` | Captures every live Grafana dashboard into the repo; remaps the reserved `General` folder that broke provisioning for 3 months (#659) | not deployed — run by hand before touching dashboards |
 | `fleet-update.sh` | The one weekly command: pulls `main`, then runs `ansible/update.yml` — OS packages, `site.yml`, resolvers, health (#1378). A script because the pull has to happen before Ansible reads the playbook it is about to run | not deployed — run by hand from the workstation |
 | `openproject/` | One-off OpenProject provisioning + structuring batches (2026-07 migration) | not deployed — run by hand from the workstation |
-| `token-usage/` | Prices local Claude Code and Codex session logs at API list rates and writes a report (#1334) | not deployed — run by hand on the workstation |
+| `token-usage/` | Prices local Claude Code and Codex session logs at API list rates and writes a report; `to-langfuse.py` sends Codex's and Antigravity's token use to LangFuse (#1334) | not deployed — run by hand on the workstation |
 
 Both checkers live here rather than in the role's `files/` **on purpose**: the role copies this exact file to the host, so a hand-run check and the metric behind the alert can never disagree. Two copies of a drift checker is the same bug it exists to catch.
 
