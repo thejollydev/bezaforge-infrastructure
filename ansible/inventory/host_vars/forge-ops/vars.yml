@@ -153,7 +153,7 @@ compose_services:
   # Env-var service: the Cloudflare token and the Discord webhook are in
   # .env. No ports, no Traefik route; it only calls out.
   - cloudflare-ddns
-  # learncast — static host for Joseph's learning podcast feed at
+  # learncast — static host for the owner's learning podcast feed at
   # learn.bezaforge.dev. The laptop renders lesson audio and rsyncs it into
   # /opt/bezaforge/learncast/site as the admin user; nginx only serves it.
   # Simple service: no secrets, no ports, and not backed up, because every

@@ -4,7 +4,7 @@ networks:
 
 services:
   learncast:
-    # learncast — a static host for Joseph's learning podcast feed. The
+    # learncast — a static host for the owner's learning podcast feed. The
     # laptop renders lesson scripts to MP3 (the `learncast` repo, Kokoro
     # text-to-speech) and rsyncs the result into /opt/bezaforge/learncast/site
     # as the admin user; nginx only serves it. No secrets, no ports, nothing
