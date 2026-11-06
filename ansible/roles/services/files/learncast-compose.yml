@@ -1,0 +1,37 @@
+networks:
+  bezaforge-net:
+    external: true
+
+services:
+  learncast:
+    # learncast — a static host for the owner's learning podcast feed. The
+    # laptop renders lesson scripts to MP3 (the `learncast` repo, Kokoro
+    # text-to-speech) and rsyncs the result into /opt/bezaforge/learncast/site
+    # as the admin user; nginx only serves it. No secrets, no ports, nothing
+    # to back up: every file here is regenerated from the laptop.
+    #
+    # Pinned to a tag + digest; bump deliberately. 1.30.6-alpine published
+    # 2026-11-06 (the stable line; 1.31 is mainline). Registry: Docker Hub.
+    image: nginx:1.30.6-alpine@sha256:583b7f2fce1cdb8da5ad5c39ebd3c33b98b87d493190e548bdee1fa8c619c311
+    container_name: learncast
+    restart: unless-stopped
+    volumes:
+      # The site, read-only. Owned by the admin user (uid 1000) so the
+      # laptop's `rsync ... forge-ops:/opt/bezaforge/learncast/site/` can
+      # write it; the services role creates it with that ownership.
+      - /opt/bezaforge/learncast/site:/usr/share/nginx/html:ro
+      # One server block: no directory listing, a noindex header, and the
+      # feed served as RSS. Range requests stay on (nginx default), because
+      # podcast apps seek inside the MP3s.
+      - /opt/bezaforge/learncast/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - bezaforge-net
+    labels:
+      # Standard docker-provider route. Wildcard *.bezaforge.dev DNS
+      # (AdGuard -> Traefik) resolves the host; the phone reaches it over
+      # WireGuard like every other internal name.
+      - "traefik.enable=true"
+      - "traefik.http.routers.learncast.rule=Host(`learn.bezaforge.dev`)"
+      - "traefik.http.routers.learncast.entrypoints=websecure"
+      - "traefik.http.routers.learncast.tls.certresolver=letsencrypt"
+      - "traefik.http.services.learncast.loadbalancer.server.port=80"

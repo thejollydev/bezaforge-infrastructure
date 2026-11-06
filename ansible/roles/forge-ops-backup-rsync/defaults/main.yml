@@ -36,6 +36,8 @@ backup_services:
   # jellyfin removed 2026-07-18 (media stack retired — #485)
   # kavita removed 2026-06-20 (Kavita retired — FORGE-16)
   - name: langfuse
+  # learncast is deliberately absent: its only content, /opt/bezaforge/learncast/site,
+  # is rendered on the laptop and rsynced here, so the laptop is the copy.
   - name: loki
   - name: netbox
   - name: open-webui

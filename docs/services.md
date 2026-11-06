@@ -91,6 +91,19 @@ Base path: `/opt/bezaforge/{service}/docker-compose.yml`
 
 ---
 
+## Static Sites
+
+### learncast (Learning podcast feed)
+- **Image:** `nginx:1.30.6-alpine` (pinned by digest)
+- **URL:** `learn.bezaforge.dev` — RSS feed at `/feed.xml`, episodes under `/episodes/`
+- **Content:** `/opt/bezaforge/learncast/site/`, owned by the admin user and written from the laptop by `rsync` (the `learncast` repository renders lesson scripts to MP3 with Kokoro text-to-speech)
+- **Notes:**
+  - Simple service: no secrets, no published ports, no backup (the laptop is the source copy)
+  - Range requests stay enabled so podcast apps can seek; `X-Robots-Tag: noindex` on every response
+  - Reachable only on the internal network and over WireGuard, so the phone's podcast app must fetch the feed itself (AntennaPod does; Pocket Casts fetches from its servers and cannot)
+
+---
+
 ## Dashboard
 
 ### Homepage (gethomepage.dev)

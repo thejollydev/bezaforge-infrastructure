@@ -69,6 +69,12 @@
         description: Business ops · accounting · CRM
         icon: mdi-finance-#1E40AF
         siteMonitor: https://erp.bezaforge.dev
+    - Learning feed:
+        # Static nginx host; the laptop renders and rsyncs the episodes.
+        href: https://learn.bezaforge.dev/feed.xml
+        description: Learning podcast feed · lectures rendered on the laptop
+        icon: mdi-podcast-#1E40AF
+        siteMonitor: https://learn.bezaforge.dev
 
 # Jellyfin + Seedbox retired 2026-07-18 (#485) — media stack removed from
 # BezaForge entirely. Kavita retired 2026-06-20 (FORGE-16); ebooks returned
