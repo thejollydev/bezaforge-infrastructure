@@ -47,7 +47,7 @@ Each session becomes one LangFuse trace, tagged `codex` or `antigravity`, and ea
 | `--all` | only files changed since the last run |
 | `--show-spans N` | with `--dry-run`, print the first N spans as they would be sent |
 
-The keys are a LangFuse API key pair for the project, read from `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` and `LANGFUSE_BASE_URL`, or from `~/.config/agent-usage/langfuse.env` as `KEY=value` lines. The script refuses that file unless only its owner can read it. What was sent is recorded in `~/.local/state/agent-usage/sent.json`. Trace and span ids are derived from each session and call, so sending a session again replaces it in LangFuse rather than adding to it.
+The keys are a LangFuse API key pair for the project, read from `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` and `LANGFUSE_BASE_URL`, or from `~/.config/agent-usage/langfuse.env` as `KEY=value` lines. The script refuses that file unless only its owner can read it. What was sent is recorded in `~/.local/state/agent-usage/sent.json`, down to each call, so a session that has grown sends only its new calls. Trace and span ids are derived from each session and call, so sending a call again replaces it in LangFuse rather than adding to it, but only once ClickHouse next merges the table; until then LangFuse's totals count both copies. `--all` re-sends everything, and its totals read double until that merge.
 
 Antigravity's files are read without a published schema. The script's header says which fields it takes for tokens and time, and why. A row it cannot read is reported and skipped.
 

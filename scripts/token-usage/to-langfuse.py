@@ -22,8 +22,8 @@ HOW IT SENDS
 OTLP/JSON to LangFuse's own OpenTelemetry endpoint, with the attributes its
 SDK uses (langfuse.observation.*, langfuse.trace.*). Trace and span ids are
 derived from the session and call, so a re-run replaces what it sent before
-rather than adding to it. A state file records which source files were sent
-at which size, and only changed files are sent again.
+rather than adding to it. A state file records each source file's size and the
+spans sent from it; a changed file sends only the calls not sent before.
 
 ANTIGRAVITY'S FIELDS ARE READ, NOT DOCUMENTED
 ---------------------------------------------
@@ -347,7 +347,9 @@ def main():
     for agent, path in sorted(sources):
         st = os.stat(path)
         mark = [st.st_mtime_ns, st.st_size]
-        if state.get(path) == mark:
+        entry = state.get(path)
+        legacy = isinstance(entry, list)  # written before the state kept span ids
+        if entry and not legacy and entry["mark"] == mark:
             continue
         if agent == "codex":
             session, cwd, calls = read_codex(path, unknown)
@@ -355,11 +357,21 @@ def main():
         else:
             session, project, calls = read_antigravity(path, unknown)
             cwd = None
-        if calls:
-            pending.append((path, mark, spans_for(agent, session, project, cwd, calls)))
+        spans = spans_for(agent, session, project, cwd, calls) if calls else []
+        ids_now = [s["spanId"] for s in spans]
+        if legacy and entry == mark:
+            state[path] = {"mark": mark, "sent": ids_now}
+            continue
+        # A call already sent is not sent again: ClickHouse collapses a re-sent
+        # span only when it next merges, and LangFuse counts both copies until
+        # then. The root span always goes, because its end time moves.
+        sent = set(entry["sent"]) if entry and not legacy else set()
+        fresh = [(c, s) for c, s in zip(calls, spans[1:]) if s["spanId"] not in sent]
+        if fresh:
+            pending.append((path, mark, spans[:1] + [s for _, s in fresh], ids_now))
         else:
-            state[path] = mark
-        for c in calls:
+            state[path] = {"mark": mark, "sent": ids_now}
+        for c, _ in fresh:
             s = summary[(agent, c["model"])]
             s[0] += 1
             s[1] += c["usage"]["total"]
@@ -367,19 +379,19 @@ def main():
 
     for (agent, model), (n, tokens, dollars) in sorted(summary.items()):
         print(f"{agent:12} {model:18} {n:6} calls {tokens:>14,} tokens  ${dollars:,.2f}")
-    print(f"{len(pending)} session(s) to send, {sum(len(s) for _, _, s in pending)} spans")
+    print(f"{len(pending)} session(s) to send, {sum(len(s) for _, _, s, _ in pending)} spans")
     for what, n in unknown.items():
         print(f"skipped {n}: {what}", file=sys.stderr)
 
     if args.dry_run:
-        shown = [s for _, _, spans in pending for s in spans][:args.show_spans]
+        shown = [s for _, _, spans, _ in pending for s in spans][:args.show_spans]
         for s in shown:
             print(json.dumps(s, indent=1))
         return 0
 
     base, public, secret = credentials()
     failed = 0
-    for path, mark, spans in pending:
+    for path, mark, spans, ids_now in pending:
         for i in range(0, len(spans), BATCH):
             ok, why = send(base, public, secret, spans[i:i + BATCH])
             if not ok:
@@ -387,7 +399,7 @@ def main():
                 failed += 1
                 break
         else:
-            state[path] = mark
+            state[path] = {"mark": mark, "sent": ids_now}
     STATE.parent.mkdir(parents=True, exist_ok=True)
     STATE.write_text(json.dumps(state, indent=1))
     return 1 if failed else 0
