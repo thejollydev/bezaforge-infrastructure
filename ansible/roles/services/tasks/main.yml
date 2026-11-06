@@ -208,7 +208,29 @@
     owner: "{{ bezaforge_admin_user }}"
     group: "{{ bezaforge_admin_user }}"
     mode: "0644"
-  loop: "{{ compose_services | intersect(['uptime-kuma', 'calibre-web']) }}"
+  loop: "{{ compose_services | intersect(['uptime-kuma', 'calibre-web', 'learncast']) }}"
+
+# learncast serves a directory the laptop rsyncs into as the admin user, so
+# the directory has to exist with that ownership before the container
+# bind-mounts it; Docker would otherwise create it as root and the rsync
+# would fail. The nginx config is a plain file beside the compose file.
+- name: Ensure learncast site dir exists (owned by the admin user, for rsync)
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/learncast/site"
+    state: directory
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
+    mode: "0755"
+  when: "'learncast' in compose_services"
+
+- name: Deploy learncast nginx config
+  ansible.builtin.copy:
+    src: learncast-nginx.conf
+    dest: "{{ bezaforge_root }}/learncast/nginx.conf"
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
+    mode: "0644"
+  when: "'learncast' in compose_services"
 
 # --- Postgres majors ---
 # A service whose compose file now asks for a newer Postgres major than its
