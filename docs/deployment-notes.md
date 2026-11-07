@@ -54,10 +54,14 @@ supported** — it is the intended workflow, not a hazard.
 </details>
 
 ### IOMMU Configuration
-Required kernel parameters on forge-hypervisor (`/etc/default/grub`):
+Kernel parameters on forge-hypervisor (`/etc/default/grub`), as it boots:
 ```
-GRUB_CMDLINE_LINUX_DEFAULT="quiet amd_iommu=on iommu=pt"
+GRUB_CMDLINE_LINUX_DEFAULT="quiet amd_iommu=on iommu=pt pcie_acs_override=downstream,multifunction nofb nomodeset initcall_blacklist=sysfb_init video=vesafb:off video=efifb:off"
 ```
+`amd_iommu=on iommu=pt` turn on passthrough and `pcie_acs_override` splits the IOMMU groups; the rest keep the host's console and framebuffers off the RX 7900 XT so forge-ai can have it. `initcall_blacklist=sysfb_init` already stops the simple framebuffer, so `video=simplefb:off` is not needed.
+
+> ⚠️ **Keep the value on one line.** grub's package scripts hand it to debconf, whose protocol is line-based. A value split across two lines made `grub-efi-amd64`'s post-install script exit 128 on 2026-11-07 and stopped a fleet update at the hypervisor; the second line had also never reached the kernel. After an edit, run `update-grub`, and confirm with `cat /proc/cmdline` after the next reboot.
+
 Also requires adding `vfio`, `vfio_iommu_type1`, `vfio_pci`, `vfio_virqfd` to `/etc/modules`.
 
 ---
