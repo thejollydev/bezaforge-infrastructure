@@ -1,6 +1,6 @@
 # BezaForge Infrastructure Platform
 
-A private cloud on bare-metal hardware at home, managed entirely as code. Terraform provisions the virtual machines, Ansible configures every host and service, and more than fifteen services run in Docker Compose behind a single TLS-terminating reverse proxy. Around them sit a full observability stack, a four-layer backup design with an encrypted off-site copy, and GPU-accelerated LLM inference on its own network segment.
+BezaForge is a private cloud on two machines at home, built and run entirely as code. It hosts the tools a small software studio works with every day: git hosting, work tracking, monitoring and alerting, an ERP for the books, and local LLM inference on a GPU. Terraform creates the virtual machines and Ansible configures every host and service, all from this repository.
 
 ![Terraform](https://img.shields.io/badge/Terraform-7B42BC?style=flat&logo=terraform&logoColor=white)
 ![Ansible](https://img.shields.io/badge/Ansible-EE0000?style=flat&logo=ansible&logoColor=white)
@@ -10,45 +10,21 @@ A private cloud on bare-metal hardware at home, managed entirely as code. Terraf
 ![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat&logo=grafana&logoColor=white)
 ![Linux](https://img.shields.io/badge/Linux-FCC624?style=flat&logo=linux&logoColor=black)
 
-> Addresses, host names, domains and other identifiers are left out of this page on purpose. The diagrams use generic labels.
+## At a glance
+
+- **Two machines.** A Proxmox hypervisor runs the virtual machines and owns the storage; a bare-metal service host runs more than fifteen services in Docker Compose behind one TLS-terminating reverse proxy.
+- **About forty Ansible roles.** One playbook configures the whole fleet and another verifies it read-only afterwards.
+- **Five VLANs** behind one gateway, with split-horizon DNS served by two resolvers built from a single list.
+- **Four layers of backup**, the last of them an encrypted off-site copy.
+- **Every pull request is checked**, container images are pinned by digest and kept current by Renovate, and deploys stay human-run.
+
+Addresses, host names, domains and other identifiers are left out of this page on purpose. The diagrams use generic labels.
 
 ---
 
 ## Architecture
 
-```mermaid
-flowchart TB
-    internet(("Internet"))
-    cloudflare["Cloudflare DNS<br/>public records and ACME DNS-01"]
-    gcs[("Google Cloud Storage<br/>encrypted off-site backups")]
-
-    subgraph site["Home lab"]
-        gateway["SDN gateway<br/>routing, inter-VLAN ACLs, DHCP, WireGuard"]
-
-        subgraph hv["Hypervisor: Proxmox VE"]
-            inference["Inference VM<br/>Ollama and ComfyUI on a passed-through GPU"]
-            erp["ERP VM<br/>ERPNext"]
-            zfs[("ZFS mirror<br/>snapshots and backup datasets")]
-            dns2["Secondary DNS"]
-        end
-
-        subgraph svc["Service host: bare-metal Docker"]
-            proxy["Traefik<br/>TLS for every route"]
-            apps["Git hosting, project tracking, IPAM,<br/>dashboards, LLM tracing, chat UI, ..."]
-            dns1["Primary DNS<br/>AdGuard Home"]
-        end
-    end
-
-    internet --- gateway
-    gateway --- hv
-    gateway --- svc
-    proxy --> apps
-    proxy --> erp
-    apps --> inference
-    svc -- "nightly dumps and rsync over NFS" --> zfs
-    zfs -- "daily restic" --> gcs
-    proxy -. "DNS-01 challenge" .-> cloudflare
-```
+![What runs where: the gateway, the service host and its services, the hypervisor with the inference VM, the ERP VM and the ZFS mirror, and the outside services they rely on](docs/diagrams/what-runs-where.drawio.svg)
 
 | Machine | Role | Hardware | OS |
 |---|---|---|---|
@@ -65,45 +41,15 @@ The service host runs on bare metal rather than as a VM, so DNS and the reverse 
 
 Five VLANs on a TP-Link Omada SDN stack. There is no switch: every host cables straight into the gateway, the hypervisor's uplink is an 802.1Q trunk into a VLAN-aware bridge, and each VM's virtual NIC is tagged with its own VLAN. The service host carries management untagged and production tagged on one 2.5GbE port.
 
-```mermaid
-flowchart TB
-    remote["WireGuard clients<br/>own tunnel subnet"]
-    admins["Admin devices<br/>an IP group"]
+| VLAN | What is on it | Blocked from reaching |
+|---|---|---|
+| Management | Hypervisor UI, SDN controller, host management interfaces | |
+| Production | Service host, ERP VM | |
+| AI | Inference VM | Home Wi-Fi |
+| Home Wi-Fi | Personal and IoT devices | Management, Development, AI |
+| Development | Reserved | Home Wi-Fi |
 
-    subgraph mgmt["Management VLAN"]
-        m1["Hypervisor UI, SDN controller,<br/>host management interfaces"]
-    end
-    subgraph prod["Production VLAN"]
-        p1["Service host, ERP VM"]
-    end
-    subgraph ai["AI VLAN"]
-        a1["Inference VM"]
-    end
-    subgraph home["Home Wi-Fi VLAN"]
-        h1["Personal and IoT devices"]
-    end
-    subgraph dev["Development VLAN"]
-        d1["Reserved"]
-    end
-
-    admins -- "permitted everywhere" --> mgmt
-    remote --> mgmt
-    mgmt -- "admin access" --> prod
-    mgmt -- "admin access" --> ai
-    mgmt -- "admin access" --> home
-    mgmt -- "admin access" --> dev
-    home -- "reaches services" --> prod
-```
-
-Blocked at the gateway:
-
-| From | Cannot reach |
-|---|---|
-| Home Wi-Fi | Management, Development, AI |
-| AI | Home Wi-Fi |
-| Development | Home Wi-Fi |
-
-- **The gateway's ACLs are a deny-list on a default-allow policy.** The table above is the deny-list; the admin device group overrides it. Isolation behind the gateway is enforced on the hosts as well: UFW denies inbound by default on the service host, and a Docker-aware firewall source-restricts the two ports published outside the reverse proxy.
+- **The gateway's ACLs are a deny-list on a default-allow policy.** The last column is the deny-list, and a group of admin devices is allowed everywhere. WireGuard clients arrive on their own tunnel subnet with management access. Isolation behind the gateway is enforced on the hosts as well: UFW denies inbound by default on the service host, and a Docker-aware firewall source-restricts the two ports published outside the reverse proxy.
 - **DNS is split-horizon with two resolvers built from one list.** AdGuard Home on the service host answers first and dnsmasq on the hypervisor second. Both are rendered from a single list in Ansible, and a parity check every 15 minutes alerts if they ever disagree. Clients never get a public resolver, because NXDOMAIN from one would stop them falling back.
 - **TLS everywhere, with nothing published.** Traefik gets each service its own certificate from Let's Encrypt by DNS-01 through Cloudflare, so internal services get valid certificates without being reachable from the internet. The only public name is the WireGuard endpoint, kept on the dynamic WAN address by a Cloudflare DDNS container.
 
@@ -184,32 +130,7 @@ Secrets live in ansible-vault files and are injected three ways depending on the
 
 ## Observability
 
-```mermaid
-flowchart LR
-    subgraph collect["Collected"]
-        node["Node exporters<br/>every host"]
-        cad["cAdvisor<br/>every container"]
-        probe["Blackbox HTTP probes<br/>every routed service"]
-        logs["Promtail<br/>container logs"]
-    end
-    subgraph push["Pushed"]
-        jobs["Nightly jobs<br/>backups, replicas, sync checks"]
-        pve["Proxmox error events"]
-    end
-
-    node --> prom["Prometheus"]
-    cad --> prom
-    probe --> prom
-    logs --> loki["Loki"]
-    prom --> grafana["Grafana<br/>dashboards and alert rules"]
-    loki --> grafana
-    grafana --> discord["Discord alerts"]
-    jobs -- "heartbeats" --> kuma["Uptime Kuma"]
-    kuma --> discord
-    pve --> discord
-    watch["host-watch<br/>on the hypervisor"] -- "ping and DNS" --> svchost["Service host"]
-    watch --> discord
-```
+Prometheus scrapes node exporters on every host, cAdvisor for every container and blackbox HTTPS probes of every routed service; Promtail ships container logs to Loki; Grafana holds the dashboards and the alert rules, all in version control. Alerts reach Discord from Grafana, from Uptime Kuma when a nightly job's heartbeat goes missing, and from Proxmox on error events.
 
 - **Every routed service is probed over HTTPS.** A green host or a healthy proxy is never taken to mean the service is up.
 - **The monitor is watched from outside it.** Everything that watches the fleet runs on the service host, so the hypervisor watches that host on its own and alerts when it stops answering ping or DNS.
@@ -239,43 +160,16 @@ The hypervisor owns two ZFS pools and two NVMe stores:
 - a single-disk pool behind a **Samba file share**, with a Google Drive mount nested inside it
 - **NVMe directory stores** for VM disks.
 
-```mermaid
-flowchart LR
-    subgraph sources["Sources"]
-        db["Postgres containers"]
-        appdata["Service data directories"]
-        erpdata["ERPNext"]
-        vms["Every VM"]
-        files["File share"]
-    end
-    subgraph mirror["ZFS mirror on the hypervisor"]
-        appbk[("App-state backups")]
-        erpbk[("ERP backups")]
-        vzdump[("VM images")]
-        filebk[("File-share replica")]
-    end
-
-    db -- "pg_dumpall, nightly" --> appbk
-    appdata -- "rsync over NFS, nightly" --> appbk
-    erpdata -- "bench backup, nightly" --> erpbk
-    vms -- "vzdump, nightly" --> vzdump
-    files -- "syncoid, nightly" --> filebk
-    sanoid["sanoid<br/>snapshots every 15 min"] -.-> appbk
-    sanoid -.-> erpbk
-    sanoid -.-> files
-    appbk -- "restic, daily, encrypted" --> gcs[("Google Cloud Storage<br/>Nearline")]
-    erpbk --> gcs
-    files --> gcs
-```
+![Four layers of backup: databases, service data, ERPNext, every VM and the file share land nightly on the ZFS mirror, and the app-state, ERP and file-share backups go on to Google Cloud Storage, encrypted, every morning](docs/diagrams/four-layers-of-backup.drawio.svg)
 
 | Layer | Mechanism | Cadence |
 |---|---|---|
-| 1. Snapshots | sanoid on the source datasets, with per-dataset retention | Every 15 minutes |
+| 1. Snapshots | sanoid on the source datasets and on the app-state and ERP backups, with per-dataset retention | Every 15 minutes |
 | 2. App state | `pg_dumpall` per Postgres container, plus rsync of service data, over NFS to the mirror | Nightly |
 | 3. VM images | Proxmox vzdump of every VM and template | Nightly |
 | 4. Off-site | restic, encrypted, to Google Cloud Storage Nearline | Daily |
 
-The backup datasets themselves are deliberately not snapshotted: snapshots of already-pruned backups once pinned 1.44 TB. Restores are rehearsed from a written drill.
+The VM-image dataset is deliberately not snapshotted: snapshots of images Proxmox had already pruned once pinned 1.44 TB. Restores are rehearsed from a written drill.
 
 ---
 
@@ -293,7 +187,7 @@ bezaforge-infrastructure/
 │   ├── vms.tf          # one module call per VM
 │   └── modules/proxmox-vm/
 ├── scripts/            # fleet update, deploy-drift check, DNS parity check, dashboard export
-├── docs/               # architecture notes, hardware, runbooks
+├── docs/               # architecture notes, hardware, runbooks, the diagrams above
 └── .github/workflows/  # CI and Renovate
 ```
 
