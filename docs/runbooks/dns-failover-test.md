@@ -156,7 +156,7 @@ sudo iptables -S OUTPUT | grep -- "--dport 53" || echo "clean — no leftover ru
 
 Only run Phase B once **every host passed Phase A**. This is the end-to-end confirmation.
 
-> **From here on, DNS is down for the whole network** — every device that has no secondary. Phones, TVs and anything else on DHCP get AdGuard only and **will lose DNS** for the duration. The fleet hosts and the workstation have a proven secondary and keep working (measured 2026-08-09), so this no longer costs you the session. Everything below is still IP-only so it works either way.
+> **From here on, AdGuard is down for the whole network.** Since 2026-11-07 (#1666) every network's DHCP also hands out the dnsmasq secondary, so phones, TVs and other DHCP devices should keep resolving through it; a device that still loses DNS has not renewed its lease since that change, or has its own DNS settings. The fleet hosts and the workstation have a proven secondary and keep working (measured 2026-08-09), so this no longer costs you the session. Everything below is still IP-only so it works either way.
 
 ### B1. Confirm the workstation has a working secondary
 
