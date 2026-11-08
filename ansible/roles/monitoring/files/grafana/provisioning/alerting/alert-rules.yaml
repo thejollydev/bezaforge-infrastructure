@@ -800,3 +800,76 @@ groups:
           isPaused: false
           notification_settings:
             receiver: Discord
+        # ============================================================
+        # TLS Certificate Expiring (#115)
+        # ============================================================
+        # Traefik renews each Let's Encrypt certificate about 30 days before
+        # it expires, by DNS-01 through the Cloudflare API token. When that
+        # token is expired, revoked or short of its DNS edit permission,
+        # renewal fails quietly in Traefik's log, and the first visible
+        # symptom used to be Service Not Answering on the day a certificate
+        # actually ran out. The blackbox probes already record each
+        # endpoint's earliest expiry, so this reads it.
+        #
+        # 21 days: nine days past the point Traefik should have renewed, so
+        # a renewal that is merely a little late does not fire, and three
+        # weeks are left to fix the token before anything breaks.
+        #
+        # noDataState: OK, unlike the DNS, drift and scrub rules. These
+        # series come from the same probes as Service Not Answering, which
+        # already fires NoData when blackbox stops; firing here as well
+        # would page twice for one dead prober. A probe that fails its TLS
+        # handshake also drops this series, and Service Not Answering
+        # catches that case.
+        - uid: bfg9tlsexpiry001
+          title: TLS Certificate Expiring
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: dfdseqn41ybk0e
+              model:
+                editorMode: code
+                expr: (probe_ssl_earliest_cert_expiry - time()) / 86400
+                instant: true
+                intervalMs: 1000
+                legendFormat: '{{ $labels.instance }}'
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 21
+                        type: lt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          noDataState: OK
+          execErrState: OK
+          for: 1h
+          annotations:
+            summary: '{{ $labels.instance }} has a TLS certificate expiring in {{ humanize $values.A.Value }} days'
+            description: 'Traefik should have renewed this Let''s Encrypt certificate at about 30 days left and has not. The usual cause is the Cloudflare DNS-01 token (cloudflare_dns_api_token): expired, revoked, or missing Zone DNS edit on bezaforge.dev. Look for the reason with: ssh forge-ops docker logs traefik 2>&1 | grep -iE "acme|renew|cloudflare". Rotation is in docs/runbooks/secret-rotation.md. Check what a client sees with: echo | openssl s_client -connect <host>:443 -servername <host> 2>/dev/null | openssl x509 -noout -dates. Coverage is the blackbox target list in roles/monitoring/files/prometheus.yml.'
+          isPaused: false
+          notification_settings:
+            receiver: Discord
