@@ -111,7 +111,7 @@ scrape_configs:
   #
   # ⚠️ These probe THROUGH Traefik and AdGuard, deliberately: that is the
   # path a human uses, so a broken router or DNS record is a real outage and
-  # should alert. The cost is that a Traefik failure lights up all fourteen
+  # should alert. The cost is that a Traefik failure lights up every target
   # at once. That is honest rather than noisy — they are all genuinely
   # unreachable — and traefik.bezaforge.dev is itself one of the targets.
   - job_name: 'blackbox-http'
@@ -134,10 +134,14 @@ scrape_configs:
           - https://books.bezaforge.dev        # Calibre-Web
           - https://chat.bezaforge.dev         # Open WebUI
           - https://langfuse.bezaforge.dev     # LangFuse
+          # learncast: the root is a 403 by design (listing off), and so is an
+          # empty site directory, so probe the feed itself. 200 means podcast
+          # apps can still fetch it.
+          - https://learn.bezaforge.dev/feed.xml  # learncast
     # The standard blackbox dance: the scrape goes to the exporter, but the
     # series must be labelled with the URL being probed, not with the
     # exporter's address. Without the last step every series would collapse
-    # onto instance="blackbox:9115" and fourteen targets would look like one.
+    # onto instance="blackbox:9115" and every target would look like one.
     #
     # ⚠️ `instance` is set here as a TARGET label on purpose. Target labels
     # beat metric labels on this fleet (see the standing caveat) — anything

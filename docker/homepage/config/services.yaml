@@ -74,7 +74,7 @@
         href: https://learn.bezaforge.dev/feed.xml
         description: Learning podcast feed · lectures rendered on the laptop
         icon: mdi-podcast-#1E40AF
-        siteMonitor: https://learn.bezaforge.dev
+        siteMonitor: https://learn.bezaforge.dev/feed.xml
 
 # Jellyfin + Seedbox retired 2026-07-18 (#485) — media stack removed from
 # BezaForge entirely. Kavita retired 2026-06-20 (FORGE-16); ebooks returned
