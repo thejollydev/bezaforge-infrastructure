@@ -160,13 +160,13 @@ The hypervisor owns two ZFS pools and two NVMe stores:
 - a single-disk pool behind a **Samba file share**, with a Google Drive mount nested inside it
 - **NVMe directory stores** for VM disks.
 
-![Four layers of backup: databases, service data, ERPNext, every VM and the file share land nightly on the ZFS mirror, and the app-state, ERP and file-share backups go on to Google Cloud Storage, encrypted, every morning](docs/diagrams/four-layers-of-backup.drawio.svg)
+![Four layers of backup: databases, service data, ERPNext, forge-erp's VM image and the file share land nightly on the ZFS mirror, and the app-state, ERP and file-share backups go on to Google Cloud Storage, encrypted, every morning](docs/diagrams/four-layers-of-backup.drawio.svg)
 
 | Layer | Mechanism | Cadence |
 |---|---|---|
 | 1. Snapshots | sanoid on the source datasets and on the app-state and ERP backups, with per-dataset retention | Every 15 minutes |
 | 2. App state | `pg_dumpall` per Postgres container, plus rsync of service data, over NFS to the mirror | Nightly |
-| 3. VM images | Proxmox vzdump of every VM and template | Nightly |
+| 3. VM images | Proxmox vzdump of forge-erp and the template; forge-ai and forge-arcade hold nothing to keep and are rebuilt fresh | Nightly |
 | 4. Off-site | restic, encrypted, to Google Cloud Storage Nearline | Daily |
 
 The VM-image dataset is deliberately not snapshotted: snapshots of images Proxmox had already pruned once pinned 1.44 TB. Restores are rehearsed from a written drill.
