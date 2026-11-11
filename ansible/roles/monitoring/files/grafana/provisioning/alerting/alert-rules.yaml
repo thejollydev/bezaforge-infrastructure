@@ -7,9 +7,9 @@ groups:
       rules:
         # ⚠️ SCOPED, AND IT MUST STAY SCOPED (#676, 2026-08-22). This rule was
         # a bare `up`, which was correct while every target was a host. The
-        # blackbox job added fourteen more `up` series whose instance label is
-        # a URL, not a host — so an unscoped `up` would fire fourteen times
-        # saying "https://pm.bezaforge.dev is down" the moment the PROBER
+        # blackbox job added an `up` series per probe target, whose instance
+        # label is a URL, not a host — so an unscoped `up` would fire once per
+        # target saying "https://pm.bezaforge.dev is down" the moment the PROBER
         # died, which is neither true nor actionable.
         #
         # The exclusion is deliberately narrow: it drops `blackbox-http` only.
@@ -596,7 +596,7 @@ groups:
           keepFiringFor: 5m
           annotations:
             summary: '{{ $labels.instance }} is not answering'
-            description: 'The endpoint failed an HTTP probe from forge-ops. This means the SERVICE is unhealthy, not necessarily the host — the 2026-08-15 case (#676) had a healthy host, a running container, and a segfaulting Rails app behind an Apache that answered 502 for hours with nothing alerting. Probes go through AdGuard and Traefik on purpose, so this also fires for a DNS or router failure; if every target alerts at once, suspect Traefik or DNS before suspecting fourteen services. Diagnose with: curl -sSi https://<host> from the workstation, then docker logs <container> on the host that runs it. A probe counts as failed on 5xx, on connection refused, on TLS failure, and on timeout (5s) — the timeout case is the one a status-code check misses. Valid codes are listed in roles/monitoring/files/blackbox-config.yml and deliberately include 302 and 401, because six of these services redirect to a login page and Traefik answers 401. Coverage is the target list in roles/monitoring/files/prometheus.yml and nowhere else; verify it with count(probe_success), which must equal the number of targets there.'
+            description: 'The endpoint failed an HTTP probe from forge-ops. This means the SERVICE is unhealthy, not necessarily the host — the 2026-08-15 case (#676) had a healthy host, a running container, and a segfaulting Rails app behind an Apache that answered 502 for hours with nothing alerting. Probes go through AdGuard and Traefik on purpose, so this also fires for a DNS or router failure; if every target alerts at once, suspect Traefik or DNS before suspecting the services themselves. Diagnose with: curl -sSi https://<host> from the workstation, then docker logs <container> on the host that runs it. A probe counts as failed on 5xx, on connection refused, on TLS failure, and on timeout (5s) — the timeout case is the one a status-code check misses. Valid codes are listed in roles/monitoring/files/blackbox-config.yml and deliberately include 302 and 401, because six of these services redirect to a login page and Traefik answers 401. Coverage is the target list in roles/monitoring/files/prometheus.yml and nowhere else; verify it with count(probe_success), which must equal the number of targets there.'
           isPaused: false
           notification_settings:
             receiver: Discord
