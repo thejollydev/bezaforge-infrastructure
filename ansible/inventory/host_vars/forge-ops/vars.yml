@@ -242,12 +242,15 @@ health_expected_containers:
 # 6.12.107 had run from 2026-09-25 without it.
 #
 # Held on 6.12.113 from 2026-10-30, so the watch changes one thing at a time.
-# Going back means setting 6.12.107 here again: its package stays held, and
-# so installed, until the pin is cleared.
+# Going back means setting 6.12.107 here again: its package is held, and so
+# stays installed.
 #
-# Clear this once 6.12.113 has been run and trusted. The pin does not stop
-# newer kernels installing; it only decides which one boots.
-kernel_pin_version: "6.12.113+deb13-amd64"
+# Cleared on 2026-11-11: 6.12.113 ran from 2026-10-30 without the fault, so
+# forge-ops boots the newest installed kernel again, 6.12.116 at the time.
+# 6.12.107 and 6.12.113 stay installed, their packages still held, so either
+# can be pinned again by setting its `uname -r` here. Clearing removes the
+# GRUB default the role wrote; it does not release the holds.
+kernel_pin_version: ""
 
 # git-mirror-sync: GitHub's main copied to GitLab and Gitea. Account names
 # and tokens are vaulted; until they are there, the role installs nothing.
