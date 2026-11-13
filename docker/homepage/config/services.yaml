@@ -47,6 +47,11 @@
         description: Service status monitoring
         icon: uptime-kuma.png
         siteMonitor: https://uptime.bezaforge.dev
+    - Umami:
+        href: https://stats.bezaforge.dev
+        description: Website analytics · no cookies
+        icon: umami.png
+        siteMonitor: https://stats.bezaforge.dev/api/heartbeat
 
 - Knowledge:
     - NetBox:

@@ -1,0 +1,14 @@
+# Umami .env — rendered from roles/services/templates/umami-env.j2
+# Secrets sourced from ansible-vault (host_vars/forge-ops/vault.yml).
+#
+# All three are generated once with `openssl rand -hex 32` and must stay
+# the same across redeploys. Hex matters for the first: the password sits
+# inside DATABASE_URL, where other characters would need escaping.
+#   umami_db_password                 the database's own password
+#   umami_app_secret                  signs sign-in tokens and salts the
+#                                     anonymous visitor IDs; changing it
+#                                     signs everyone out
+#   umami_two_factor_encryption_key   encrypts two-factor secrets
+UMAMI_DB_PASSWORD={{ umami_db_password }}
+UMAMI_APP_SECRET={{ umami_app_secret }}
+UMAMI_TWO_FACTOR_ENCRYPTION_KEY={{ umami_two_factor_encryption_key }}

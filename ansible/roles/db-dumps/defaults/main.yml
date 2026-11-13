@@ -31,6 +31,8 @@ postgres_dumps:
     container: langfuse-db
   - service: netbox
     container: netbox-postgres
+  - service: umami
+    container: umami-db
   - service: openproject
     container: openproject
     # OpenProject all-in-one bundles Postgres internally — no separate

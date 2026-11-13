@@ -3,7 +3,7 @@
 #
 # Services fall into three categories based on how secrets are managed:
 #   1. Template services (gitea, taiga) — secrets baked into compose via Jinja2
-#   2. Env-var services (netbox, langfuse, homepage) — compose uses ${VAR}, secrets in .env file
+#   2. Env-var services (netbox, langfuse, homepage, umami) — compose uses ${VAR}, secrets in .env file
 #   3. Simple services (uptime-kuma, calibre-web) — no secrets at all
 #
 # (wiki was a template service; retired 2026-05-17 per ROADMAP carryover #21)
@@ -90,7 +90,7 @@
     owner: "{{ bezaforge_admin_user }}"
     group: "{{ bezaforge_admin_user }}"
     mode: "0644"
-  loop: "{{ compose_services | intersect(['langfuse', 'homepage', 'open-webui', 'cloudflare-ddns']) }}"
+  loop: "{{ compose_services | intersect(['langfuse', 'homepage', 'open-webui', 'cloudflare-ddns', 'umami']) }}"
 
 # LangFuse's ClickHouse reads this from config.d (bind-mounted by the compose
 # file). It turns off the system log tables that grow without a TTL (#1334).
@@ -139,7 +139,65 @@
     owner: "{{ bezaforge_admin_user }}"
     group: "{{ bezaforge_admin_user }}"
     mode: "0600"
-  loop: "{{ compose_services | intersect(['netbox', 'langfuse', 'homepage', 'open-webui', 'cloudflare-ddns']) }}"
+  loop: "{{ compose_services | intersect(['netbox', 'langfuse', 'homepage', 'open-webui', 'cloudflare-ddns', 'umami']) }}"
+
+# --- Umami and its Cloudflare Tunnel ---
+# Umami's tracker is the one thing on this fleet the internet can reach,
+# and it gets there through a tunnel that dials out, not through an open
+# port. The tunnel was created once, by hand, with `cloudflared tunnel
+# create`; that command's credentials file and the public hostname are in
+# the encrypted vars, because this repository is public. Checked here so a
+# missing value fails the deploy by name, instead of the tunnel container
+# restarting forever on an empty config.
+- name: Check Umami's secrets and tunnel values
+  ansible.builtin.assert:
+    that:
+      - umami_db_password is defined and umami_db_password is match('^[0-9a-f]{32,}$')
+      - umami_app_secret is defined and umami_app_secret | length >= 32
+      - umami_two_factor_encryption_key is defined
+      - umami_two_factor_encryption_key is match('^[0-9a-f]{64}$')
+      - umami_public_hostname is defined and umami_public_hostname | length > 0
+      - umami_tunnel_id is defined and umami_tunnel_id | length > 0
+      - umami_tunnel_account_tag is defined and umami_tunnel_account_tag | length > 0
+      - umami_tunnel_secret is defined and umami_tunnel_secret | length > 0
+    fail_msg: >-
+      Umami needs umami_db_password (hex), umami_app_secret,
+      umami_two_factor_encryption_key (64 hex characters),
+      umami_public_hostname, umami_tunnel_id, umami_tunnel_account_tag and
+      umami_tunnel_secret in host_vars/forge-ops/vault.yml.
+      scripts/umami-vault-setup.py writes all seven.
+    quiet: true
+  no_log: true
+  when: "'umami' in compose_services"
+
+# cloudflared runs as uid 65532 in its container and reads these two files
+# through a read-only mount. The numeric id is used because no such user
+# exists on the host. Nobody else may read the directory: the credentials
+# file is what lets a machine run this tunnel.
+- name: Ensure the Umami tunnel's config dir exists (owned by cloudflared's uid)
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/umami/cloudflared"
+    state: directory
+    owner: "65532"
+    group: "65532"
+    mode: "0700"
+  when: "'umami' in compose_services"
+
+- name: Deploy the Umami tunnel's config and credentials
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ bezaforge_root }}/umami/cloudflared/{{ item.dest }}"
+    owner: "65532"
+    group: "65532"
+    mode: "0400"
+  loop:
+    - {src: umami-tunnel-config.yml.j2, dest: config.yml}
+    - {src: umami-tunnel-credentials.json.j2, dest: credentials.json}
+  loop_control:
+    label: "{{ item.dest }}"
+  no_log: true
+  when: "'umami' in compose_services"
+  notify: Restart the Umami tunnel
 
 # --- Homepage config + brand assets ---
 # Homepage's YAML config and image assets are version-controlled in

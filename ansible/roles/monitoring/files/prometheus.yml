@@ -138,6 +138,12 @@ scrape_configs:
           # empty site directory, so probe the feed itself. 200 means podcast
           # apps can still fetch it.
           - https://learn.bezaforge.dev/feed.xml  # learncast
+          # Umami's own health address, which answers only when the app is
+          # up; `/` would be a redirect to the sign-in page. This is the
+          # internal name. The public tracker is watched from outside, by
+          # the website's own uptime checks, since a probe from here could
+          # not tell a working tunnel from a broken one.
+          - https://stats.bezaforge.dev/api/heartbeat  # Umami
     # The standard blackbox dance: the scrape goes to the exporter, but the
     # series must be labelled with the URL being probed, not with the
     # exporter's address. Without the last step every series would collapse

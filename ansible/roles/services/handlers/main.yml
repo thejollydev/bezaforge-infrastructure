@@ -6,3 +6,10 @@
   ansible.builtin.command:
     argv: [docker, restart, gitea]
   changed_when: true
+
+# cloudflared reads its config and credentials once, when it starts, and
+# both are files beside the compose file, not part of it.
+- name: Restart the Umami tunnel
+  ansible.builtin.command:
+    argv: [docker, restart, umami-tunnel]
+  changed_when: true
