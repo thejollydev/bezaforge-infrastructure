@@ -163,19 +163,19 @@ module "forge_arcade" {
 
   create_from_template = false
 
-  # ⚠️ TEMPORARY — SETUP MODE (2026-08-02). Flip both this and hostpci xvga back before
-  # this VM is considered done; see the marker on hostpci_devices below.
+  # Steady state (restored 2026-11-13, #103): no emulated display. The passthrough GPU
+  # drives the real monitor, and the LG UltraFine keeps HPD + EDID asserted even while
+  # switched to another input (verified 2026-07-31), so the guest always sees a real
+  # 3840x2160 output for Sunshine to capture.
   #
-  # Steady state is vga_type = "none": the passthrough GPU drives the real monitor, and
-  # the LG UltraFine keeps HPD + EDID asserted even while switched to another input
-  # (verified 2026-07-31), so the guest always sees a real 3840x2160 output.
-  #
-  # But "none" + x-vga=1 means there is NO Proxmox console, which made first-run setup
-  # depend entirely on USB passthrough — and the passed-through Logitech receivers reach
-  # QEMU (they appear in `info usb`) yet produce no input in the guest. Rather than debug
-  # that blind, with no shell, run setup on an emulated display so noVNC gives a reliable
-  # keyboard and mouse; then restore the steady state and debug USB with SSH available.
-  vga_type = "std"
+  # "none" + x-vga=1 means there is NO Proxmox console. The shell is SSH (the key is baked
+  # into the image), Sunshine is set up over SSH and its web UI, and play is a controller
+  # over Moonlight. The USB keyboard/mouse test the August setup mode was waiting on was
+  # skipped by Joseph's choice on 2026-11-13: desk play with keyboard and mouse stays
+  # unproven. For a console again, set vga_type = "std" and hostpci_devices = [] (the
+  # 2026-08-02 setup mode); demoting the card with xvga = false is not enough, because the
+  # session lands on the AMD GPU and noVNC shows only a bare VT.
+  vga_type = "none"
 
   tags = ["gaming", "gpu", "desktop"]
 
@@ -186,26 +186,22 @@ module "forge_arcade" {
   # forge-ai's raw id. Create it with:
   #   pvesh create /cluster/mapping/pci --id rx7900xt \
   #     --map 'node=forge-hypervisor,path=0000:2f:00,id=1002:744c,subsystem-id=1eae:7905,iommugroup=32'
-  # ⚠️ TEMPORARY — SETUP MODE (2026-08-02): GPU fully detached.
-  # Demoting it (xvga = false) was not enough: with a real card present and a live EDID on
-  # the LG, the graphical session lands on the AMD GPU and noVNC shows only a bare VT.
-  # Removing it leaves exactly ONE display, so noVNC is guaranteed — and KDE runs fine on
-  # the emulated adapter, unlike gamescope, which needs Vulkan.
-  # It also means **forge-ai keeps the card and stays up** through the whole install.
-  # STEADY STATE (restore together with usb_devices above and vga_type = "none"):
-  #   hostpci_devices = [
-  #     {
-  #       mapping = "rx7900xt" # path 0000:2f:00 → GPU + its HDMI audio function
-  #       pcie    = true
-  #       rombar  = false
-  #       xvga    = true       # primary display; makes Proxmox ignore `vga` entirely
-  #     }
-  #   ]
-  hostpci_devices = []
+  #
+  # Holding the card in this config does not take it from forge-ai: Proxmox only claims it
+  # when the VM starts, and refuses to start a second holder. scripts/gpu-handoff.sh moves
+  # it between the two.
+  hostpci_devices = [
+    {
+      mapping = "rx7900xt" # path 0000:2f:00 → GPU + its HDMI audio function
+      pcie    = true
+      rombar  = false
+      xvga    = true # primary display; makes Proxmox ignore `vga` entirely
+    }
+  ]
 
-  # Keyboard + mouse for the guest. WITHOUT THIS THE VM HAS NO INPUT DEVICE AT ALL:
-  # x-vga=1 makes the passthrough card primary, which disables the Proxmox console, so
-  # there is no other way to type into the guest before Sunshine is configured.
+  # Keyboard + mouse for the guest, for desk play only. Without them the guest has no
+  # local input: x-vga=1 disables the Proxmox console, so input is SSH, Sunshine's web UI
+  # and Moonlight. Left detached by default — see the 2026-09-27 marker below.
   #
   # BOTH receivers are required — the peripherals are split across them:
   #   logi-bolt     046d:c548  → MX Keys S keyboard
@@ -235,6 +231,7 @@ module "forge_arcade" {
   #   - SSH still works (10.10.40.x, DHCP)              → fallback shell
   #   - forge-ai keeps the card                         → NO Ollama outage while debugging
   # Once input is confirmed in-guest, phase 2 restores hostpci + vga_type = "none".
+  # (Phase 2 went ahead on 2026-11-13 without the input test, by Joseph's choice.)
   #
   # ⛔ DETACHED 2026-09-27 — this broke every backup of this VM for 48 nights.
   # A stopped VM is backed up by starting it paused with its full hardware, and
@@ -244,8 +241,8 @@ module "forge_arcade" {
   # until 2026-09-27, silently (#1285). The last good backup was 2026-08-09.
   #
   # Steady-state play is a controller over Moonlight, which needs neither receiver.
-  # To run the phase 1 input test, plug both receivers into the hypervisor, restore
-  # the two entries below for that session, and remove them again afterwards. A VM
+  # To try desk play, plug both receivers into the hypervisor, restore the two
+  # entries below for that session, and remove them again afterwards. A VM
   # whose backups depend on a dongle staying plugged in will fail again the next
   # time one is borrowed.
   #   { mapping = "logi-bolt" },    # usb0 — MX Keys S keyboard
