@@ -9,6 +9,10 @@ services:
     restart: unless-stopped
     volumes:
       - /opt/bezaforge/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # Target lists rendered from encrypted vars (see the
+      # blackbox-http-external job). The directory, not a file: a single-file
+      # bind mount would go on showing the old list after the role replaces it.
+      - /opt/bezaforge/prometheus/file_sd:/etc/prometheus/file_sd:ro
       - /opt/bezaforge/prometheus/data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
