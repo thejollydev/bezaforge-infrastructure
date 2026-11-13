@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+# Targets of the blackbox-http-external job. Rendered from the encrypted
+# monitoring_external_probe_targets list; edit that, not this file.
+{% if monitoring_external_probe_targets | length > 0 %}
+- targets:
+{% for target in monitoring_external_probe_targets %}
+    - {{ target | to_json }}
+{% endfor %}
+{% else %}
+[]
+{% endif %}

@@ -50,6 +50,46 @@
   notify: restart prometheus
 
 # ------------------------------------------------------------
+# Probe targets outside the fleet
+# ------------------------------------------------------------
+# The blackbox-http-external job reads its targets from this file, not from
+# prometheus.yml, because they are names on the internet and this repository
+# is public. The list is `monitoring_external_probe_targets`, set in the
+# host's encrypted vars.
+#
+# No handler: Prometheus watches file_sd files and re-reads a changed one by
+# itself. The directory is what is mounted into the container, so the new
+# file is visible there without a restart. The FIRST deploy still restarts
+# Prometheus, through the compose file and prometheus.yml changing.
+- name: Check the external probe targets are full https URLs
+  ansible.builtin.assert:
+    that:
+      - monitoring_external_probe_targets is not string
+      - monitoring_external_probe_targets is iterable
+      - monitoring_external_probe_targets | reject('match', '^https://[^ ]+$') | list | length == 0
+    fail_msg: >-
+      monitoring_external_probe_targets must be a list of https:// URLs.
+      The blackbox module fails any probe that is not TLS, so anything else
+      would alert for ever.
+    quiet: true
+
+- name: Ensure the Prometheus file_sd directory exists
+  ansible.builtin.file:
+    path: "{{ bezaforge_root }}/prometheus/file_sd"
+    state: directory
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
+    mode: '0755'
+
+- name: Deploy the external probe target list
+  ansible.builtin.template:
+    src: prometheus-external-probes.yml.j2
+    dest: "{{ bezaforge_root }}/prometheus/file_sd/external-probes.yml"
+    owner: "{{ bezaforge_admin_user }}"
+    group: "{{ bezaforge_admin_user }}"
+    mode: '0644'
+
+# ------------------------------------------------------------
 # Blackbox exporter config (#676)
 # ------------------------------------------------------------
 # The prober that answers "does this service actually reply?", as opposed to

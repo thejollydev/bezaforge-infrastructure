@@ -44,3 +44,13 @@ monitoring_deploy_drift_branch: main
 # ticks. The window between "merged" and "fairly called drift" is the
 # Grafana rule's `for:`, not this.
 monitoring_deploy_drift_interval: 30min
+
+# ============================================================
+# Probes of addresses outside the fleet
+# ============================================================
+#
+# Full URLs, probed by the blackbox-http-external job in prometheus.yml.
+# Empty here on purpose: this repository is public, so the real list is set
+# in the host's encrypted vars (scripts/external-probes-vault-setup.py
+# writes it). With the list empty the job simply has no targets.
+monitoring_external_probe_targets: []
