@@ -171,10 +171,10 @@ module "forge_arcade" {
   # "none" + x-vga=1 means there is NO Proxmox console. The shell is SSH (the key is baked
   # into the image), Sunshine is set up over SSH and its web UI, and play is a controller
   # over Moonlight. The USB keyboard/mouse test the August setup mode was waiting on was
-  # skipped by Joseph's choice on 2026-11-13: desk play with keyboard and mouse stays
-  # unproven. For a console again, set vga_type = "std" and hostpci_devices = [] (the
-  # 2026-08-02 setup mode); demoting the card with xvga = false is not enough, because the
-  # session lands on the AMD GPU and noVNC shows only a bare VT.
+  # skipped on 2026-11-13: desk play with keyboard and mouse stays unproven. For a
+  # console again, set vga_type = "std" and hostpci_devices = [] (the 2026-08-02 setup
+  # mode); demoting the card with xvga = false is not enough, because the session lands
+  # on the AMD GPU and noVNC shows only a bare VT.
   vga_type = "none"
 
   tags = ["gaming", "gpu", "desktop"]
@@ -231,7 +231,7 @@ module "forge_arcade" {
   #   - SSH still works (10.10.40.x, DHCP)              → fallback shell
   #   - forge-ai keeps the card                         → NO Ollama outage while debugging
   # Once input is confirmed in-guest, phase 2 restores hostpci + vga_type = "none".
-  # (Phase 2 went ahead on 2026-11-13 without the input test, by Joseph's choice.)
+  # (Phase 2 went ahead on 2026-11-13 without the input test.)
   #
   # ⛔ DETACHED 2026-09-27 — this broke every backup of this VM for 48 nights.
   # A stopped VM is backed up by starting it paused with its full hardware, and

@@ -14,8 +14,7 @@
 # operational act run by hand, not configuration. Terraform ignores both VMs'
 # power state for the same reason (`ignore_changes = [started]`).
 #
-# Runs on the workstation, over SSH to forge-hypervisor as root. It writes to
-# the hypervisor (VM power state), so it is run by Joseph, never by an agent.
+# Runs on the workstation, over SSH to forge-hypervisor as root.
 #
 # Shutting forge-arcade down: Bazzite has no guest agent, so the stop is an ACPI
 # power-button press. KDE may answer it with its logout screen, so the script
