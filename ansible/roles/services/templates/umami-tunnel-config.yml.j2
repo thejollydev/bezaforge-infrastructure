@@ -1,0 +1,24 @@
+# cloudflared config — rendered from
+# roles/services/templates/umami-tunnel-config.yml.j2
+#
+# This file is the whole of what the tunnel publishes. The public hostname
+# and the tunnel's ID come from the encrypted vars, because this repository
+# is public and both name something on the internet.
+tunnel: {{ umami_tunnel_id }}
+credentials-file: /etc/cloudflared/credentials.json
+
+# Rules are tried in order and the first match wins. `path` is a regular
+# expression, anchored at both ends here so nothing longer matches.
+ingress:
+  # The tracker script a website's pages load.
+  - hostname: {{ umami_public_hostname }}
+    path: '^/script\.js$'
+    service: http://umami:3000
+  # Where that script posts each page view.
+  - hostname: {{ umami_public_hostname }}
+    path: '^/api/send$'
+    service: http://umami:3000
+  # Everything else, the sign-in page and the dashboard's API included, is
+  # answered here and never reaches Umami. cloudflared requires this last
+  # rule.
+  - service: http_status:404

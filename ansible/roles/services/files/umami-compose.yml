@@ -1,0 +1,118 @@
+networks:
+  bezaforge-net:
+    external: true
+  # Umami and its database only. `internal` means no route out, so the
+  # database can reach nothing and nothing but Umami can reach it.
+  umami-db-net:
+    internal: true
+  # Umami and the tunnel only. The tunnel is the one container here that
+  # the internet can send requests through, so it shares a network with the
+  # one service it forwards to and with nothing else on this host.
+  umami-tunnel-net: {}
+
+services:
+  umami-db:
+    image: postgres:18-alpine@sha256:123b17998ccaf47e53b502e8c6a1e79afd8f579c6f3eec83c563da026f957395
+    container_name: umami-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: umami
+      POSTGRES_USER: umami
+      POSTGRES_PASSWORD: ${UMAMI_DB_PASSWORD}
+      # Umami's install page recommends a UTC database, so its timestamps
+      # mean the same thing whatever the host's timezone is.
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      # Postgres 18 keeps its data in /var/lib/postgresql/18/docker, so the
+      # mount is the parent (#1396). Mounted at .../data it would write to
+      # an anonymous volume and lose the database on a recreate.
+      - /opt/bezaforge/umami/postgres18:/var/lib/postgresql
+    networks:
+      - umami-db-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  umami:
+    # Website analytics with no cookies. It serves two things: a small
+    # tracker script that a website's pages load, with the address that
+    # script posts each page view to; and a dashboard behind a sign-in.
+    # The tunnel below publishes the first. The second is internal only.
+    #
+    # The first start creates the tables and the account `admin` with the
+    # password `umami`, and since 3.5.0 Umami refuses to go on until that
+    # password is replaced at the first sign-in.
+    image: ghcr.io/umami-software/umami:3.5.0@sha256:b64f40400d77bcadd39cf5c62a1e368c99524ca442024f96e1133355a19a5dbc
+    container_name: umami
+    restart: unless-stopped
+    init: true
+    depends_on:
+      umami-db:
+        condition: service_healthy
+    environment:
+      # The password is generated as hex (see the .env template), so it
+      # needs no escaping inside a URL.
+      DATABASE_URL: postgresql://umami:${UMAMI_DB_PASSWORD}@umami-db:5432/umami
+      # Signs sign-in tokens and is part of how the anonymous visitor IDs
+      # are derived. Required since 3.5.0. Changing it signs everyone out
+      # and counts every current visitor as new.
+      APP_SECRET: ${UMAMI_APP_SECRET}
+      # Encrypts two-factor secrets. Required before two-factor sign-in
+      # can be turned on for an account.
+      TWO_FACTOR_ENCRYPTION_KEY: ${UMAMI_TWO_FACTOR_ENCRYPTION_KEY}
+      # Umami reports anonymous usage to its makers unless told not to.
+      DISABLE_TELEMETRY: "1"
+      # Renovate proposes new versions; the dashboard need not ask too.
+      DISABLE_UPDATES: "1"
+    networks:
+      - bezaforge-net
+      - umami-db-net
+      - umami-tunnel-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/heartbeat || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    labels:
+      # The dashboard's internal name. Traefik has no public address, so
+      # this is reachable at home and over WireGuard only.
+      - "traefik.enable=true"
+      - "traefik.docker.network=bezaforge-net"
+      - "traefik.http.routers.umami.rule=Host(`stats.bezaforge.dev`)"
+      - "traefik.http.routers.umami.entrypoints=websecure"
+      - "traefik.http.routers.umami.tls.certresolver=letsencrypt"
+      - "traefik.http.services.umami.loadbalancer.server.port=3000"
+
+  umami-tunnel:
+    # A Cloudflare Tunnel: this container dials out to Cloudflare and holds
+    # the connection open, and Cloudflare sends requests for one public
+    # hostname back down it. No port is opened on the gateway and nothing
+    # here listens on the host.
+    #
+    # It is a locally-managed tunnel, so what it forwards is decided by
+    # cloudflared/config.yml beside this file and by nothing in Cloudflare's
+    # dashboard: the tracker script and the page-view address reach Umami,
+    # and every other path is answered 404 without touching it.
+    image: cloudflare/cloudflared:2026.11.0@sha256:b94b96edf2c9c4360f8879c8580cfaa99077f19c849ec595ca2f711b27d4f344
+    container_name: umami-tunnel
+    restart: unless-stopped
+    # cloudflared updates itself unless told not to; the image is pinned
+    # and Renovate moves it.
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    depends_on:
+      - umami
+    # The image runs as 65532 and needs nothing from the host but its two
+    # files, which the role writes for that user.
+    read_only: true
+    cap_drop:
+      - all
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - /opt/bezaforge/umami/cloudflared:/etc/cloudflared:ro
+    networks:
+      - umami-tunnel-net
