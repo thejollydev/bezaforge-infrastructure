@@ -41,7 +41,7 @@ module "forge_ai" {
     }
   ]
 
-  # On demand since 2026-11-14 (#103, Joseph): forge-arcade holds the card by default
+  # On demand since 2026-11-14 (#103): forge-arcade holds the card by default
   # and starts with the hypervisor; forge-ai is started by `scripts/gpu-handoff.sh ai`
   # when Ollama or ComfyUI is wanted. Starting both at boot would race for the card.
   # Power state is not reconciled after create (`ignore_changes = [started]`), so this
@@ -268,7 +268,7 @@ module "forge_arcade" {
     { mapping = "ax200-bluetooth" } # usb0
   ]
 
-  # Holds the card by default since 2026-11-14 (#103, Joseph); forge-ai is on demand.
+  # Holds the card by default since 2026-11-14 (#103); forge-ai is on demand.
   #   started         — not reconciled after create, so this only ever mattered at creation.
   #   on_boot         — starts with the hypervisor; forge-ai has on_boot = false, so they
   #                     never race for the card.
