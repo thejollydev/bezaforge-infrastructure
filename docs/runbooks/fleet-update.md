@@ -20,8 +20,14 @@ password, so it needs a real terminal.
 2. **OS packages**, host by host: forge-hypervisor, then forge-ai and
    forge-erp, then forge-ops last because it is DNS for every VLAN.
    forge-ai runs on demand (forge-arcade holds the GPU by default), so when it
-   is off the script says so and leaves it out of the whole pass. To update it,
-   hand it the card first (`scripts/gpu-handoff.sh ai`) and run the pass then.
+   is off the script borrows the card: `gpu-handoff.sh ai` before the playbook
+   (about five minutes, before the password prompts) and `gpu-handoff.sh
+   arcade` after it, even if the pass fails or is interrupted. It refuses while
+   a stream from forge-arcade is open. `--skip-ai`, or any `--limit`, leaves
+   forge-ai out instead of borrowing.
+   forge-arcade is not in Ansible: Bazzite updates itself (`uupd`), and a new
+   image takes effect at its next boot. A borrowed pass boots it fresh; any
+   other pass ends by saying whether an image is waiting.
 3. **`site.yml`.** Everything merged is deployed: container images, Ollama,
    LangFuse and the rest. ERPNext is upgraded rather than recreated when its
    image moved ([erpnext-upgrade.md](erpnext-upgrade.md)).
