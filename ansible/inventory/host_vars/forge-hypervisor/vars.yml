@@ -73,6 +73,14 @@ health_expected_mounts:
 # nights of 1 h timeouts. This var makes the pin survive reboots.
 sata_lpm_manage: true
 
+# --- nfs-server (2026-11-15) ---
+# fs.leases-enable=0: with NFSv4 delegations on, the forge-ops nightly
+# rsync's copies kept the copy time instead of the source's, so every
+# file was re-copied each night and the run grew from minutes to its
+# one-hour ceiling (timeouts 2026-11-08 and 2026-11-15). Leases had been
+# re-enabled by hand on 2026-09-14 when vault-sync was retired.
+nfs_server_manage: true
+
 # --- systemd-hygiene ---
 # openipmi.service can never start on this box. forge-hypervisor is an MSI
 # MS-7C84 consumer board with no BMC: `dmidecode --type 38` (IPMI Device

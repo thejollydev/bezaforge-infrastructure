@@ -1,0 +1,16 @@
+---
+# ============================================================
+# nfs-server — kernel settings for the hypervisor's NFS exports
+# ============================================================
+# Written to a sysctl.d file so it survives a reboot, and set live so a
+# play run takes effect without one. A lease already granted is not
+# revoked by the change; new opens get none.
+
+- name: Set whether the kernel grants file leases and NFS delegations
+  when: nfs_server_manage | bool
+  ansible.posix.sysctl:
+    name: fs.leases-enable
+    value: "{{ nfs_server_leases_enable | bool | ternary('1', '0') }}"
+    sysctl_file: /etc/sysctl.d/60-nfs-server.conf
+    sysctl_set: true
+    reload: true

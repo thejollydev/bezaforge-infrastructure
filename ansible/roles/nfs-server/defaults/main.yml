@@ -1,0 +1,27 @@
+---
+# ============================================================
+# nfs-server — kernel settings for the hypervisor's NFS exports
+# ============================================================
+# Off by default, so the role is a no-op everywhere until a host opts in
+# via host_vars. The exports themselves (/etc/exports) are not managed
+# here.
+nfs_server_manage: false
+
+# fs.leases-enable. 0 stops the kernel granting file leases, and with
+# them NFSv4 delegations, which nfsd builds on leases.
+#
+# Off because of the forge-ops nightly rsync. With delegations on, the
+# files rsync wrote to bezapool/forge-ops-backup kept the time they were
+# copied instead of the source's modification time (mtime and ctime both
+# the copy time, no error from rsync). rsync compares size and time, so
+# every file it had written was copied again the next night, and the set
+# grew with every new file: the run went from 2-4 minutes in mid-September
+# to its one-hour ceiling, and timed out on 2026-11-08 and 2026-11-15.
+# The 7.0 kernel's nfsd offers delegated timestamps (time_deleg_access and
+# time_deleg_modify), which hand a file's times to the client holding the
+# delegation; that is the likely way rsync's explicit mtime is lost.
+#
+# Leases were first turned off in June 2026 for the vault-sync clone
+# (a delegation recall wedged git for 26 h), and turned back on by hand on
+# 2026-09-14 when that role was retired; the rsync creep starts 09-17.
+nfs_server_leases_enable: false
