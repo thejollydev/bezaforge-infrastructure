@@ -32,6 +32,11 @@
     # in the play because everything below it does I/O against bezapool.
     - role: sata-lpm
       tags: sata-lpm
+    # NFS server kernel settings for the exports forge-ops mounts. Opt-in
+    # via nfs_server_manage. Leases off, so the nightly rsync keeps the
+    # source's file times on bezapool (see the role's defaults).
+    - role: nfs-server
+      tags: nfs-server
     # Secondary internal resolver (#638). Opt-in via dnsmasq_manage. Early
     # in the play because everything after it may need to resolve a name,
     # and because this host is the fleet's DNS backstop when AdGuard (a
