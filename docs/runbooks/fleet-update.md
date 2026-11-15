@@ -19,6 +19,9 @@ password, so it needs a real terminal.
    every image Renovate has moved since back on its old pin.
 2. **OS packages**, host by host: forge-hypervisor, then forge-ai and
    forge-erp, then forge-ops last because it is DNS for every VLAN.
+   forge-ai runs on demand (forge-arcade holds the GPU by default), so when it
+   is off the script says so and leaves it out of the whole pass. To update it,
+   hand it the card first (`scripts/gpu-handoff.sh ai`) and run the pass then.
 3. **`site.yml`.** Everything merged is deployed: container images, Ollama,
    LangFuse and the rest. ERPNext is upgraded rather than recreated when its
    image moved ([erpnext-upgrade.md](erpnext-upgrade.md)).

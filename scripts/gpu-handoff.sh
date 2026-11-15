@@ -4,6 +4,10 @@
 #   scripts/gpu-handoff.sh arcade   stop forge-ai (Ollama, ComfyUI), start forge-arcade
 #   scripts/gpu-handoff.sh ai       stop forge-arcade, start forge-ai, wait for Ollama
 #
+# forge-arcade holds the card by default and starts with the hypervisor;
+# forge-ai is on demand (2026-11-14). So `ai` is the start of an inference
+# session and `arcade` is its end.
+#
 # Both VMs declare the same card (the `rx7900xt` cluster mapping). Proxmox holds
 # both configs but only one VM may run with it, so the hand-off is: stop the
 # holder, confirm it is stopped, start the other. Proven with no host reboot on
@@ -21,8 +25,9 @@
 # waits SHUTDOWN_TIMEOUT seconds and then forces the stop. Powering off from
 # inside Bazzite first is the gentler way; the script then finds it stopped.
 #
-# While forge-ai is off, Grafana's Host Down and Ollama Down alerts fire in
-# Discord. That is expected for a gaming session.
+# forge-ai being off raises no alert: Host Down leaves it out, and Ollama
+# Down counts no data as OK. Ollama Down still fires if forge-ai is up and
+# Ollama is not.
 
 set -euo pipefail
 

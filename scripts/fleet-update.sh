@@ -56,6 +56,17 @@ else
     fi
 fi
 
+# forge-ai is on demand (#103): forge-arcade holds the GPU by default, and
+# forge-ai runs only after `scripts/gpu-handoff.sh ai`. When it is off it is
+# left out of the pass rather than failing it: the VM play runs serial: 1, and
+# a batch whose only host is unreachable ends the whole run before forge-erp
+# and forge-ops. A --limit given on the command line comes later and wins.
+ai_state="$(ssh -o BatchMode=yes -o ConnectTimeout=10 root@forge-hypervisor qm status 101 2>/dev/null | awk '{print $2}')" || true
+if [[ "${ai_state}" != running ]]; then
+    echo "forge-ai is ${ai_state:-unknown} (it starts on demand); leaving it out of this pass."
+    args=(--limit '!forge-ai' "${args[@]}")
+fi
+
 # Every run is kept, and what it changed is printed last. The recap gives a
 # count per host and nothing else; on a second run, or on a phone, the count
 # is useless without the names of the tasks behind it.
