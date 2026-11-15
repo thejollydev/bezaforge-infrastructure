@@ -28,6 +28,13 @@ groups:
         # actually wanted. Nothing is silently unwatched by this — the
         # workstation was never covered by Host Down before, because it
         # was not scraped at all.
+        #
+        # ⚠️ THIRD EXCLUSION (#103, 2026-11-14). `node-exporter-forge-ai` is
+        # ON DEMAND: forge-arcade holds the RX 7900 XT by default and forge-ai
+        # is started by scripts/gpu-handoff.sh only when Ollama or ComfyUI is
+        # wanted, so its target is down most of the time by design. Ollama
+        # Down below still fires when forge-ai IS up and Ollama is not; it
+        # treats forge-ai being off (no series) as OK.
         - uid: afg8q41305tdsd
           title: Host Down
           condition: C
@@ -39,7 +46,7 @@ groups:
               datasourceUid: dfdseqn41ybk0e
               model:
                 editorMode: builder
-                expr: up{job!~"blackbox-http|node-exporter-workstation"}
+                expr: up{job!~"blackbox-http|node-exporter-workstation|node-exporter-forge-ai"}
                 instant: true
                 intervalMs: 1000
                 legendFormat: __auto
@@ -291,7 +298,8 @@ groups:
                 maxDataPoints: 43200
                 refId: B
                 type: threshold
-          noDataState: NoData
+          # forge-ai is on demand (#103): off means no series, which is not an outage.
+          noDataState: OK
           execErrState: OK
           for: 1m
           keepFiringFor: 5m

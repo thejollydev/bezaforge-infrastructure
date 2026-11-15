@@ -40,6 +40,13 @@ module "forge_ai" {
       xvga   = true
     }
   ]
+
+  # On demand since 2026-11-14 (#103): forge-arcade holds the card by default
+  # and starts with the hypervisor; forge-ai is started by `scripts/gpu-handoff.sh ai`
+  # when Ollama or ComfyUI is wanted. Starting both at boot would race for the card.
+  # Power state is not reconciled after create (`ignore_changes = [started]`), so this
+  # changes nothing about whether forge-ai is running now.
+  on_boot = false
 }
 
 # ---------------------------------------------------------------------------
@@ -245,16 +252,29 @@ module "forge_arcade" {
   # entries below for that session, and remove them again afterwards. A VM
   # whose backups depend on a dongle staying plugged in will fail again the next
   # time one is borrowed.
-  #   { mapping = "logi-bolt" },    # usb0 — MX Keys S keyboard
-  #   { mapping = "logi-unifying" } # usb1 — M510 mouse
-  usb_devices = []
+  # The receivers are attached by hand as usb1 and usb2 (see the runbook *Gaming on
+  # forge-arcade*); usb0 is the Bluetooth adapter below.
+  #
+  # Bluetooth for the DualSense (2026-11-14, #103): forge-hypervisor's onboard Intel
+  # AX200, whose Bluetooth half is USB 8087:0029. Paired through the TV, stick input
+  # reached the guest about 12 times a second; paired to the guest through this adapter
+  # it arrives about 125 times a second from the couch. Nothing on the host uses
+  # Bluetooth, so the guest has it permanently. Unlike the receivers it is soldered to
+  # the motherboard and cannot be borrowed, so the missing-device failure above does not
+  # apply. Mapping, created by hand as root like rx7900xt:
+  #   pvesh create /cluster/mapping/usb --id ax200-bluetooth \
+  #     --map 'node=forge-hypervisor,id=8087:0029'
+  usb_devices = [
+    { mapping = "ax200-bluetooth" } # usb0
+  ]
 
-  # Occasional-use + contends for the GPU, so all three differ from the fleet default:
-  #   started         — do NOT power on at apply; forge-ai still holds the card.
-  #   on_boot         — do NOT autostart with the hypervisor, or it races forge-ai every reboot.
+  # Holds the card by default since 2026-11-14 (#103); forge-ai is on demand.
+  #   started         — not reconciled after create, so this only ever mattered at creation.
+  #   on_boot         — starts with the hypervisor; forge-ai has on_boot = false, so they
+  #                     never race for the card.
   #   stop_on_destroy — graceful shutdown needs the guest agent, which this image lacks.
   started         = false
-  on_boot         = false
+  on_boot         = true
   stop_on_destroy = true
 
   # Bazzite ships no qemu-guest-agent. Leaving this true makes bpg block waiting for an

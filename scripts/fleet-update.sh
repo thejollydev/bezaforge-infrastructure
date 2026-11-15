@@ -3,6 +3,7 @@
 #
 #   scripts/fleet-update.sh                  pull main, then run the whole pass
 #   scripts/fleet-update.sh --this-checkout  run the pass from this checkout as it is
+#   scripts/fleet-update.sh --skip-ai        leave forge-ai out instead of borrowing the GPU
 #
 # Anything else on the command line goes to ansible-playbook unchanged, so
 # `scripts/fleet-update.sh --tags resolver,health` is the after-reboot check.
@@ -21,6 +22,25 @@
 #
 # --this-checkout skips all three and tells the playbook to skip its own
 # check. It is for testing a change to the pass from its branch.
+#
+# forge-ai is on demand (#103): forge-arcade holds the RX 7900 XT by default,
+# and forge-ai can only run while it has the card. So when forge-ai is off the
+# pass borrows the card: `gpu-handoff.sh ai` before the playbook, and
+# `gpu-handoff.sh arcade` after it, whether the pass passed, failed or was
+# interrupted. That adds about five minutes before the password prompts.
+# It refuses while somebody is streaming from forge-arcade, read from the
+# last CLIENT CONNECTED / DISCONNECTED line in Sunshine's log.
+#
+# Not borrowed, and forge-ai left out with --limit '!forge-ai' instead, when
+#   - --skip-ai is given;
+#   - a --limit/-l is given, which is a deliberately narrower pass;
+#   - a stream is open (the pass stops and says so; rerun later or --skip-ai).
+# Leaving it out matters: the VM play runs serial: 1, and a batch whose only
+# host is unreachable ends the whole run before forge-erp and forge-ops.
+#
+# forge-arcade (Bazzite) is not in Ansible: it updates itself with uupd, and a
+# new image takes effect at its next boot. A borrowed pass boots it fresh on
+# the way back; otherwise the pass ends by saying if an image is waiting.
 
 set -euo pipefail
 
@@ -28,14 +48,21 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo}"
 
 this_checkout=false
+skip_ai=false
+limited=false
 args=()
 for arg in "$@"; do
-    if [[ "${arg}" == "--this-checkout" ]]; then
-        this_checkout=true
-    else
-        args+=("${arg}")
-    fi
+    case "${arg}" in
+        --this-checkout) this_checkout=true ;;
+        --skip-ai) skip_ai=true ;;
+        -l | --limit | -l* | --limit=*) limited=true; args+=("${arg}") ;;
+        *) args+=("${arg}") ;;
+    esac
 done
+
+# forge-arcade has no DNS name; 10.10.40.125 is reserved for its MAC in Omada.
+ARCADE="${ARCADE:-10.10.40.125}"
+SUNSHINE_LOG='~/.var/app/dev.lizardbyte.app.Sunshine/config/sunshine/sunshine.log'
 
 if [[ "${this_checkout}" == true ]]; then
     echo "Deploying this checkout as it is: $(git rev-parse --abbrev-ref HEAD) at $(git rev-parse --short HEAD)."
@@ -53,6 +80,28 @@ else
     git pull --ff-only origin main
     if ! git push origin main; then
         echo "WARNING: 'git push origin main' failed. Carrying on; run it again afterwards." >&2
+    fi
+fi
+
+# forge-ai: borrow the card, or leave it out (see the top of this file).
+borrowed=false
+ai_state="$(ssh -o BatchMode=yes -o ConnectTimeout=10 root@forge-hypervisor qm status 101 2>/dev/null | awk '{print $2}')" || true
+if [[ "${ai_state}" != running ]]; then
+    if [[ "${skip_ai}" == true || "${limited}" == true ]]; then
+        echo "forge-ai is ${ai_state:-unknown}; leaving it out of this pass."
+        [[ "${limited}" == true ]] || args=(--limit '!forge-ai' "${args[@]}")
+    else
+        last_client="$(ssh -o BatchMode=yes -o ConnectTimeout=10 "${ARCADE}" \
+            "grep -o 'CLIENT \(DIS\)\?CONNECTED' ${SUNSHINE_LOG} 2>/dev/null | tail -1" 2>/dev/null)" || true
+        if [[ "${last_client}" == "CLIENT CONNECTED" ]]; then
+            echo "Somebody is streaming from forge-arcade, so the GPU is not borrowed for forge-ai." >&2
+            echo "Close the stream and run this again, or pass --skip-ai to update everything else." >&2
+            exit 1
+        fi
+        echo "forge-ai is ${ai_state:-unknown}; borrowing the GPU from forge-arcade for this pass."
+        trap 'echo; echo "Handing the GPU back to forge-arcade..."; "${repo}/scripts/gpu-handoff.sh" arcade || echo "WARNING: hand-back failed; run scripts/gpu-handoff.sh arcade." >&2' EXIT
+        borrowed=true
+        "${repo}/scripts/gpu-handoff.sh" ai
     fi
 fi
 
@@ -84,4 +133,15 @@ awk '
     }
 ' "${log}"
 echo "Full log: ${log}"
+
+if [[ "${borrowed}" != true ]]; then
+    # rpm-ostree exits 77 when a downloaded image is waiting for a boot.
+    arcade_rc=0
+    ssh -o BatchMode=yes -o ConnectTimeout=10 "${ARCADE}" rpm-ostree status --pending-exit-77 >/dev/null 2>&1 || arcade_rc=$?
+    case "${arcade_rc}" in
+        0) echo "forge-arcade: on its newest image." ;;
+        77) echo "forge-arcade: a new Bazzite image is waiting; it takes effect when forge-arcade next boots." ;;
+        *) echo "forge-arcade: not reachable, so its image was not checked." ;;
+    esac
+fi
 exit "${rc}"
