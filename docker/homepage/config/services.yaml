@@ -52,6 +52,10 @@
         description: Website analytics · no cookies
         icon: umami.png
         siteMonitor: https://stats.bezaforge.dev/api/heartbeat
+    - BezaCore back office:
+        href: https://office.bezaforge.dev
+        description: bezacore.com submissions and sign-ups · Google sign-in
+        icon: mdi-briefcase-outline
 
 - Knowledge:
     - NetBox:

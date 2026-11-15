@@ -1,0 +1,32 @@
+# Traefik dynamic (file-provider) config: a short name for the bezacore.com
+# back office.
+#
+# office.bezaforge.dev redirects to the back office on Cloud Run
+# (site-backoffice, in the bezacore-com Google Cloud project), whose own
+# address is too long to remember. It is a redirect, not a proxy: the browser
+# goes to Cloud Run, where Identity-Aware Proxy asks for the one Google
+# account it allows. Nothing of the back office passes through forge-ops,
+# and the name only resolves at home or over WireGuard, through the
+# *.bezaforge.dev AdGuard wildcard. The back office itself stays reachable at
+# its own address from anywhere, behind the same sign-in.
+#
+# Any path is kept, so office.bezaforge.dev/admin/... lands on the same page.
+# Added 2026-11-15, on launch day.
+http:
+  routers:
+    bezacore-office:
+      rule: "Host(`office.bezaforge.dev`)"
+      entrypoints:
+        - websecure
+      middlewares:
+        - bezacore-office-redirect
+      # A router needs a service; the redirect answers before it is used.
+      service: noop@internal
+      tls:
+        certresolver: letsencrypt
+  middlewares:
+    bezacore-office-redirect:
+      redirectRegex:
+        regex: "^https://office\\.bezaforge\\.dev/(.*)"
+        replacement: "https://site-backoffice-7npwiwsdja-uc.a.run.app/${1}"
+        permanent: false
