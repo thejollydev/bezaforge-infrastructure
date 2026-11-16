@@ -20,10 +20,10 @@
 #
 # Runs on the workstation, over SSH to forge-hypervisor as root.
 #
-# Shutting forge-arcade down: Bazzite has no guest agent, so the stop is an ACPI
-# power-button press. KDE may answer it with its logout screen, so the script
-# waits SHUTDOWN_TIMEOUT seconds and then forces the stop. Powering off from
-# inside Bazzite first is the gentler way; the script then finds it stopped.
+# Shutting forge-arcade down: Proxmox asks its guest agent to power it off
+# (on since 2026-11-15). Without the agent the stop is an ACPI power-button
+# press, which KDE answers with its logout screen, so the script still waits
+# SHUTDOWN_TIMEOUT seconds and then forces the stop.
 #
 # forge-ai being off raises no alert: Host Down leaves it out, and Ollama
 # Down counts no data as OK. Ollama Down still fires if forge-ai is up and
