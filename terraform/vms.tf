@@ -272,14 +272,22 @@ module "forge_arcade" {
   #   started         — not reconciled after create, so this only ever mattered at creation.
   #   on_boot         — starts with the hypervisor; forge-ai has on_boot = false, so they
   #                     never race for the card.
-  #   stop_on_destroy — graceful shutdown needs the guest agent, which this image lacks.
+  #   stop_on_destroy — a destroy stops the VM outright rather than waiting on a shutdown.
   started         = false
   on_boot         = true
   stop_on_destroy = true
 
-  # Bazzite ships no qemu-guest-agent. Leaving this true makes bpg block waiting for an
-  # agent that never answers — the documented ~15-minute plan/apply hang. Flip to true
-  # only after `qm agent 105 ping` actually answers.
-  agent_enabled = false
+  # The guest agent is on (2026-11-15). Bazzite now ships qemu-guest-agent, installed and
+  # enabled in the image; it was off here because the image lacked it in August. Without
+  # it, Proxmox's Shutdown and Reboot press the virtual power button, KDE answers with its
+  # logout prompt, and with no mouse or keyboard in the living room nobody can click it,
+  # so both time out ("VM quit/powerdown failed - got timeout"). With it, Proxmox shuts
+  # the guest down through the agent and the desktop is never asked.
+  #
+  # ⚠️ The agent's virtio-serial channel only appears on a cold start. Apply this with
+  # the VM stopped, then start it: applied to a running VM, bpg waits for an agent that
+  # cannot answer until the next stop and start (the ~15-minute plan/apply hang).
+  # Check with `qm agent 105 ping` on forge-hypervisor; no output means it answered.
+  agent_enabled = true
 }
 
