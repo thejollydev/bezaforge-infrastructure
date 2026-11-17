@@ -41,6 +41,17 @@
     state: present
     update_cache: true
 
+# Disk health on physical disks (#1398). smartctl reads a drive's own
+# wear ("percentage used"), total bytes written and error log, which is
+# the drive's side of forge-ops's page-cache corruption. A VM's virtual
+# disk has no SMART data, so guests skip it. Debian enables smartd with
+# the package; it logs SMART warnings to the journal.
+- name: Install smartmontools on bare-metal hosts
+  ansible.builtin.apt:
+    name: smartmontools
+    state: present
+  when: ansible_facts['virtualization_role'] | default('') != 'guest'
+
 # ------------------------------------------------------------
 # sudo: pin classic sudo over sudo-rs (Ansible become compat)
 # ------------------------------------------------------------
