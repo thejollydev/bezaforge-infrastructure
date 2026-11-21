@@ -223,6 +223,18 @@
           the disk, or the disk has to grow.
       when: not ansible_check_mode
 
+    # Seven services in erpnext-one.yaml run the same image, and `compose up`
+    # pulls it once per service, in parallel. With the containerd image store
+    # each of those pulls unpacks the whole image into its own snapshot. On
+    # 2026-11-21 seven copies of the 4.6 GB v16.60.0 image filled the 24 GB
+    # that was free, and the bring-up stopped with ERPNext still up on v16.55.0.
+    # One pull here, before the backup, means `up` finds the image already
+    # present, and a pull that fails stops the run with nothing changed.
+    - name: Pull the new ERPNext image once
+      ansible.builtin.command:
+        argv: [docker, pull, "{{ erpnext_wanted_image }}"]
+      changed_when: true
+
     - name: Record the ledger totals before the upgrade
       ansible.builtin.command:
         argv: "{{ erpnext_ledger_totals_argv }}"
