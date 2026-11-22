@@ -36,6 +36,14 @@ fileshare_uid: 1500
 fileshare_group: bezashare
 fileshare_gid: 1500
 
+# Read-only login for the phone, reaching the share over WireGuard (#49).
+# Samba's `read list` keeps it from writing anything, and the share still
+# reads as fileshare_user (force user), so it sees everything the main login
+# sees. Its own login, so a lost phone carries read access only: a write
+# through the share reaches the live Google Drive within seconds.
+fileshare_ro_user: bezashare-ro
+fileshare_ro_uid: 1501
+
 # --- storage layout ---
 fileshare_zpool: sharepool                     # the single-disk 2 TB Seagate pool
 # Boot import is via `zfs-import@sharepool.service` (see tasks/main.yml).
@@ -84,6 +92,8 @@ fileshare_allowed_networks:
 #     (moved from host_vars 2026-07-02, FORGE-85: the fileshare-client
 #     role on forge-ai reads the same credential)
 # Define in host_vars/forge-hypervisor/vault.yml (server-only):
+#   vault_fileshare_smb_ro_password — the read-only login's password;
+#     written by scripts/fileshare-ro-vault-setup.py
 #   vault_fileshare_drive_client_id:     "….apps.googleusercontent.com"
 #   vault_fileshare_drive_client_secret: "GOCSPX-…"
 #   vault_fileshare_drive_token:         '{"access_token":"…","refresh_token":"…",…}'

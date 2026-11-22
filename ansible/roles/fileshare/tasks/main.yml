@@ -20,6 +20,17 @@
     create_home: true
     system: false
 
+# Samba needs a Linux account behind every login. This one has no shell and
+# no home, and owns no files: the share is always read as fileshare_user.
+- name: Create the read-only share login's account
+  ansible.builtin.user:
+    name: "{{ fileshare_ro_user }}"
+    uid: "{{ fileshare_ro_uid }}"
+    group: "{{ fileshare_group }}"
+    shell: /usr/sbin/nologin
+    create_home: false
+    system: false
+
 # --- storage ----------------------------------------------------------
 # The pool + dataset are still created by hand (see defaults/main.yml), but
 # IMPORT and BOOT PERSISTENCE are owned here.
@@ -192,6 +203,25 @@
     executable: /bin/bash
   register: fileshare_smbpw
   changed_when: "'Added user' in fileshare_smbpw.stdout"
+  no_log: true
+
+- name: Check the read-only login's password is in the encrypted vars
+  ansible.builtin.assert:
+    that: vault_fileshare_smb_ro_password is defined and vault_fileshare_smb_ro_password | length > 0
+    fail_msg: >-
+      vault_fileshare_smb_ro_password is not set. Add it with
+      scripts/fileshare-ro-vault-setup.py (see its docstring), then re-run.
+    quiet: true
+
+- name: Set the Samba password (idempotent) for user {{ fileshare_ro_user }}
+  ansible.builtin.shell: >-
+    set -o pipefail;
+    printf '%s\n%s\n' '{{ vault_fileshare_smb_ro_password }}' '{{ vault_fileshare_smb_ro_password }}'
+    | smbpasswd -s -a {{ fileshare_ro_user }}
+  args:
+    executable: /bin/bash
+  register: fileshare_smbpw_ro
+  changed_when: "'Added user' in fileshare_smbpw_ro.stdout"
   no_log: true
 
 - name: Enable + start Samba
