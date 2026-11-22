@@ -25,7 +25,9 @@
    path = {{ fileshare_root }}
    browseable = yes
    read only = no
-   valid users = {{ fileshare_user }}
+   valid users = {{ fileshare_user }} {{ fileshare_ro_user }}
+   # The phone's login (#49): it can read everything and write nothing.
+   read list = {{ fileshare_ro_user }}
    force user = {{ fileshare_user }}
    force group = {{ fileshare_group }}
    create mask = 0664
