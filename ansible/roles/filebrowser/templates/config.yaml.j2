@@ -1,0 +1,54 @@
+# {{ ansible_managed }}
+# File Browser Quantum {{ filebrowser_version }}. Key reference: the
+# release's frontend/public/config.generated.yaml.
+http:
+  port: {{ filebrowser_port }}
+  listen: "0.0.0.0"
+  externalUrl: "{{ filebrowser_external_url }}"
+  # Safe only because nftables lets nothing but Traefik reach the port.
+  trustProxyHeaders: true
+
+server:
+  database:
+    path: "{{ filebrowser_state_dir }}/data/filebrowser.sqlite"
+  cacheDir: "{{ filebrowser_state_dir }}/cache"
+  cacheDirCleanup: true
+  disableUpdateCheck: true
+  filesystem:
+    # Group-writable, matching the share's 0775 and Samba's masks.
+    createFilePermission: "664"
+    createDirectoryPermission: "775"
+  sources:
+    - path: "{{ filebrowser_share_path }}"
+      name: files
+      config:
+        defaultEnabled: true
+        # The template every new login's scope starts from: view and
+        # download only. The owner's login gets write access once, by hand,
+        # in Settings → User management (docs/runbooks/forge-files.md).
+        defaultPermissions:
+          view: true
+          download: true
+          modify: false
+          create: false
+          delete: false
+          configured: true
+        rules:
+          # The live Google Drive mount: browsable, but never indexed.
+          # Indexing walks every folder, and walking 470 GB of Drive
+          # through rclone would page the whole Drive through its API.
+          - folderPath: "/GoogleDrive"
+            viewable: true
+
+auth:
+  adminUsername: "{{ filebrowser_admin_user }}"
+  # adminPassword comes from FILEBROWSER_ADMIN_PASSWORD in the service's
+  # environment file, not from here.
+  methods:
+    password:
+      enabled: true
+      minLength: 12
+      signup: false
+
+frontend:
+  name: "BezaForge Files"

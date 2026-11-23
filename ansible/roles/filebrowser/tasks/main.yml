@@ -1,0 +1,239 @@
+---
+# roles/filebrowser — see defaults/main.yml for what and why.
+
+- name: Require the File Browser passwords from the vault
+  ansible.builtin.assert:
+    that:
+      - vault_filebrowser_admin_password is defined
+      - vault_filebrowser_admin_password | length >= 12
+      - vault_filebrowser_phone_password is defined
+      - vault_filebrowser_phone_password | length >= 12
+    fail_msg: >-
+      The File Browser passwords are missing or shorter than 12 characters.
+      Add them with scripts/filebrowser-vault-setup.py (see its docstring).
+    quiet: true
+
+- name: Install the firewall tool
+  ansible.builtin.apt:
+    name: nftables
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# ------------------------------------------------------------
+# The service user — the share's owner, IDs passed through from the host
+# ------------------------------------------------------------
+- name: Create the share owner's group
+  ansible.builtin.group:
+    name: "{{ filebrowser_user }}"
+    gid: "{{ filebrowser_gid }}"
+
+- name: Create the share owner's account
+  ansible.builtin.user:
+    name: "{{ filebrowser_user }}"
+    uid: "{{ filebrowser_uid }}"
+    group: "{{ filebrowser_user }}"
+    shell: /usr/sbin/nologin
+    create_home: false
+    home: "{{ filebrowser_state_dir }}"
+    system: false
+
+# The mount is what this host is for. If it is missing, File Browser
+# would serve an empty directory and the phone would see nothing, so stop
+# here instead (roles/forge-files-host puts it in place).
+- name: Read the bind-mounted share
+  ansible.builtin.command:
+    cmd: "findmnt -n {{ filebrowser_share_path }}"
+  register: filebrowser_share_mount
+  changed_when: false
+  failed_when: false
+
+- name: Require the share to be mounted
+  ansible.builtin.assert:
+    that: filebrowser_share_mount.rc == 0
+    fail_msg: >-
+      {{ filebrowser_share_path }} is not a mount. Run site.yml
+      --tags forge-files-host against forge-hypervisor, which adds the bind
+      mount and restarts this container.
+    quiet: true
+
+# ------------------------------------------------------------
+# The program
+# ------------------------------------------------------------
+- name: Install File Browser {{ filebrowser_version }}
+  ansible.builtin.get_url:
+    url: "{{ filebrowser_url }}"
+    dest: /usr/local/bin/filebrowser
+    checksum: "sha256:{{ filebrowser_sha256 }}"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: restart filebrowser
+
+- name: Create File Browser's state directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ filebrowser_user }}"
+    group: "{{ filebrowser_user }}"
+    mode: "0750"
+  loop:
+    - "{{ filebrowser_state_dir }}"
+    - "{{ filebrowser_state_dir }}/data"
+    - "{{ filebrowser_state_dir }}/cache"
+
+- name: Create File Browser's config directory
+  ansible.builtin.file:
+    path: "{{ filebrowser_config_dir }}"
+    state: directory
+    owner: root
+    group: "{{ filebrowser_user }}"
+    mode: "0750"
+
+- name: Write File Browser's config
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: "{{ filebrowser_config_dir }}/config.yaml"
+    owner: root
+    group: "{{ filebrowser_user }}"
+    mode: "0640"
+  notify: restart filebrowser
+
+# systemd reads this as root before dropping to the service user, so the
+# user itself never needs to read it.
+- name: Write the admin password for the service
+  ansible.builtin.copy:
+    # Double-quoted, with backslash and quote escaped: systemd's quoting
+    # rules for environment files, so any character survives intact.
+    content: >-
+      FILEBROWSER_ADMIN_PASSWORD="{{ filebrowser_admin_password
+      | replace('\\', '\\\\') | replace('"', '\\"') }}"
+    dest: "{{ filebrowser_config_dir }}/env"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: restart filebrowser
+
+# ------------------------------------------------------------
+# Firewall: the port is for Traefik only
+# ------------------------------------------------------------
+- name: Create the nftables drop-in directory
+  ansible.builtin.file:
+    path: /etc/nftables.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Write the File Browser firewall rule
+  ansible.builtin.template:
+    src: nftables-filebrowser.nft.j2
+    dest: /etc/nftables.d/filebrowser.nft
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/nft -c -f %s
+  notify: reload filebrowser firewall
+
+- name: Install the units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - filebrowser-firewall.service
+    - filebrowser.service
+  notify: restart filebrowser
+
+- name: Start the firewall rule, and keep it on at boot
+  ansible.builtin.systemd_service:
+    name: filebrowser-firewall
+    state: started
+    enabled: true
+    daemon_reload: true
+
+# Apply a changed rule, and a changed program or config, before the
+# phone's login below: that step needs a database the service has already
+# created, and a service that is running the current config.
+- name: Apply pending firewall and service changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Start File Browser, and keep it on at boot
+  ansible.builtin.systemd_service:
+    name: filebrowser
+    state: started
+    enabled: true
+    daemon_reload: true
+
+# On a first deploy this is also the wait for File Browser to create its
+# database and the admin login.
+- name: Wait for File Browser to answer
+  ansible.builtin.wait_for:
+    port: "{{ filebrowser_port }}"
+    host: 127.0.0.1
+    timeout: 60
+
+# ------------------------------------------------------------
+# The phone's login
+# ------------------------------------------------------------
+# File Browser can create a user only from its CLI, and only while the
+# service is stopped (one process per database). So this runs only when
+# the phone's password in the vault has changed, which it detects from a
+# hash kept beside the database. The first deploy creates the user, and
+# rotating the password in the vault is all a later change takes.
+- name: Read the hash of the phone password last applied
+  ansible.builtin.slurp:
+    src: "{{ filebrowser_state_dir }}/data/.phone-password.sha256"
+  register: filebrowser_phone_applied
+  failed_when: false
+
+- name: Apply the phone's login
+  when: >-
+    filebrowser_phone_applied.content is not defined or
+    (filebrowser_phone_applied.content | b64decode | trim)
+    != (filebrowser_phone_password | hash('sha256'))
+  block:
+    - name: Stop File Browser to change a login
+      ansible.builtin.systemd_service:
+        name: filebrowser
+        state: stopped
+      failed_when: false
+
+    # The CLI creates the user when absent and resets the password when
+    # present. Its scope takes the source's defaultPermissions: view and
+    # download only.
+    - name: Create or update the phone's login
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - "{{ filebrowser_user }}"
+          - --
+          - /usr/local/bin/filebrowser
+          - user
+          - set
+          - "{{ filebrowser_phone_user }}"
+          - --password
+          - -c
+          - "{{ filebrowser_config_dir }}/config.yaml"
+        stdin: "{{ filebrowser_phone_password }}"
+        chdir: "{{ filebrowser_state_dir }}"
+      no_log: true
+      changed_when: true
+
+    - name: Record the phone password as applied
+      ansible.builtin.copy:
+        content: "{{ filebrowser_phone_password | hash('sha256') }}\n"
+        dest: "{{ filebrowser_state_dir }}/data/.phone-password.sha256"
+        owner: "{{ filebrowser_user }}"
+        group: "{{ filebrowser_user }}"
+        mode: "0600"
+      no_log: true
+
+- name: Start File Browser again after a login change
+  ansible.builtin.systemd_service:
+    name: filebrowser
+    state: started

@@ -1,0 +1,32 @@
+---
+# ============================================================
+# forge-files-host — the hypervisor's side of forge-files (#49)
+# ============================================================
+# forge-files (CTID 104, terraform/containers.tf) is an unprivileged
+# container running File Browser Quantum over the file share. Terraform
+# creates it; this role, on the hypervisor, gives it the two things an API
+# token is not allowed to set:
+#
+#   - the share, bind-mounted in from the host, so File Browser reads the
+#     files directly instead of over SMB or NFS
+#   - an ID mapping that passes the share's owner (fileshare_uid, 1500)
+#     through unchanged, so a file written through File Browser is owned
+#     exactly like one written through the Samba share
+#
+# Both are raw lxc.* lines in /etc/pve/lxc/<ctid>.conf. Proxmox reserves
+# those (and bind mounts generally) for root@pam, and an API token never
+# counts as root@pam. The container is restarted when either changes,
+# because an LXC reads them only at start.
+
+forge_files_ctid: 104
+
+# Host path → path inside the container. `rbind` (not Proxmox's own
+# mp0, which is a plain bind) so the live Google Drive mount under the
+# share comes across too: it is a separate FUSE mount, and a plain bind
+# shows only the empty directory beneath it.
+forge_files_mounts:
+  - {host: "{{ fileshare_root }}", container: srv/files}
+
+# The IDs passed through unchanged. Everything else keeps the standard
+# unprivileged shift (container 0 → host 100000).
+forge_files_passthrough_id: "{{ fileshare_uid }}"

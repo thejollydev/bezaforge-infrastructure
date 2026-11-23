@@ -1,0 +1,14 @@
+#!/usr/sbin/nft -f
+# {{ ansible_managed }}
+# File Browser's port is for Traefik only. Nothing else on this host is
+# filtered: SSH stays as reachable as on every other guest.
+table inet filebrowser
+delete table inet filebrowser
+table inet filebrowser {
+  chain input {
+    type filter hook input priority 0; policy accept;
+    tcp dport {{ filebrowser_port }} ip saddr { {{ filebrowser_proxy_sources | join(', ') }} } accept
+    tcp dport {{ filebrowser_port }} iif "lo" accept
+    tcp dport {{ filebrowser_port }} drop
+  }
+}

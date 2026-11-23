@@ -126,6 +126,7 @@ bezaforge_dns_rewrites:
   - {domain: "omada.bezaforge.dev", answer: "10.10.10.5"}
   - {domain: "forge-ai.bezaforge.dev", answer: "10.10.50.10"}
   - {domain: "forge-erp.bezaforge.dev", answer: "10.10.20.50"}
+  - {domain: "forge-files.bezaforge.dev", answer: "10.10.20.60"}
   # forge-agents.bezaforge.dev (10.10.50.20) left with the host, retired
   # 2026-10-21 with the agent team. The address is free.
   # forge-dev (VMID 102) does not currently exist — removed from the fleet.
