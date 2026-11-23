@@ -28,6 +28,7 @@ terraform/terraform.tfstate
 terraform/terraform.tfstate.*
 terraform/.terraform.lock.hcl
 terraform/terraform.tfvars
+terraform/*.tfplan
 
 # Claude
 .claude/
