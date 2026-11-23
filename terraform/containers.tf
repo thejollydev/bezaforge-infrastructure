@@ -51,9 +51,11 @@ resource "proxmox_virtual_environment_container" "forge_files" {
     swap      = 512
   }
 
+  # File Browser keeps previews and zip downloads in its cache and warns
+  # below 20 GB free. The OS takes under 1 GB; the rest is headroom.
   disk {
     datastore_id = "vm-fast"
-    size         = 8
+    size         = 32
   }
 
   operating_system {
