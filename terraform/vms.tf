@@ -136,9 +136,9 @@ module "forge_arcade" {
   name        = "forge-arcade"
   description = "Bazzite gaming VM — RX 7900 XT (mutually exclusive with forge-ai); Sunshine → Moonlight on the living-room TV"
   node_name   = var.proxmox_node
-  cores       = 8
+  cores       = 12
   cpu_type    = "host"
-  memory      = 16384
+  memory      = 24576
   # balloon_minimum intentionally omitted → module default 0 = ballooning DISABLED.
   # Required for PCI passthrough: the guest's RAM must be pinned for DMA.
 
