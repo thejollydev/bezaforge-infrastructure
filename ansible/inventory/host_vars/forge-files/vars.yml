@@ -1,0 +1,15 @@
+---
+# forge-files — CTID 104, the File Browser container (#49).
+# terraform/containers.tf creates it; roles/forge-files-host on the
+# hypervisor bind-mounts the share into it.
+#
+# Connection: root by key, like forge-hypervisor. The container has no
+# admin account; it is an appliance with one service on it.
+ansible_host: 10.10.20.60
+ansible_user: root
+
+# The share, bind-mounted from the hypervisor (roles/forge-files-host).
+# Inside the container it still reports the ZFS dataset's type. If it is
+# missing, File Browser serves an empty folder and nothing else says so.
+health_expected_mounts:
+  - {path: /srv/files, fstype: zfs}

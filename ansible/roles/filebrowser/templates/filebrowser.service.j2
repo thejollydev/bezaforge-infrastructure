@@ -1,0 +1,24 @@
+# {{ ansible_managed }}
+[Unit]
+Description=File Browser Quantum
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User={{ filebrowser_user }}
+Group={{ filebrowser_user }}
+UMask=0002
+WorkingDirectory={{ filebrowser_state_dir }}
+EnvironmentFile={{ filebrowser_config_dir }}/env
+ExecStart=/usr/local/bin/filebrowser -c {{ filebrowser_config_dir }}/config.yaml
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths={{ filebrowser_state_dir }} {{ filebrowser_share_path }}
+
+[Install]
+WantedBy=multi-user.target

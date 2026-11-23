@@ -1,0 +1,51 @@
+---
+# ============================================================
+# filebrowser — File Browser Quantum on forge-files (#49)
+# ============================================================
+# A web file manager over the file share: browse, preview and download
+# from any browser, including the phone over WireGuard. Served as
+# https://files.bezaforge.dev by Traefik on forge-ops
+# (roles/traefik/files/files.yml).
+#
+# The upstream binary, run as a plain systemd service. The share is
+# bind-mounted in from the hypervisor (roles/forge-files-host) at
+# filebrowser_share_path, with its owner's uid passed through unchanged,
+# and the service runs as that same user, so its writes are owned exactly
+# like writes through the Samba share.
+#
+# Secrets, in host_vars/forge-files/vault.yml, written by
+# scripts/filebrowser-vault-setup.py:
+#   vault_filebrowser_admin_password  the owner's login (read-write)
+#   vault_filebrowser_phone_password  the phone's login (view + download)
+
+# Pinned. Bump both together; the digest is GitHub's own for the asset.
+filebrowser_version: v2.0.2-stable
+filebrowser_sha256: 5710dc6f51d77f1db884eace44f6952286c49f2ce40b6a59af37e0dc7c4a8bbd
+filebrowser_url: >-
+  https://github.com/gtsteffaniak/filebrowser/releases/download/{{ filebrowser_version }}/linux-amd64-filebrowser
+
+# The service user: the share's owner, same name and IDs as on the host.
+filebrowser_user: bezashare
+filebrowser_uid: 1500
+filebrowser_gid: 1500
+
+filebrowser_port: 8080
+filebrowser_external_url: https://files.bezaforge.dev
+# Only Traefik may reach the port (nftables, below), which is what makes
+# trusting its X-Forwarded-* headers safe.
+filebrowser_proxy_sources:
+  - 10.10.20.20
+
+filebrowser_state_dir: /var/lib/filebrowser
+filebrowser_config_dir: /etc/filebrowser
+filebrowser_share_path: /srv/files
+
+# The owner's login, an administrator. Its password is reapplied from the
+# vault on every start, so the vault is the source of truth for it.
+filebrowser_admin_user: "{{ bezaforge_admin_user }}"
+filebrowser_admin_password: "{{ vault_filebrowser_admin_password }}"
+
+# The phone's login. It takes the share's default permissions, view and
+# download only, so a lost phone carries read access and nothing more.
+filebrowser_phone_user: phone
+filebrowser_phone_password: "{{ vault_filebrowser_phone_password }}"

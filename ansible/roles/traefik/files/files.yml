@@ -1,0 +1,26 @@
+# Traefik dynamic (file-provider) config — off-box backend.
+#
+# Routes files.bezaforge.dev → File Browser on forge-files (CTID 104,
+# 10.10.20.60, VLAN 20), the web view of the file share (#49).
+#
+# Like erp.yml: the Docker provider only sees containers on forge-ops, and
+# forge-files is a Proxmox container on the hypervisor, so the route is
+# declared here. The *.bezaforge.dev AdGuard wildcard already resolves the
+# name to forge-ops, so it works at home and over WireGuard and nowhere
+# else. forge-files accepts File Browser's port from forge-ops only
+# (roles/filebrowser's nftables rule), which is what lets File Browser
+# trust the X-Forwarded-* headers this sets.
+http:
+  routers:
+    files:
+      rule: "Host(`files.bezaforge.dev`)"
+      entrypoints:
+        - websecure
+      service: files
+      tls:
+        certresolver: letsencrypt
+  services:
+    files:
+      loadbalancer:
+        servers:
+          - url: "http://10.10.20.60:8080"

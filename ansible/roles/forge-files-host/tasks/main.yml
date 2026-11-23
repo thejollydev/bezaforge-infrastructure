@@ -1,0 +1,85 @@
+---
+# roles/forge-files-host — see defaults/main.yml for what and why.
+
+- name: Read the forge-files container config
+  ansible.builtin.stat:
+    path: "/etc/pve/lxc/{{ forge_files_ctid }}.conf"
+  register: forge_files_host_conf
+
+- name: Require the container to exist (terraform apply creates it)
+  ansible.builtin.assert:
+    that: forge_files_host_conf.stat.exists
+    fail_msg: >-
+      CT {{ forge_files_ctid }} does not exist yet. Create it with
+      `terraform apply` in terraform/, then run this role again.
+    quiet: true
+
+# root may hand the passthrough ID to a container's mapping only if
+# /etc/subuid and /etc/subgid allow it. root already holds the standard
+# 100000:65536 range; this adds the one extra ID.
+- name: Allow root to map the share owner's ID into containers
+  ansible.builtin.lineinfile:
+    path: "{{ item }}"
+    line: "root:{{ forge_files_passthrough_id }}:1"
+    regexp: "^root:{{ forge_files_passthrough_id }}:1$"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - /etc/subuid
+    - /etc/subgid
+
+# The standard 0 → 100000 shift for 65536 IDs, with one hole punched in it
+# for the passthrough ID. Three ranges per ID type, in order.
+- name: Map the container's IDs, passing the share owner through
+  ansible.builtin.lineinfile:
+    path: "/etc/pve/lxc/{{ forge_files_ctid }}.conf"
+    line: "{{ item }}"
+    regexp: "^{{ item | regex_escape }}$"
+    # Before the first snapshot section, if any: a line appended after
+    # `[snapshot]` would belong to the snapshot, not the container.
+    insertbefore: '^\['
+    unsafe_writes: true  # /etc/pve is pmxcfs, a FUSE filesystem
+  loop: "{{ _idmap }}"
+  vars:
+    _id: "{{ forge_files_passthrough_id | int }}"
+    _idmap:
+      - "lxc.idmap: u 0 100000 {{ _id }}"
+      - "lxc.idmap: g 0 100000 {{ _id }}"
+      - "lxc.idmap: u {{ _id }} {{ _id }} 1"
+      - "lxc.idmap: g {{ _id }} {{ _id }} 1"
+      - "lxc.idmap: u {{ _id | int + 1 }} {{ 100000 + _id | int + 1 }} {{ 65536 - _id | int - 1 }}"
+      - "lxc.idmap: g {{ _id | int + 1 }} {{ 100000 + _id | int + 1 }} {{ 65536 - _id | int - 1 }}"
+  register: forge_files_host_idmap
+
+- name: Bind-mount the share into the container
+  ansible.builtin.lineinfile:
+    path: "/etc/pve/lxc/{{ forge_files_ctid }}.conf"
+    line: "lxc.mount.entry: {{ item.host }} {{ item.container }} none rbind,create=dir 0 0"
+    regexp: "^lxc\\.mount\\.entry: {{ item.host | regex_escape }} "
+    insertbefore: '^\['
+    unsafe_writes: true
+  loop: "{{ forge_files_mounts }}"
+  register: forge_files_host_mounts
+
+- name: Read whether the container is running
+  ansible.builtin.command:
+    cmd: "pct status {{ forge_files_ctid }}"
+  register: forge_files_host_status
+  changed_when: false
+
+# Terraform creates it stopped, so the mapping is in place for its first
+# boot. From then on, a changed mapping or mount needs a restart to apply.
+- name: Start the container
+  ansible.builtin.command:
+    cmd: "pct start {{ forge_files_ctid }}"
+  when: "'status: stopped' in forge_files_host_status.stdout"
+  changed_when: true
+
+- name: Restart the container to apply a changed mapping or mount
+  ansible.builtin.command:
+    cmd: "pct reboot {{ forge_files_ctid }}"
+  when:
+    - "'status: running' in forge_files_host_status.stdout"
+    - forge_files_host_idmap is changed or forge_files_host_mounts is changed
+  changed_when: true

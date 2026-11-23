@@ -7,3 +7,7 @@ output "forge_erp_ip" {
 }
 
 
+
+output "forge_files_ip" {
+  value = "10.10.20.60"
+}

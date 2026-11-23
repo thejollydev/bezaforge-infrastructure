@@ -1,0 +1,15 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Firewall rule limiting File Browser's port to Traefik
+Before=filebrowser.service
+Wants=network-pre.target
+Before=network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/nftables.d/filebrowser.nft
+ExecStop=/usr/sbin/nft delete table inet filebrowser
+
+[Install]
+WantedBy=multi-user.target

@@ -1,7 +1,7 @@
 ---
 # ============================================================
 # BezaForge Infrastructure — forge-hypervisor + forge-ops +
-# forge-ai + forge-erp
+# forge-ai + forge-erp + forge-files
 # ============================================================
 
 - name: Configure BezaForge hypervisor
@@ -74,6 +74,12 @@
     # host — avoids the FUSE-in-unprivileged-LXC unknown).
     - role: fileshare
       tags: fileshare
+    # forge-files (CTID 104, #49): the share bind-mounted into the File
+    # Browser container, and the ID mapping that keeps its owner's uid.
+    # After fileshare, whose share it mounts. Starts or restarts the
+    # container, so it runs before the forge-files play below.
+    - role: forge-files-host
+      tags: forge-files-host
     # ⚠️ MUST STAY LAST IN EVERY PLAY, and `tags: always` so a tag-scoped
     # run still reaches it (#671). It records which commit each role that
     # actually ran was deployed from — placed anywhere but last, it would
@@ -257,6 +263,39 @@
     # has less headroom than forge-ops, not more.
     - role: docker-prune
       tags: docker-prune
+    # Deploy stamp — must stay LAST, `tags: always` (#671). See the
+    # hypervisor play above for why.
+    - role: deploy-stamp
+      tags: always
+
+- name: Configure the BezaForge file browser container
+  hosts: files_hosts
+  become: false  # ansible_user is root on forge-files
+  # Facts wait for python3, which the container template may not ship.
+  gather_facts: false
+
+  pre_tasks:
+    # The one thing Ansible cannot install with a module, since modules
+    # need it. A no-op once it is there.
+    - name: Install python3 for Ansible
+      ansible.builtin.raw: >-
+        command -v python3 >/dev/null ||
+        (apt-get update -qq && apt-get install -y -qq python3 && echo INSTALLED)
+      register: forge_files_python
+      changed_when: "'INSTALLED' in forge_files_python.stdout"
+      tags: always
+
+    - name: Gather facts
+      ansible.builtin.setup:
+      tags: always
+
+  roles:
+    - role: unattended-upgrades
+      tags: unattended-upgrades
+    # File Browser over the share (#49). The share itself arrives as a
+    # bind mount from roles/forge-files-host in the hypervisor play.
+    - role: filebrowser
+      tags: filebrowser
     # Deploy stamp — must stay LAST, `tags: always` (#671). See the
     # hypervisor play above for why.
     - role: deploy-stamp
