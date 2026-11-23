@@ -61,6 +61,10 @@
 #
 #   2. the VMs (forge-ai, forge-erp) — freshly booted after step 1.
 #      forge-erp wants a clean container stop for ERPNext/MariaDB.
+#      forge-files (CTID 104, the File Browser container) comes here too,
+#      in its own play: it logs in as root, with no sudo to become through.
+#      A hypervisor reboot restarts it with everything else; reboot it on
+#      its own with `pct reboot 104` on the hypervisor.
 #      (forge-agents, bare metal, came here until it was retired on
 #      2026-10-21.)
 #
@@ -169,6 +173,16 @@
     - os-update
   tags: [update, vms]
 
+# The File Browser container. become: false because ansible_user is root
+# here, as on the hypervisor, and the container has no sudo to become with.
+- name: Update forge-files
+  hosts: files_hosts
+  become: false
+  gather_facts: true
+  roles:
+    - os-update
+  tags: [update, vms]
+
 - name: Update forge-ops (last — it is DNS + Traefik for the whole fleet)
   hosts: forge-ops
   become: true
@@ -185,8 +199,10 @@
   ansible.builtin.import_playbook: site.yml
 
 # forge-hypervisor is left out: it runs no dns-client — it IS the secondary.
+# forge-files too: Proxmox writes its resolv.conf, so it runs no dns-client
+# and has no primary-DNS check to run.
 - name: Put every host back on the primary resolver
-  hosts: all:!hypervisor_hosts
+  hosts: all:!hypervisor_hosts:!files_hosts
   become: true
   gather_facts: false
   tasks:

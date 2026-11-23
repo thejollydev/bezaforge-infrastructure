@@ -27,8 +27,17 @@
     - health-check
   tags: [health]
 
+# forge-files logs in as root too, and has no sudo to become with.
+- name: Verify forge-files health
+  hosts: files_hosts
+  become: false
+  gather_facts: false
+  roles:
+    - health-check
+  tags: [health]
+
 - name: Verify health of the rest of the fleet
-  hosts: all:!hypervisor_hosts
+  hosts: all:!hypervisor_hosts:!files_hosts
   become: true
   gather_facts: false
   roles:
