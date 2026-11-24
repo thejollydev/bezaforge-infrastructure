@@ -13,12 +13,21 @@
       Add them with scripts/filebrowser-vault-setup.py (see its docstring).
     quiet: true
 
-- name: Install the firewall tool
+# nftables for the port's firewall. ffmpeg is what File Browser runs for
+# video thumbnails and previews; without it, videos still play and
+# download but show no preview. Recommends are left out: they are desktop
+# and audio-server packages a headless container never uses.
+- name: Install the firewall tool and ffmpeg
   ansible.builtin.apt:
-    name: nftables
+    name:
+      - nftables
+      - ffmpeg
     state: present
+    install_recommends: false
     update_cache: true
     cache_valid_time: 3600
+  # File Browser looks for ffmpeg once, at start.
+  notify: restart filebrowser
 
 # ------------------------------------------------------------
 # The service user — the share's owner, IDs passed through from the host
