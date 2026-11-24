@@ -12,7 +12,7 @@ services:
     #
     # Pinned to a tag + digest; bump deliberately. 1.30.6-alpine published
     # 2026-11-06 (the stable line; 1.31 is mainline). Registry: Docker Hub.
-    image: nginx:1.31.10-alpine@sha256:eb37f58646a901dc7727cf448cae36daaefaba79de33b5058dab79aa4c04aefb
+    image: nginx:1.31.10-alpine@sha256:aceb952b920393b7d0bc7b978927fc283370bea89fb082c6fef0ce18c60f96a9
     container_name: learncast
     restart: unless-stopped
     volumes:
