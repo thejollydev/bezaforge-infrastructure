@@ -12,6 +12,7 @@ Three layers build it, and they run in this order:
 | `terraform/containers.tf` | Proxmox API | Creates the container, stopped, with its network and root disk |
 | `roles/forge-files-host` | hypervisor | Adds the share's bind mount and the ID mapping, then starts the container |
 | `roles/filebrowser` | forge-files | Installs File Browser, its config, the logins and the firewall rule |
+| `roles/node-exporter` | forge-files | Installs the distro node_exporter, with its port open to Prometheus only |
 
 Terraform cannot do the second layer: Proxmox lets only `root@pam` set
 bind mounts and raw `lxc.*` keys, and an API token never counts as
@@ -62,6 +63,10 @@ bind mounts and raw `lxc.*` keys, and an API token never counts as
 - **Only Traefik reaches the port.** From the workstation,
   `curl -m 5 http://10.10.20.60:8080` times out; `https://files.bezaforge.dev`
   answers.
+- **Prometheus sees it.** In Prometheus, `up{instance="forge-files"}` is 1
+  and `probe_success{instance="https://files.bezaforge.dev"}` is 1, and
+  `scripts/deploy-drift-check.py --hosts` lists forge-files. From the
+  workstation, `curl -m 5 http://10.10.20.60:9100/metrics` times out.
 - **Indexing leaves Google Drive alone.** For the first hour after start,
   `journalctl -u filebrowser` should not show it walking `/GoogleDrive`.
 

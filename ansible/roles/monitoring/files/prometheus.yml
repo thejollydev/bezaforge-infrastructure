@@ -46,6 +46,14 @@ scrape_configs:
         labels:
           instance: 'forge-erp'
 
+  # An unprivileged container on forge-hypervisor (CT 104), running the
+  # distro exporter from roles/node-exporter.
+  - job_name: 'node-exporter-forge-files'
+    static_configs:
+      - targets: ['10.10.20.60:9100']
+        labels:
+          instance: 'forge-files'
+
   # ============================================================
   # Workstation (#663)
   # ============================================================
@@ -131,6 +139,7 @@ scrape_configs:
           - https://uptime.bezaforge.dev       # Uptime Kuma
           - https://traefik.bezaforge.dev      # Traefik dashboard
           - https://erp.bezaforge.dev          # ERPNext
+          - https://files.bezaforge.dev        # File Browser
           - https://books.bezaforge.dev        # Calibre-Web
           - https://chat.bezaforge.dev         # Open WebUI
           - https://langfuse.bezaforge.dev     # LangFuse

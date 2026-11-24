@@ -1,0 +1,17 @@
+---
+# roles/node-exporter — the distro node_exporter, for hosts with no UFW.
+#
+# The fleet's other native exporters (forge-hypervisor, forge-ai,
+# forge-erp) were installed by hand. This codifies the same thing for
+# forge-files: Debian's prometheus-node-exporter, whose defaults already
+# turn on the systemd and textfile collectors the alerts and the
+# deploy-drift check read.
+#
+# The container has no UFW, so port 9100 is limited with its own
+# nftables table instead, as roles/filebrowser does for its port.
+
+node_exporter_port: 9100
+
+# Prometheus scrapes from forge-ops' VLAN-20 address. The same list
+# roles/common opens in UFW on the hosts that run it.
+node_exporter_scrape_sources: "{{ common_monitoring_sources }}"

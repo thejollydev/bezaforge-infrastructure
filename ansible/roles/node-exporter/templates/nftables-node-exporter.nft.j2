@@ -1,0 +1,13 @@
+#!/usr/sbin/nft -f
+# {{ ansible_managed }}
+# node_exporter's port is for Prometheus only.
+table inet node_exporter
+delete table inet node_exporter
+table inet node_exporter {
+  chain input {
+    type filter hook input priority 0; policy accept;
+    tcp dport {{ node_exporter_port }} ip saddr { {{ node_exporter_scrape_sources | join(', ') }} } accept
+    tcp dport {{ node_exporter_port }} iif "lo" accept
+    tcp dport {{ node_exporter_port }} drop
+  }
+}

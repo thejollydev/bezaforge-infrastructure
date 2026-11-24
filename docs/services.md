@@ -100,7 +100,8 @@ Base path: `/opt/bezaforge/{service}/docker-compose.yml`
 - **Storage:** the share is bind-mounted in from the hypervisor, with its owner's uid passed through, so writes are owned like writes through Samba. Its own state (a SQLite database and the preview cache) is in the container's root disk, which the nightly Proxmox backup covers
 - **Auth:** two logins. The owner's is an administrator, with write access granted once by hand; the phone's can view and download only. Passwords are vaulted (`scripts/filebrowser-vault-setup.py`)
 - **Network:** only Traefik on forge-ops may reach File Browser's port
-- **Ansible roles:** `ansible/roles/forge-files-host/` (the hypervisor's side: mount and ID mapping) and `ansible/roles/filebrowser/`. The container itself is `terraform/containers.tf`
+- **Monitoring:** Prometheus scrapes the container's node_exporter (port 9100, open to forge-ops only), so the fleet's host-down, failed-unit, disk and deploy-drift alerts cover it, and the blackbox probe checks `files.bezaforge.dev` through Traefik. Homepage has a tile for the service and one for the host
+- **Ansible roles:** `ansible/roles/forge-files-host/` (the hypervisor's side: mount and ID mapping), `ansible/roles/filebrowser/` and `ansible/roles/node-exporter/`. The container itself is `terraform/containers.tf`
 - **Runbook:** `docs/runbooks/forge-files.md`
 
 ---
