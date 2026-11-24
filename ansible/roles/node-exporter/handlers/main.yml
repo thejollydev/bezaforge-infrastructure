@@ -1,0 +1,5 @@
+---
+- name: reload node-exporter firewall
+  ansible.builtin.command:
+    cmd: /usr/sbin/nft -f /etc/nftables.d/node-exporter.nft
+  changed_when: true

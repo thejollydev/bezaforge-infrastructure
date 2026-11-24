@@ -1,0 +1,15 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Firewall rule limiting node_exporter's port to Prometheus
+Before=prometheus-node-exporter.service
+Wants=network-pre.target
+Before=network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/nftables.d/node-exporter.nft
+ExecStop=/usr/sbin/nft delete table inet node_exporter
+
+[Install]
+WantedBy=multi-user.target

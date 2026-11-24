@@ -78,6 +78,12 @@
         description: Business ops · accounting · CRM
         icon: mdi-finance-#1E40AF
         siteMonitor: https://erp.bezaforge.dev
+    - File Browser:
+        # View and download from the file share, from a browser or the phone.
+        href: https://files.bezaforge.dev
+        description: The file share · view and download
+        icon: filebrowser.png
+        siteMonitor: https://files.bezaforge.dev
     - Learning feed:
         # Static nginx host; the laptop renders and rsyncs the episodes.
         href: https://learn.bezaforge.dev/feed.xml
@@ -151,6 +157,11 @@
         description: 10.10.20.50 · VMID 103 · Ubuntu · ERPNext
         icon: erpnext.png
         ping: 10.10.20.50
+    - forge-files:
+        href: https://files.bezaforge.dev
+        description: 10.10.20.60 · CT 104 · Debian · File Browser
+        icon: filebrowser.png
+        ping: 10.10.20.60
 
 - External:
     - GitHub:

@@ -1,0 +1,63 @@
+---
+- name: Install nftables
+  ansible.builtin.apt:
+    name: nftables
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# ------------------------------------------------------------
+# Firewall first, so the port is never open to the VLAN
+# ------------------------------------------------------------
+- name: Create the nftables drop-in directory
+  ansible.builtin.file:
+    path: /etc/nftables.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Write the node_exporter firewall rule
+  ansible.builtin.template:
+    src: nftables-node-exporter.nft.j2
+    dest: /etc/nftables.d/node-exporter.nft
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/nft -c -f %s
+  notify: reload node-exporter firewall
+
+- name: Install the firewall unit
+  ansible.builtin.template:
+    src: node-exporter-firewall.service.j2
+    dest: /etc/systemd/system/node-exporter-firewall.service
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Start the firewall rule, and keep it on at boot
+  ansible.builtin.systemd_service:
+    name: node-exporter-firewall
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Apply a changed firewall rule now
+  ansible.builtin.meta: flush_handlers
+
+# Debian starts the exporter as soon as it is installed, so it comes
+# after the firewall. Recommends are left out:
+# prometheus-node-exporter-collectors pulls in ipmitool and openipmi,
+# which fail on a host with no BMC (why forge-hypervisor masks
+# openipmi.service).
+- name: Install node_exporter
+  ansible.builtin.apt:
+    name: prometheus-node-exporter
+    state: present
+    install_recommends: false
+
+- name: Start node_exporter, and keep it on at boot
+  ansible.builtin.systemd_service:
+    name: prometheus-node-exporter
+    state: started
+    enabled: true

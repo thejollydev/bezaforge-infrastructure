@@ -292,6 +292,10 @@
   roles:
     - role: unattended-upgrades
       tags: unattended-upgrades
+    # Metrics for Prometheus: host-down, failed units, disk, and the
+    # deploy-stamp textfile the drift check reads.
+    - role: node-exporter
+      tags: node-exporter
     # File Browser over the share (#49). The share itself arrives as a
     # bind mount from roles/forge-files-host in the hypervisor play.
     - role: filebrowser
