@@ -39,6 +39,8 @@ filebrowser_proxy_sources:
 filebrowser_state_dir: /var/lib/filebrowser
 filebrowser_config_dir: /etc/filebrowser
 filebrowser_share_path: /srv/files
+# The nightly Google Drive replica on bezapool, read-only (#49 follow-on).
+filebrowser_gdrive_replica_path: /srv/gdrive-replica
 
 # The owner's login, an administrator. Its password is reapplied from the
 # vault on every start, so the vault is the source of truth for it.

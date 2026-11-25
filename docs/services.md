@@ -96,7 +96,7 @@ Base path: `/opt/bezaforge/{service}/docker-compose.yml`
 
 ### File Browser Quantum
 - **Runs on:** forge-files, CTID 104, an unprivileged Debian 13 container on the hypervisor (the fleet's only container). File Browser's own binary under systemd, pinned in `ansible/roles/filebrowser/defaults/main.yml`
-- **Role:** a web file manager over the file share at `files.bezaforge.dev`: browse, preview and download from any browser, the phone included, at home or over WireGuard. Google Drive is browsable through the share's live Drive mount, but excluded from indexing
+- **Role:** a web file manager over the file share at `files.bezaforge.dev`: browse, preview and download from any browser, the phone included, at home or over WireGuard. Google Drive is browsable through the share's live Drive mount, but excluded from indexing. The nightly Drive replica on bezapool is a second, read-only source
 - **Storage:** the share is bind-mounted in from the hypervisor, with its owner's uid passed through, so writes are owned like writes through Samba. Its own state (a SQLite database and the preview cache) is in the container's root disk, which the nightly Proxmox backup covers
 - **Auth:** two logins. The owner's is an administrator, with write access granted once by hand; the phone's can view and download only. Passwords are vaulted (`scripts/filebrowser-vault-setup.py`)
 - **Network:** only Traefik on forge-ops may reach File Browser's port

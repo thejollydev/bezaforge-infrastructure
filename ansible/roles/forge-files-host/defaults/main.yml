@@ -20,12 +20,19 @@
 
 forge_files_ctid: 104
 
-# Host path → path inside the container. `rbind` (not Proxmox's own
-# mp0, which is a plain bind) so the live Google Drive mount under the
-# share comes across too: it is a separate FUSE mount, and a plain bind
-# shows only the empty directory beneath it.
+# Host path → path inside the container, with its mount options.
+#
+# The share takes `rbind` (not Proxmox's own mp0, which is a plain bind)
+# so the live Google Drive mount under it comes across too: it is a
+# separate FUSE mount, and a plain bind shows only the empty directory
+# beneath it.
+#
+# The nightly Drive replica on bezapool is read-only in the container.
+# gdrive-replica.timer is its only writer, so nothing reached through File
+# Browser can change it, and it stays a clean copy to recover from.
 forge_files_mounts:
-  - {host: "{{ fileshare_root }}", container: srv/files}
+  - {host: "{{ fileshare_root }}", container: srv/files, options: "rbind,create=dir"}
+  - {host: /bezapool/gdrive, container: srv/gdrive-replica, options: "bind,ro,create=dir"}
 
 # The IDs passed through unchanged. Everything else keeps the standard
 # unprivileged shift (container 0 → host 100000).
