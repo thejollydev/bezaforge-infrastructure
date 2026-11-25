@@ -5,12 +5,21 @@ hypervisor, running File Browser Quantum at `https://files.bezaforge.dev`.
 It is the web view of the file share: browse, preview and download from
 any browser, including a phone over WireGuard.
 
+It shows two sources:
+
+- **`files`**, the share itself, live Google Drive included.
+- **`drive-replica`**, the nightly copy of Google Drive on bezapool
+  (`/bezapool/gdrive`, written by `gdrive-replica.timer`). It is mounted
+  read-only, so every login, the owner's included, can only view and
+  download it. Use it to get back a file that was deleted or changed in
+  Drive.
+
 Three layers build it, and they run in this order:
 
 | Layer | Where | What it does |
 |---|---|---|
 | `terraform/containers.tf` | Proxmox API | Creates the container, stopped, with its network and root disk |
-| `roles/forge-files-host` | hypervisor | Adds the share's bind mount and the ID mapping, then starts the container |
+| `roles/forge-files-host` | hypervisor | Adds the bind mounts (the share, and the Drive replica read-only) and the ID mapping, then starts the container |
 | `roles/filebrowser` | forge-files | Installs File Browser, its config, the logins and the firewall rule |
 | `roles/node-exporter` | forge-files | Installs the distro node_exporter, with its port open to Prometheus only |
 
@@ -67,6 +76,9 @@ bind mounts and raw `lxc.*` keys, and an API token never counts as
   and `probe_success{instance="https://files.bezaforge.dev"}` is 1, and
   `scripts/deploy-drift-check.py --hosts` lists forge-files. From the
   workstation, `curl -m 5 http://10.10.20.60:9100/metrics` times out.
+- **The Drive replica is read-only.** Inside the container,
+  `pct exec 104 -- touch /srv/gdrive-replica/x` must fail with
+  "Read-only file system", and both logins see the `drive-replica` source.
 - **Indexing leaves Google Drive alone.** For the first hour after start,
   `journalctl -u filebrowser` should not show it walking `/GoogleDrive`.
 

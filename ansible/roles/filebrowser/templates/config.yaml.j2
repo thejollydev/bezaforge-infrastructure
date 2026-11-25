@@ -39,6 +39,21 @@ server:
           # through rclone would page the whole Drive through its API.
           - folderPath: "/GoogleDrive"
             viewable: true
+    # The nightly copy of Google Drive on bezapool, for getting back a
+    # file that was deleted or changed in Drive. Mounted read-only, so the
+    # same view-and-download permissions apply to every login, the owner's
+    # included. It is local ZFS, not the Drive API, so indexing it is safe.
+    - path: "{{ filebrowser_gdrive_replica_path }}"
+      name: drive-replica
+      config:
+        defaultEnabled: true
+        defaultPermissions:
+          view: true
+          download: true
+          modify: false
+          create: false
+          delete: false
+          configured: true
 
 auth:
   adminUsername: "{{ filebrowser_admin_user }}"

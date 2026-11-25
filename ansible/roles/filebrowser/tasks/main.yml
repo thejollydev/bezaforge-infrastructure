@@ -47,24 +47,30 @@
     home: "{{ filebrowser_state_dir }}"
     system: false
 
-# The mount is what this host is for. If it is missing, File Browser
+# The mounts are what this host is for. If one is missing, File Browser
 # would serve an empty directory and the phone would see nothing, so stop
 # here instead (roles/forge-files-host puts it in place).
-- name: Read the bind-mounted share
+- name: Read the bind mounts
   ansible.builtin.command:
-    cmd: "findmnt -n {{ filebrowser_share_path }}"
+    cmd: "findmnt -n {{ item }}"
+  loop:
+    - "{{ filebrowser_share_path }}"
+    - "{{ filebrowser_gdrive_replica_path }}"
   register: filebrowser_share_mount
   changed_when: false
   failed_when: false
 
-- name: Require the share to be mounted
+- name: Require both to be mounted
   ansible.builtin.assert:
-    that: filebrowser_share_mount.rc == 0
+    that: item.rc == 0
     fail_msg: >-
-      {{ filebrowser_share_path }} is not a mount. Run site.yml
+      {{ item.item }} is not a mount. Run site.yml
       --tags forge-files-host against forge-hypervisor, which adds the bind
-      mount and restarts this container.
+      mounts and restarts this container.
     quiet: true
+  loop: "{{ filebrowser_share_mount.results }}"
+  loop_control:
+    label: "{{ item.item }}"
 
 # ------------------------------------------------------------
 # The program

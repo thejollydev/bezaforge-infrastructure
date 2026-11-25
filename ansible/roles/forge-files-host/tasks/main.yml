@@ -52,10 +52,10 @@
       - "lxc.idmap: g {{ _id | int + 1 }} {{ 100000 + _id | int + 1 }} {{ 65536 - _id | int - 1 }}"
   register: forge_files_host_idmap
 
-- name: Bind-mount the share into the container
+- name: Bind-mount the share and the Drive replica into the container
   ansible.builtin.lineinfile:
     path: "/etc/pve/lxc/{{ forge_files_ctid }}.conf"
-    line: "lxc.mount.entry: {{ item.host }} {{ item.container }} none rbind,create=dir 0 0"
+    line: "lxc.mount.entry: {{ item.host }} {{ item.container }} none {{ item.options }} 0 0"
     regexp: "^lxc\\.mount\\.entry: {{ item.host | regex_escape }} "
     insertbefore: '^\['
     unsafe_writes: true
