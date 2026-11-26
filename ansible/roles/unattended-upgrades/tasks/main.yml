@@ -41,8 +41,19 @@
     state: started
     daemon_reload: true
 
+# Retried because a freshly booted host races apt's own catch-up run (#1933).
+# apt-daily-upgrade.timer is Persistent=true, so a VM that was off at 06:00
+# runs the missed upgrade soon after it boots, and forge-ai is booted on
+# demand for every pass (PR #517). unattended-upgrades does not wait for the
+# lock: it logs "Lock file is already taken, exiting" to its own log, prints
+# nothing, and exits 1, which stopped the pass on 2026-11-22. The catch-up run
+# took 22 s then; two minutes covers it. A config that genuinely does not
+# parse still fails, just after the retries instead of at once.
 - name: Verify unattended-upgrades config parses and security origins resolve
   ansible.builtin.command: unattended-upgrades --dry-run
   register: uu_dryrun
   changed_when: false
   failed_when: uu_dryrun.rc != 0
+  retries: 12
+  delay: 10
+  until: uu_dryrun.rc == 0
