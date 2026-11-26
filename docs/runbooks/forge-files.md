@@ -5,7 +5,7 @@ hypervisor, running File Browser Quantum at `https://files.bezaforge.dev`.
 It is the web view of the file share: browse, preview and download from
 any browser, including a phone over WireGuard.
 
-It shows two sources:
+It shows three sources:
 
 - **`files`**, the share itself, live Google Drive included.
 - **`drive-replica`**, the nightly copy of Google Drive on bezapool
@@ -13,13 +13,16 @@ It shows two sources:
   read-only, so every login, the owner's included, can only view and
   download it. Use it to get back a file that was deleted or changed in
   Drive.
+- **`projects`**, the laptop's `~/Projects` as Syncthing last delivered it
+  (`/bezapool/projects`), without secrets, build output or `.git`. Also
+  read-only. See `docs/runbooks/projects-copy.md`.
 
 Three layers build it, and they run in this order:
 
 | Layer | Where | What it does |
 |---|---|---|
 | `terraform/containers.tf` | Proxmox API | Creates the container, stopped, with its network and root disk |
-| `roles/forge-files-host` | hypervisor | Adds the bind mounts (the share, and the Drive replica read-only) and the ID mapping, then starts the container |
+| `roles/forge-files-host` | hypervisor | Adds the bind mounts (the share, and the Drive replica and Projects copy read-only) and the ID mapping, then starts the container |
 | `roles/filebrowser` | forge-files | Installs File Browser, its config, the logins and the firewall rule |
 | `roles/node-exporter` | forge-files | Installs the distro node_exporter, with its port open to Prometheus only |
 

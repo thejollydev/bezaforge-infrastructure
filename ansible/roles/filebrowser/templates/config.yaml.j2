@@ -54,6 +54,20 @@ server:
           create: false
           delete: false
           configured: true
+    # The laptop's ~/Projects, received one way by Syncthing, without its
+    # secrets or build output (syncthing_projects_ignore_patterns).
+    # Read-only like the replica.
+    - path: "{{ filebrowser_projects_path }}"
+      name: projects
+      config:
+        defaultEnabled: true
+        defaultPermissions:
+          view: true
+          download: true
+          modify: false
+          create: false
+          delete: false
+          configured: true
 
 auth:
   adminUsername: "{{ filebrowser_admin_user }}"

@@ -131,6 +131,13 @@ sanoid_datasets:
     template: "vault"
     recursive: "no"
 
+  # The laptop's ~/Projects, received one way by Syncthing. A deletion on
+  # the laptop deletes here too, so these snapshots are what make the copy
+  # a backup. Working trees change through the day but not by the hour.
+  - dataset: "bezapool/projects"
+    template: "share"
+    recursive: "no"
+
   # sharepool/files — documents share (ADR 0003 Bucket B, 2026-06-28).
   # Single-disk pool (no redundancy) → snapshots are the first safety
   # layer. The nested GoogleDrive/ is a FUSE mount (not ZFS), invisible

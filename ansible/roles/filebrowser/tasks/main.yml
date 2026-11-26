@@ -56,11 +56,12 @@
   loop:
     - "{{ filebrowser_share_path }}"
     - "{{ filebrowser_gdrive_replica_path }}"
+    - "{{ filebrowser_projects_path }}"
   register: filebrowser_share_mount
   changed_when: false
   failed_when: false
 
-- name: Require both to be mounted
+- name: Require all of them to be mounted
   ansible.builtin.assert:
     that: item.rc == 0
     fail_msg: >-

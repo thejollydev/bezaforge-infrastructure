@@ -60,6 +60,7 @@ health_expected_mounts:
   - {path: /sharepool/files, fstype: zfs}
   - {path: /bezapool/vault, fstype: zfs}
   - {path: /bezapool/forge-ops-backup, fstype: zfs}
+  - {path: /bezapool/projects, fstype: zfs}
 
 # --- sata-lpm (#1101, 2026-09-09) ---
 # The 7.0 kernel put every occupied AHCI port on med_power_with_dipm and
@@ -104,6 +105,17 @@ syncthing_folder_path: /bezapool/vault
 syncthing_folder_require_mount: true
 # Empty until the first run generates the identity and prints the ID to
 # record here (docs/runbooks/vault-syncthing.md).
+# The laptop's ~/Projects, one way (group_vars/all). bezapool/projects is
+# created by hand once (docs/runbooks/projects-copy.md); sanoid snapshots
+# it, since a receive-only copy follows the laptop's deletions.
+syncthing_extra_folders:
+  - id: "{{ syncthing_projects_folder_id }}"
+    label: Projects
+    path: /bezapool/projects
+    type: receiveonly
+    require_mount: true
+    ignore_patterns: "{{ syncthing_projects_ignore_patterns }}"
+    devices: [workstation]
 syncthing_device_id: JF36NZO-2UEGQYX-2DGRU5K-W36QFD4-YNJ3XGR-2L63HRD-KCLPVQY-24PHTQO
 # This host runs the sync check for the whole set. The push URLs carry
 # Uptime Kuma tokens, so they live in vault.yml; until they are there the
