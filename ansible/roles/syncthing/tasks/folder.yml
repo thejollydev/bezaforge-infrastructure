@@ -1,0 +1,126 @@
+---
+# ============================================================
+# One Syncthing folder: on disk, then through the API.
+#
+# Included once per entry in syncthing_folders_all (tasks/main.yml), with
+# the entry as `stf`:
+#   id, label, path         as Syncthing knows them
+#   type                    sendreceive, receiveonly or sendonly
+#   require_mount           true where path is a ZFS dataset
+#   ignore_patterns         written to the folder's .stignore
+#   devices                 peer names to share with; omitted means all
+# ============================================================
+
+- name: "Check whether the folder's dataset is mounted ({{ stf.id }})"
+  ansible.builtin.command:
+    cmd: findmnt --mountpoint {{ stf.path }}
+  register: syncthing_folder_mount
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: stf.require_mount | default(false) | bool
+
+- name: "Refuse to set up the folder on an unmounted dataset ({{ stf.id }})"
+  ansible.builtin.assert:
+    that: syncthing_folder_mount.rc == 0
+    fail_msg: >-
+      {{ stf.path }} is not a mountpoint. The folder marker would be
+      written into the empty directory underneath, and Syncthing would then
+      sync into it whenever the dataset failed to mount. Mount the dataset
+      first.
+    quiet: true
+  when: stf.require_mount | default(false) | bool
+
+# Only where the folder is a plain directory (on a host whose copy lives
+# under ~/Vaults); on the hypervisor it would be /bezapool, which is not ours.
+- name: "Create the folder's parent directory ({{ stf.id }})"
+  ansible.builtin.file:
+    path: "{{ stf.path | dirname }}"
+    state: directory
+    owner: "{{ syncthing_user }}"
+    group: "{{ syncthing_gid }}"
+    mode: '0755'
+  when: not stf.require_mount | default(false) | bool
+
+# .stfolder is Syncthing's marker. It will not sync a folder whose marker
+# is missing, which is what stops it treating an unmounted dataset as a
+# folder whose files were all deleted.
+- name: "Create the folder and its marker ({{ stf.id }})"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ syncthing_user }}"
+    group: "{{ syncthing_gid }}"
+    mode: '0755'
+  loop:
+    - "{{ stf.path }}"
+    - "{{ stf.path }}/.stfolder"
+
+# Written before the folder is added, so the first scan already ignores
+# what it should.
+- name: "Write the folder's ignore patterns ({{ stf.id }})"
+  ansible.builtin.template:
+    src: stignore.j2
+    dest: "{{ stf.path }}/.stignore"
+    owner: "{{ syncthing_user }}"
+    group: "{{ syncthing_gid }}"
+    mode: '0644'
+  vars:
+    syncthing_stignore_patterns: "{{ stf.ignore_patterns }}"
+
+- name: "Describe the folder as it should be ({{ stf.id }})"
+  ansible.builtin.set_fact:
+    syncthing_folder_wanted:
+      id: "{{ stf.id }}"
+      label: "{{ stf.label }}"
+      path: "{{ stf.path }}"
+      type: "{{ stf.type | default('sendreceive') }}"
+      fsWatcherEnabled: true
+      rescanIntervalS: 3600
+      devices: >-
+        {{ ([syncthing_device_id_live.stdout | trim] + (syncthing_folder_peers | map(attribute='id') | list))
+           | map('community.general.dict_kv', 'deviceID') | list }}
+  vars:
+    syncthing_folder_peers: >-
+      {{ syncthing_peers if stf.devices is not defined
+         else syncthing_peers | selectattr('name', 'in', stf.devices) | list }}
+
+- name: "Read the folder's configuration ({{ stf.id }})"
+  ansible.builtin.uri:
+    url: "{{ syncthing_api }}/rest/config/folders/{{ stf.id }}"
+    headers:
+      X-API-Key: "{{ syncthing_api_key }}"
+    status_code: [200, 404]
+  register: syncthing_folder_live
+  check_mode: false
+
+- name: "Add the folder ({{ stf.id }})"
+  ansible.builtin.uri:
+    url: "{{ syncthing_api }}/rest/config/folders"
+    method: POST
+    headers:
+      X-API-Key: "{{ syncthing_api_key }}"
+    body_format: json
+    body: "{{ syncthing_folder_wanted }}"
+  when: syncthing_folder_live.status == 404
+  changed_when: true
+
+- name: "Correct the folder where it has drifted ({{ stf.id }})"
+  ansible.builtin.uri:
+    url: "{{ syncthing_api }}/rest/config/folders/{{ stf.id }}"
+    method: PATCH
+    headers:
+      X-API-Key: "{{ syncthing_api_key }}"
+    body_format: json
+    body: "{{ syncthing_folder_wanted }}"
+  when:
+    - syncthing_folder_live.status == 200
+    - >-
+      syncthing_folder_live.json.label != syncthing_folder_wanted.label
+      or syncthing_folder_live.json.path != syncthing_folder_wanted.path
+      or syncthing_folder_live.json.type != syncthing_folder_wanted.type
+      or syncthing_folder_live.json.fsWatcherEnabled != syncthing_folder_wanted.fsWatcherEnabled
+      or syncthing_folder_live.json.rescanIntervalS != syncthing_folder_wanted.rescanIntervalS
+      or (syncthing_folder_live.json.devices | map(attribute='deviceID') | sort)
+      != (syncthing_folder_wanted.devices | map(attribute='deviceID') | sort)
+  changed_when: true

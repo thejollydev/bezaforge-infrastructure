@@ -27,6 +27,16 @@ syncthing_folder_require_mount: false
 # leave this one out of the folder.
 syncthing_device_id: ""
 
+# Further folders this host carries, beyond the vault. Each entry:
+#   id, label, path   as Syncthing knows them; id matches the other side
+#   type              sendreceive (default), receiveonly or sendonly
+#   require_mount     true where path is a ZFS dataset
+#   ignore_patterns   written to the folder's .stignore
+#   devices           peer names (syncthing_devices) to share with;
+#                     omit to share with every peer
+# The sync check watches the vault only.
+syncthing_extra_folders: []
+
 # Where Syncthing's API listens. Generated configs bind 127.0.0.1:8384;
 # the role only reads it, never changes it.
 syncthing_gui_address: 127.0.0.1:8384

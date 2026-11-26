@@ -33,6 +33,7 @@ forge_files_ctid: 104
 forge_files_mounts:
   - {host: "{{ fileshare_root }}", container: srv/files, options: "rbind,create=dir"}
   - {host: /bezapool/gdrive, container: srv/gdrive-replica, options: "bind,ro,create=dir"}
+  - {host: /bezapool/projects, container: srv/projects, options: "bind,ro,create=dir"}
 
 # The IDs passed through unchanged. Everything else keeps the standard
 # unprivileged shift (container 0 → host 100000).

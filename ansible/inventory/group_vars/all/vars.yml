@@ -179,6 +179,47 @@ syncthing_ignore_patterns:
   - /.obsidian
   - /.trash
 
+# A second, one-way folder: the laptop's ~/Projects, sent to bezapool so
+# every working tree, committed or not, has a copy off the laptop and can be
+# browsed in File Browser. The laptop is send-only and the hypervisor
+# receive-only, so nothing on the server side can change a working tree.
+#
+# The laptop's .stignore must carry the same patterns: ignores are local,
+# and the sender's are what keep a file from ever leaving. The server's
+# copy is the second guard. `!` exceptions come first because Syncthing
+# takes the first pattern that matches.
+syncthing_projects_folder_id: projects
+syncthing_projects_ignore_patterns:
+  # Secrets stay on the laptop. The copy is readable on the hypervisor and
+  # in File Browser, the phone's login included.
+  - "!.env.example"
+  - .env
+  - .env.*
+  - "*.tfstate"
+  - "*.tfstate.*"
+  - "*.tfvars"
+  - .terraform
+  - "*.pem"
+  - "*.key"
+  - id_rsa*
+  - id_ed25519*
+  - settings.local.json
+  # Rebuildable output, caches and git internals. Each repository is on
+  # three forges already; what this copy adds is the working tree.
+  - .git
+  - node_modules
+  - .venv
+  - venv
+  - __pycache__
+  - .pytest_cache
+  - .mypy_cache
+  - .ruff_cache
+  - .cache
+  - .next
+  - target
+  - dist
+  - build
+
 # `addresses` are where the others dial a device, and for a managed host
 # also what it listens on. `required: false` for the laptop, which is off or
 # away most of the day: the sync check only counts it while it is connected.
