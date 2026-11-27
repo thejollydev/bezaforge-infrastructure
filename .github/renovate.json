@@ -224,6 +224,20 @@
       "commitMessageSuffix": "for LangFuse"
     },
     {
+      "description": "A database or cache major for Umami arrives as its own PR, so it can be decided and migrated by itself. Umami was added after the rules above, so its Postgres 19 bump arrived as the unlabelled shared PR (#567).",
+      "matchFileNames": ["ansible/roles/services/files/umami-compose.yml"],
+      "matchPackageNames": ["postgres", "mariadb", "redis", "valkey/valkey", "clickhouse/clickhouse-server"],
+      "matchUpdateTypes": ["major"],
+      "additionalBranchPrefix": "major-umami-",
+      "commitMessageSuffix": "for Umami"
+    },
+    {
+      "description": "Postgres stays on 18 until 19.1 ships and the services say they support 19 (Joseph, 2026-11-27). 19.0 was released on 2026-11-19; none of Gitea, NetBox or LangFuse lists it yet, 18 is supported until November 2030, and roles/postgres-major has only moved a database on throwaway containers. Patch and digest updates inside 18 still arrive and merge. Raise or remove this ceiling to have the four 19 PRs proposed again; the first 19.x minor is expected in February 2027.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["postgres"],
+      "allowedVersions": "<19"
+    },
+    {
       "description": "ERPNext's image refs in files/erpnext-one.yaml and erpnext_version move as one PR. Deploying it is an upgrade, not a recreate: the erpnext role backs up, migrates and compares the ledger totals, so a merged update is safe to leave to the fleet update pass. Until 2026-10-04 everything under roles/erpnext was switched off here with nothing behind the exclusion but a sentence, which is how LangFuse fell a major version behind (#1334).",
       "matchPackageNames": ["frappe/erpnext"],
       "groupName": "erpnext"
