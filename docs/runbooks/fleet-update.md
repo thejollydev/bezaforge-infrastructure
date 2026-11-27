@@ -8,7 +8,7 @@ timer, and nothing merged is live until this pass has run.
 scripts/fleet-update.sh
 ```
 
-It works from any directory and asks for the sudo password and the vault
+It works from any directory and asks once for the sudo password and the vault
 password, so it needs a real terminal.
 
 ## What it does
@@ -105,13 +105,29 @@ the branch, and they change once more when the same commit is deployed from
 
 ## When it stops
 
-A failure usually ends the whole run, not just that host's part. Most plays
-here have one host, and when every host in a play has failed Ansible stops
-the playbook: the plays after it, the resolver step and the health checks do
-not run. On 2026-10-04 a failure on forge-agents meant forge-erp was never
-deployed and nothing was verified. Fix the cause and run the command again;
-every step is safe to repeat, and a run that did not reach the health checks
-has not told you the fleet is healthy.
+A failed host no longer ends the pass for the others. Most plays here have
+one host, and when every host in a play has failed Ansible abandons the rest
+of the playbook: on 2026-10-04 a failure on forge-agents meant forge-erp was
+never deployed, and on 2026-11-22 forge-ai's stopped the pass before
+forge-erp, forge-files, the resolver step and the health checks. So when a
+pass stops before its last play, the wrapper runs it again without the hosts
+that failed, up to four passes, and ends with a line naming them:
+
+```text
+LEFT OUT after failing: forge-ai. Every other host was updated and checked.
+```
+
+Hosts already done converge a second time, which changes nothing. The
+passwords are asked for once and kept, readable by you alone, under
+`$XDG_RUNTIME_DIR` until the script ends. A pass that reached its last play
+is not repeated: its failures are in the recap. Neither is a run with
+`--limit`, `--tags`, `--skip-tags` or `--start-at-task`, or one made with
+`ansible-playbook ansible/update.yml` directly, which still stops at the
+first host to fail.
+
+Fix the cause and run the pass for the hosts it names, with the `--limit`
+line it prints. A run that did not reach the health checks for a host has
+not told you that host is healthy.
 
 - **"This checkout is not main as GitHub has it"**: use the wrapper, which
   pulls first.

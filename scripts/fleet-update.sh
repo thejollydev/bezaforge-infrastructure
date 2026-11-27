@@ -38,6 +38,18 @@
 # Leaving it out matters: the VM play runs serial: 1, and a batch whose only
 # host is unreachable ends the whole run before forge-erp and forge-ops.
 #
+# A host that fails does not stop the others. Ansible abandons the rest of
+# the playbook when every host in a play has failed, and almost every play
+# here has one host, so one failure used to end the whole pass: on 2026-11-22
+# forge-ai's failure meant forge-erp, forge-files and forge-ops were never
+# configured and nothing was health-checked. Now, when a pass stops before
+# its last play, it runs again without the hosts that failed, up to four
+# passes in all, and ends by naming them. The hosts already done converge a
+# second time, which changes nothing. A run with --limit, --tags,
+# --skip-tags or --start-at-task is a deliberately narrower pass and is not
+# repeated. The two passwords are asked for once, kept in files only this
+# user can read under $XDG_RUNTIME_DIR, and removed when the script ends.
+#
 # forge-arcade (Bazzite) is not in Ansible: it updates itself with uupd, and a
 # new image takes effect at its next boot. A borrowed pass boots it fresh on
 # the way back; otherwise the pass ends by saying if an image is waiting.
@@ -50,15 +62,32 @@ cd "${repo}"
 this_checkout=false
 skip_ai=false
 limited=false
+narrowed=false
 args=()
+exclude=()
 for arg in "$@"; do
     case "${arg}" in
         --this-checkout) this_checkout=true ;;
         --skip-ai) skip_ai=true ;;
         -l | --limit | -l* | --limit=*) limited=true; args+=("${arg}") ;;
+        -t | --tags | -t* | --tags=* | --skip-tags | --skip-tags=* | --start-at-task | --start-at-task=*)
+            narrowed=true; args+=("${arg}") ;;
         *) args+=("${arg}") ;;
     esac
 done
+
+# One place cleans up, whatever else the run set up.
+secrets_dir=""
+borrowed=false
+cleanup() {
+    [[ -n "${secrets_dir}" ]] && rm -rf "${secrets_dir}"
+    if [[ "${borrowed}" == true ]]; then
+        echo
+        echo "Handing the GPU back to forge-arcade..."
+        "${repo}/scripts/gpu-handoff.sh" arcade || echo "WARNING: hand-back failed; run scripts/gpu-handoff.sh arcade." >&2
+    fi
+}
+trap cleanup EXIT
 
 # forge-arcade has no DNS name; 10.10.40.125 is reserved for its MAC in Omada.
 ARCADE="${ARCADE:-10.10.40.125}"
@@ -84,12 +113,11 @@ else
 fi
 
 # forge-ai: borrow the card, or leave it out (see the top of this file).
-borrowed=false
 ai_state="$(ssh -o BatchMode=yes -o ConnectTimeout=10 root@forge-hypervisor qm status 101 2>/dev/null | awk '{print $2}')" || true
 if [[ "${ai_state}" != running ]]; then
     if [[ "${skip_ai}" == true || "${limited}" == true ]]; then
         echo "forge-ai is ${ai_state:-unknown}; leaving it out of this pass."
-        [[ "${limited}" == true ]] || args=(--limit '!forge-ai' "${args[@]}")
+        [[ "${limited}" == true ]] || exclude+=(forge-ai)
     else
         last_client="$(ssh -o BatchMode=yes -o ConnectTimeout=10 "${ARCADE}" \
             "grep -o 'CLIENT \(DIS\)\?CONNECTED' ${SUNSHINE_LOG} 2>/dev/null | tail -1" 2>/dev/null)" || true
@@ -99,7 +127,6 @@ if [[ "${ai_state}" != running ]]; then
             exit 1
         fi
         echo "forge-ai is ${ai_state:-unknown}; borrowing the GPU from forge-arcade for this pass."
-        trap 'echo; echo "Handing the GPU back to forge-arcade..."; "${repo}/scripts/gpu-handoff.sh" arcade || echo "WARNING: hand-back failed; run scripts/gpu-handoff.sh arcade." >&2' EXIT
         borrowed=true
         "${repo}/scripts/gpu-handoff.sh" ai
     fi
@@ -114,9 +141,58 @@ chmod 700 "${log_dir}"
 log="${log_dir}/$(date +%Y-%m-%d_%H%M%S).log"
 ( umask 077 && : > "${log}" )
 
+# Both passwords once, for every pass.
+secrets_dir="$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/fleet-update.XXXXXX")"
+chmod 700 "${secrets_dir}"
+read -rsp "BECOME password: " become_pass; echo
+read -rsp "Vault password: " vault_pass; echo
+( umask 077
+  printf '%s\n' "${become_pass}" > "${secrets_dir}/become"
+  printf '%s\n' "${vault_pass}" > "${secrets_dir}/vault" )
+unset become_pass vault_pass
+
+# The hosts a pass reports as failed or unreachable, from its PLAY RECAP.
+failed_hosts() {
+    sed -n 's/^.*| \([^ ]*\) *: ok=[0-9]* *changed=[0-9]* *unreachable=\([0-9]*\) *failed=\([0-9]*\).*$/\1 \2 \3/p' \
+        | awk '$1 != "localhost" && ($2 > 0 || $3 > 0) { print $1 }'
+}
+
 rc=0
-ANSIBLE_LOG_PATH="${log}" ansible-playbook ansible/update.yml \
-    --ask-become-pass --ask-vault-pass "${args[@]}" || rc=$?
+left_out=()
+pass=0
+while :; do
+    pass=$((pass + 1))
+    limit_args=()
+    if (( ${#exclude[@]} > 0 )); then
+        pattern="$(printf '!%s:' "${exclude[@]}")"
+        limit_args=(--limit "${pattern%:}")
+    fi
+    start=$(wc -l < "${log}")
+    rc=0
+    ANSIBLE_LOG_PATH="${log}" ansible-playbook ansible/update.yml \
+        --become-password-file "${secrets_dir}/become" \
+        --vault-password-file "${secrets_dir}/vault" \
+        "${limit_args[@]}" "${args[@]}" || rc=$?
+
+    (( rc == 0 )) && break
+    [[ "${limited}" == true || "${narrowed}" == true ]] && break
+    this_pass="$(tail -n +"$((start + 1))" "${log}")"
+    # Reached its last play: the failures are in the recap, nothing was skipped.
+    grep -q 'PLAY \[Summarise which hosts need a reboot\]' <<< "${this_pass}" && break
+    new=()
+    while read -r host; do
+        [[ -z "${host}" ]] && continue
+        [[ " ${exclude[*]} " == *" ${host} "* ]] || new+=("${host}")
+    done < <(failed_hosts <<< "${this_pass}")
+    (( ${#new[@]} > 0 )) || break
+    (( pass < 4 )) || break
+    echo
+    echo "The pass stopped at a failure on: ${new[*]}."
+    echo "Running it again without them, so every other host is still updated and checked."
+    echo
+    exclude+=("${new[@]}")
+    left_out+=("${new[@]}")
+done
 
 echo
 echo "What changed (the task, then the hosts):"
@@ -133,6 +209,14 @@ awk '
     }
 ' "${log}"
 echo "Full log: ${log}"
+
+if (( ${#left_out[@]} > 0 )); then
+    echo
+    echo "LEFT OUT after failing: ${left_out[*]}. Every other host was updated and checked."
+    echo "The error is in the log above each host's first fatal: line. Once it is fixed:"
+    echo "  scripts/fleet-update.sh --limit $(IFS=,; echo "${left_out[*]}")"
+    (( rc == 0 )) && rc=1
+fi
 
 if [[ "${borrowed}" != true ]]; then
     # rpm-ostree exits 77 when a downloaded image is waiting for a boot.
