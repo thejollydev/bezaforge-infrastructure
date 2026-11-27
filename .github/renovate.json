@@ -232,7 +232,7 @@
       "commitMessageSuffix": "for Umami"
     },
     {
-      "description": "Postgres stays on 18 until 19.1 ships and the services say they support 19 (Joseph, 2026-11-27). 19.0 was released on 2026-11-19; none of Gitea, NetBox or LangFuse lists it yet, 18 is supported until November 2030, and roles/postgres-major has only moved a database on throwaway containers. Patch and digest updates inside 18 still arrive and merge. Raise or remove this ceiling to have the four 19 PRs proposed again; the first 19.x minor is expected in February 2027.",
+      "description": "Postgres stays on 18 until 19.1 ships and the services say they support 19 (the owner's ruling, 2026-11-27). 19.0 was released on 2026-11-19; none of Gitea, NetBox or LangFuse lists it yet, 18 is supported until November 2030, and roles/postgres-major has only moved a database on throwaway containers. Patch and digest updates inside 18 still arrive and merge. Raise or remove this ceiling to have the four 19 PRs proposed again; the first 19.x minor is expected in February 2027.",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["postgres"],
       "allowedVersions": "<19"
