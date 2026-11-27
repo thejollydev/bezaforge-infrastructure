@@ -153,3 +153,9 @@ host_watch_targets:
     address: 10.10.20.20
     dns_name: bezaforge.dev
 host_watch_discord_webhook_url: "{{ hostvars['forge-ops'].grafana_discord_webhook_url }}"
+
+# --- kopia-target (the laptop's Kopia backup) ---
+# The laptop's ~/.ssh/kopia_ed25519, made for this and nothing else. The
+# account it opens can only SFTP inside bezapool/kopia.
+kopia_target_authorized_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH443oldbvEDBOy2i51zgL+4K25zakNraGnsC1f0QyRm

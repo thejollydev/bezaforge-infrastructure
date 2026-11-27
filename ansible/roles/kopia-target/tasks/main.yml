@@ -1,0 +1,95 @@
+---
+# roles/kopia-target — see defaults/main.yml for what and why.
+
+- name: Create the Kopia dataset
+  community.general.zfs:
+    name: "{{ kopia_target_dataset }}"
+    state: present
+
+- name: Read where the Kopia dataset is mounted
+  ansible.builtin.command:
+    cmd: zfs get -H -o value mounted,mountpoint {{ kopia_target_dataset }}
+  register: kopia_target_mount
+  changed_when: false
+  check_mode: false
+
+- name: Require the dataset to be mounted where the chroot expects it
+  ansible.builtin.assert:
+    that:
+      - kopia_target_mount.stdout_lines[0] == 'yes'
+      - kopia_target_mount.stdout_lines[1] == kopia_target_root
+    fail_msg: >-
+      {{ kopia_target_dataset }} is not mounted at {{ kopia_target_root }}
+      ({{ kopia_target_mount.stdout_lines | join(', ') }}). The kopia
+      account would land on the pool's root instead; fix the mount first.
+    quiet: true
+
+- name: Create the kopia account, SFTP only
+  ansible.builtin.user:
+    name: "{{ kopia_target_user }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: "{{ kopia_target_root }}"
+    create_home: false
+    # "*", not "!": sshd refuses key logins for an account it reads as
+    # locked, and "!" reads as locked when PAM is off.
+    password: "*"
+
+# sshd refuses a chroot that is not root-owned and closed to everyone else.
+- name: Keep the chroot root-owned
+  ansible.builtin.file:
+    path: "{{ kopia_target_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create the repository directory the account writes into
+  ansible.builtin.file:
+    path: "{{ kopia_target_root }}/repo"
+    state: directory
+    owner: "{{ kopia_target_user }}"
+    group: "{{ kopia_target_user }}"
+    mode: "0700"
+
+# Kept outside the chroot and owned by root, so the account cannot change
+# who may log in as it.
+- name: Create the directory for the account's authorized keys
+  ansible.builtin.file:
+    path: /etc/ssh/authorized_keys.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the keys allowed to log in as kopia
+  ansible.builtin.copy:
+    dest: "/etc/ssh/authorized_keys.d/{{ kopia_target_user }}"
+    content: |
+      # Managed by Ansible (roles/kopia-target).
+      {% for key in kopia_target_authorized_keys %}
+      restrict {{ key }}
+      {% endfor %}
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Confine the kopia account to SFTP in its dataset
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/kopia.conf
+    content: |
+      # Managed by Ansible (roles/kopia-target).
+      Match User {{ kopia_target_user }}
+          AuthorizedKeysFile /etc/ssh/authorized_keys.d/%u
+          AuthenticationMethods publickey
+          ChrootDirectory {{ kopia_target_root }}
+          ForceCommand internal-sftp
+          AllowTcpForwarding no
+          AllowAgentForwarding no
+          X11Forwarding no
+          PermitTTY no
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Reload sshd

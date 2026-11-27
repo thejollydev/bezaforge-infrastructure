@@ -80,6 +80,16 @@ sanoid_templates:
     weekly: 8
     monthly: 6
   # forge_agents_backup template REMOVED 2026-10-21 with the agent team.
+  # The laptop's Kopia repository. Kopia keeps its own history, so this is
+  # not for history: it is a week of points the laptop cannot reach, in
+  # case something on the laptop deletes or encrypts the repository. Kept
+  # short because snapshots of a backup pin the blobs its own maintenance
+  # deletes (the FORGE-44 lesson).
+  kopia:
+    hourly: 0
+    daily: 7
+    weekly: 0
+    monthly: 0
 
 # ------------------------------------------------------------
 # Datasets covered by sanoid
@@ -136,6 +146,12 @@ sanoid_datasets:
   # a backup. Working trees change through the day but not by the hour.
   - dataset: "bezapool/projects"
     template: "share"
+    recursive: "no"
+
+  # The laptop's Kopia repository (roles/kopia-target). Created by that
+  # role, which runs before this one in site.yml.
+  - dataset: "bezapool/kopia"
+    template: "kopia"
     recursive: "no"
 
   # sharepool/files — documents share (ADR 0003 Bucket B, 2026-06-28).

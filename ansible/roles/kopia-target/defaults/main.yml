@@ -1,0 +1,26 @@
+---
+# ============================================================
+# kopia-target — where the laptop's Kopia backup lands
+# ============================================================
+# The laptop backs its home directory up with Kopia, over SFTP, into a
+# dataset on bezapool. This role is the server side: the dataset, a
+# `kopia` account that can do nothing but SFTP inside it, and the one key
+# allowed to log in as that account. The laptop side (Kopia, KopiaUI, the
+# exclude list and the hourly timer) is the `kopia` role in ansible-arch.
+#
+# Kopia encrypts everything before it leaves the laptop, so nothing in
+# this dataset is readable here without the repository password, which
+# only the owner holds. The dataset is not in the restic off-site set:
+# the owner's ruling of 2026-11-27 was bezapool only.
+#
+# The account is chrooted into kopia_target_root, which sshd requires to
+# be owned by root and not writable by anyone else. Kopia writes into the
+# `repo` directory under it, so the repository's SFTP path is /repo.
+
+kopia_target_dataset: bezapool/kopia
+kopia_target_root: /bezapool/kopia
+kopia_target_user: kopia
+
+# Public keys allowed to log in as the kopia account. Set in host_vars;
+# an empty list leaves the account with no way in.
+kopia_target_authorized_keys: []
