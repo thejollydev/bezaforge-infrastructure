@@ -49,6 +49,10 @@
     # discord.com while AdGuard is the thing that is down.
     - role: host-watch
       tags: host-watch
+    # The laptop's Kopia backup lands here (bezapool/kopia, SFTP only).
+    # Before sanoid, which errors on a dataset that does not exist yet.
+    - role: kopia-target
+      tags: kopia-target
     - role: sanoid
       tags: sanoid
     - role: restic-gcs
