@@ -55,10 +55,13 @@ sends only what changed.
 systemctl --user start kopia-backup.service
 ```
 
-**6. A heartbeat, so a backup that stops is noticed.** In Uptime Kuma, clone
-an existing push monitor at `/clone/<id>`, name it `Kopia laptop backup`, and
-set its heartbeat interval to two hours. Then put its push URL in the file the
-backup script reads:
+**6. A heartbeat, so a backup that stops is noticed.** In Uptime Kuma, add a
+Push monitor named `Kopia laptop backup` with a heartbeat interval of 93600
+seconds (26 hours) and the Uptime Kuma Alerts notification. Not shorter: the
+laptop is shut overnight and away from home, and a tighter interval would
+alarm every night. 26 hours alarms only when no backup has succeeded for more
+than a day, the same slack as the Drive replica. Then put its push URL in the
+file the backup script reads:
 
 ```bash
 install -m 600 /dev/null ~/.config/kopia/heartbeat-url && "${EDITOR:-nano}" ~/.config/kopia/heartbeat-url
